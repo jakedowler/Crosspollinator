@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Use Claude Code CLI to generate a single-file HTML web app from two random words."""
+"""Multi-phase game generation pipeline using Claude Code CLI.
+
+Phase 1 — CONCEPT: Topic experts + game designer brainstorm a concept
+Phase 2 — BUILD: Expert developer builds the game from the concept
+Phase 3 — PLAYTEST: Playtester reviews and the developer fixes issues
+"""
 
 import os
 import subprocess
@@ -19,51 +24,145 @@ def _clean_env() -> dict[str, str]:
     return env
 
 
-def generate(word_a: str, word_b: str) -> str:
-    """Call Claude Code CLI to produce a self-contained HTML app."""
-    prompt = f"""You are the Crosspollinator — a wildly creative app designer who
-makes delightful, instantly fun little web toys.
-
-Today's two random words:
-  • Word 1: {word_a}
-  • Word 2: {word_b}
-
-Your job: find a playful connection between these two words and build a
-single-page web app inspired by their intersection. Think: quick arcade games,
-satisfying clickers, silly simulators, tiny puzzles, visual toys, rhythm games,
-or anything a kid would immediately "get" and enjoy. Keep it SIMPLE — the best
-ideas have one core mechanic that's fun in the first 3 seconds.
-
-Requirements:
-1. Output a COMPLETE, self-contained HTML file (HTML + CSS + JS, no external deps).
-2. The app must be interactive and actually work when opened in a browser.
-3. IMPORTANT — VISUAL VARIETY: Pick a random visual style for each app. Mix it up!
-   Use bright, colorful, cheerful palettes. Think candy colors, pastels, warm sunset
-   tones, ocean blues, neon arcade, retro pixel, hand-drawn sketch, playful gradient —
-   NOT dark/moody themes. Every app should feel visually distinct from the last.
-4. IMPORTANT — FIT THE VIEWPORT: The entire game/app must fit on screen without
-   scrolling. Use height: 100vh or max-height: 100dvh on the body/container. Design
-   for a single screen — no long pages. Keep the header tiny (just a small title bar).
-5. SIMPLE & FUN: One core mechanic, immediately obvious how to play. No lengthy
-   instructions. If it needs rules, show them in 1-2 short sentences on screen.
-   Think "pick up and play" — like a mobile game.
-6. Use modern CSS (flexbox/grid, variables, transitions) to make it look polished.
-7. Include a small header that names the app and a short tagline explaining the concept.
-8. The entire response must be ONLY the HTML — no markdown fences, no commentary."""
-
+def _call_claude(prompt: str, timeout: int = 300) -> str:
+    """Call Claude Code CLI and return the text output."""
     result = subprocess.run(
         ["claude", "-p", prompt, "--output-format", "text"],
         capture_output=True,
         text=True,
-        timeout=300,
+        timeout=timeout,
         env=_clean_env(),
     )
-
     if result.returncode != 0:
         print(f"Claude CLI failed:\n{result.stderr}", file=sys.stderr)
         sys.exit(1)
-
     return result.stdout
+
+
+def phase_concept(word_a: str, word_b: str) -> str:
+    """Phase 1: Expert brainstorm to design the game concept."""
+    prompt = f"""You are a panel of experts designing a brilliant once-a-day web game.
+
+Today's two random seed words: "{word_a}" and "{word_b}"
+
+Work through these roles IN ORDER, writing out each expert's contribution:
+
+── TOPIC EXPERT A ──
+You are a world expert on "{word_a}". Share 3-4 fascinating, surprising, or
+delightful facts about {word_a} that most people wouldn't know. What makes
+{word_a} interesting, weird, beautiful, or fun? Think about its properties,
+behaviors, cultural significance, or how it connects to everyday life.
+
+── TOPIC EXPERT B ──
+You are a world expert on "{word_b}". Same thing — 3-4 surprising facts about
+{word_b}. What's genuinely interesting about it?
+
+── CONNECTION WEAVER ──
+Now find 2-3 creative connections between {word_a} and {word_b}. Don't just
+mash the words together — find a GENUINE thematic link. Maybe they share an
+underlying principle, an unexpected parallel, a visual similarity, or an
+emotional resonance. The best connections feel like "aha!" moments.
+
+── GAME DESIGNER (daily game specialist) ──
+You design games like Wordle, Connections, Mini Crossword, Coffee Golf, Spelling
+Bee, and other beloved daily web games. Your games have these qualities:
+• ONE elegant core mechanic (not multiple mini-games)
+• Depth from simplicity — easy to learn, satisfying to master
+• The theme is WOVEN INTO the mechanic, not just a skin
+• A sense of discovery or "aha!" moments during play
+• Replayable or has a clear satisfying arc (30 sec to 3 min)
+• NO "tap things before time runs out" — that's lazy design
+
+Using the connections above, design ONE game concept. Describe:
+1. The core mechanic (what does the player DO?)
+2. How the theme of {word_a} × {word_b} is woven into gameplay (not just visual)
+3. The win/lose condition or satisfying endpoint
+4. Why it's immediately fun (the "hook")
+
+── VISUAL DIRECTOR ──
+Choose a specific, distinctive visual style for this game. NOT dark/moody.
+Pick from styles like: watercolor wash, retro pixel art, paper cutout,
+chalkboard sketch, candy-coated 3D, sunset gradient, ocean palette, neon
+arcade, botanical illustration, comic book pop art, construction paper collage,
+stained glass, crayon drawing, or invent your own. Describe the exact color
+palette (3-5 specific hex colors) and visual mood.
+
+Output ONLY the expert discussion above. No code."""
+
+    return _call_claude(prompt, timeout=120)
+
+
+def phase_build(word_a: str, word_b: str, concept: str) -> str:
+    """Phase 2: Build the game from the concept document."""
+    prompt = f"""You are an expert web game developer. A design team has created
+this game concept for the words "{word_a}" × "{word_b}":
+
+--- CONCEPT DOCUMENT ---
+{concept}
+--- END CONCEPT ---
+
+Now BUILD this game as a single, self-contained HTML file.
+
+CRITICAL REQUIREMENTS:
+1. Output ONLY the complete HTML file — no markdown fences, no commentary.
+2. Self-contained: HTML + CSS + JS in one file, no external dependencies.
+3. The game must WORK — all mechanics described in the concept must function.
+4. FIT THE VIEWPORT: Use height: 100vh / max-height: 100dvh. No scrolling.
+   Keep the header tiny (one line: game name + short tagline).
+5. Use the EXACT visual style and color palette from the Visual Director.
+6. The theme must be WOVEN into gameplay, not just decorative.
+7. Modern CSS (flexbox/grid, variables, transitions, animations).
+8. Clean, readable code — this will be reviewed by a playtester.
+9. Touch-friendly — must work on mobile (use click/touch events, big tap targets).
+10. Include a brief "how to play" hint on screen (1 sentence max)."""
+
+    return _call_claude(prompt, timeout=300)
+
+
+def phase_playtest(word_a: str, word_b: str, concept: str, html: str) -> str:
+    """Phase 3: Playtest the game and fix issues."""
+    prompt = f"""You are a panel of playtesters reviewing a web game for
+"{word_a}" × "{word_b}".
+
+--- ORIGINAL CONCEPT ---
+{concept}
+--- END CONCEPT ---
+
+--- CURRENT HTML ---
+{html}
+--- END HTML ---
+
+Review this game from THREE perspectives:
+
+🧒 CHILD (age 8): "Is this fun? Do I understand what to do immediately?
+Can I play it without reading instructions? Is anything confusing or broken?"
+
+🎮 DAILY GAMER (plays Wordle/NYT Games daily): "Is the core mechanic
+satisfying? Does it have depth? Is the theme genuinely woven in or just
+a paint job? Would I share this with friends?"
+
+🔧 QA TESTER: Read the JavaScript carefully. Are there bugs? Does the game
+loop work? Can the player get stuck? Does it handle edge cases? Is anything
+broken — missing event listeners, wrong selectors, logic errors, NaN scores?
+
+After all three reviews, output the FIXED AND IMPROVED complete HTML file.
+Apply all fixes and improvements. If the game is fundamentally flawed
+(e.g., the mechanic doesn't match the concept), redesign it.
+
+Output ONLY the final HTML — no markdown fences, no commentary."""
+
+    return _call_claude(prompt, timeout=300)
+
+
+def generate(word_a: str, word_b: str) -> str:
+    """Run the full 3-phase generation pipeline."""
+    print(f"  📋 Phase 1: Concept design...")
+    concept = phase_concept(word_a, word_b)
+    print(f"  🔨 Phase 2: Building game...")
+    html = phase_build(word_a, word_b, concept)
+    print(f"  🎮 Phase 3: Playtesting & fixing...")
+    html = phase_playtest(word_a, word_b, concept, html)
+    return html
 
 
 def save(html: str, word_a: str, word_b: str) -> Path:
