@@ -88,5 +88,23 @@ APPS = [
     "desc": "${match}% match &mdash; +${pts} pts",
     "path": "output/2026-03-08/tubing_microphone.html",
     "version": 1
+  },
+  {
+    "date": "2026-03-08",
+    "word_a": "tubing",
+    "word_b": "microphone",
+    "name": "Tube Tones \u2014 Sound Routing Puzzle",
+    "desc": "Route sound through tubes to reach microphones \u2014 a puzzle reimagining",
+    "path": "output/2026-03-08/tubing_microphone_v2.html",
+    "version": 2
+  },
+  {
+    "date": "2026-03-08",
+    "word_a": "radio",
+    "word_b": "tale",
+    "name": "Frequency v2",
+    "desc": "radio \u00d7 tale \u2014 improved radio tuning mechanics",
+    "path": "output/2026-03-08/radio_tale_v2.html",
+    "version": 2
   }
 ];

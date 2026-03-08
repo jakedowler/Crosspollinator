@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tube Tones — Sound Routing Puzzle</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;}
+
+:root{
+  --bg:#1a1a2e;--bg2:#16213e;--accent:#e94560;--teal:#0f9b8e;
+  --gold:#f7d354;--tube:#4fc3f7;--tube-glow:rgba(79,195,247,0.5);
+  --mic:#e94560;--speaker:#f7d354;--text:#e8e8e8;--dim:rgba(255,255,255,0.4);
+  --cell:clamp(44px,11vw,64px);--gap:2px;
+}
+
+body{background:var(--bg);color:var(--text);}
+
+#app{width:100%;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;}
+
+header{padding:6px 12px;display:flex;justify-content:space-between;align-items:center;background:var(--bg2);border-bottom:1px solid rgba(255,255,255,0.08);}
+header h1{font-size:clamp(14px,3.5vw,20px);font-weight:800;letter-spacing:-0.5px;}
+header h1 .w1{color:var(--tube);}
+header h1 .w2{color:var(--accent);}
+#hint-text{font-size:clamp(9px,2vw,11px);color:var(--dim);text-align:right;max-width:50%;}
+
+#hud{display:flex;justify-content:center;gap:clamp(16px,5vw,32px);padding:4px 8px;font-size:clamp(11px,2.6vw,14px);}
+.hud-item{display:flex;align-items:center;gap:4px;}
+.hud-label{color:var(--dim);font-size:clamp(9px,2vw,11px);}
+.hud-val{font-weight:700;}
+
+#game-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(6px,1.5vh,12px);padding:4px 8px;overflow:hidden;}
+
+/* Legend */
+#legend{display:flex;gap:clamp(10px,3vw,20px);font-size:clamp(9px,2.2vw,12px);color:var(--dim);}
+.legend-item{display:flex;align-items:center;gap:4px;}
+.legend-dot{width:10px;height:10px;border-radius:50%;}
+
+/* Grid */
+#grid-wrap{position:relative;}
+#grid{display:grid;gap:var(--gap);position:relative;}
+.cell{width:var(--cell);height:var(--cell);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:clamp(18px,5vw,28px);cursor:pointer;transition:background 0.15s,transform 0.1s,box-shadow 0.15s;position:relative;border:1.5px solid rgba(255,255,255,0.06);}
+.cell:active{transform:scale(0.93);}
+.cell.empty{background:rgba(255,255,255,0.03);cursor:default;}
+.cell.empty:active{transform:none;}
+.cell.mic{background:rgba(233,69,96,0.15);border-color:rgba(233,69,96,0.3);cursor:default;}
+.cell.mic:active{transform:none;}
+.cell.speaker{background:rgba(247,211,84,0.15);border-color:rgba(247,211,84,0.3);cursor:default;}
+.cell.speaker:active{transform:none;}
+.cell.tube{background:rgba(79,195,247,0.12);border-color:rgba(79,195,247,0.25);cursor:pointer;}
+.cell.tube:hover{background:rgba(79,195,247,0.22);box-shadow:0 0 10px var(--tube-glow);}
+.cell.placed{background:rgba(79,195,247,0.2);border-color:rgba(79,195,247,0.5);}
+.cell.placed:hover{background:rgba(79,195,247,0.3);}
+
+/* Tube pieces */
+.tube-piece{width:100%;height:100%;position:relative;display:flex;align-items:center;justify-content:center;}
+.tube-piece svg{width:80%;height:80%;}
+
+/* Note labels on mics/speakers */
+.note-label{font-size:clamp(8px,1.8vw,11px);font-weight:700;position:absolute;bottom:1px;left:50%;transform:translateX(-50%);padding:0 3px;border-radius:3px;}
+.cell.mic .note-label{color:var(--mic);background:rgba(233,69,96,0.2);}
+.cell.speaker .note-label{color:var(--speaker);background:rgba(247,211,84,0.2);}
+
+/* Tube palette */
+#palette-area{display:flex;flex-direction:column;align-items:center;gap:4px;}
+#palette-label{font-size:clamp(9px,2vw,11px);color:var(--dim);}
+#palette{display:flex;gap:clamp(4px,1.2vw,8px);padding:4px 8px;background:rgba(255,255,255,0.04);border-radius:10px;}
+.pal-item{width:var(--cell);height:var(--cell);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:grab;border:2px solid rgba(79,195,247,0.3);background:rgba(79,195,247,0.1);transition:all 0.15s;position:relative;}
+.pal-item:hover{background:rgba(79,195,247,0.25);box-shadow:0 0 12px var(--tube-glow);}
+.pal-item.selected{border-color:var(--tube);background:rgba(79,195,247,0.3);box-shadow:0 0 16px var(--tube-glow);transform:scale(1.08);}
+.pal-item.used{opacity:0.25;pointer-events:none;}
+.pal-count{position:absolute;top:-4px;right:-4px;background:var(--tube);color:var(--bg);font-size:9px;font-weight:800;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+
+/* Action buttons */
+#actions{display:flex;gap:clamp(8px,2vw,14px);}
+.act-btn{padding:clamp(6px,1.5vh,10px) clamp(14px,4vw,24px);border:none;border-radius:10px;font-size:clamp(12px,3vw,16px);font-weight:700;cursor:pointer;transition:all 0.15s;}
+.act-btn:active{transform:scale(0.95);}
+#check-btn{background:var(--teal);color:#fff;box-shadow:0 3px 12px rgba(15,155,142,0.4);}
+#clear-btn{background:rgba(255,255,255,0.1);color:var(--dim);}
+
+/* Sound flow animation */
+.flow-particle{position:absolute;width:6px;height:6px;border-radius:50%;pointer-events:none;z-index:10;}
+
+/* Overlay */
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+#overlay.show{display:flex;}
+#overlay-box{background:var(--bg2);border:1px solid rgba(255,255,255,0.1);border-radius:18px;padding:clamp(20px,5vw,32px);text-align:center;max-width:88%;max-width:min(88%,380px);box-shadow:0 8px 40px rgba(0,0,0,0.5);}
+#overlay-box h2{font-size:clamp(18px,4.5vw,26px);margin-bottom:6px;}
+#overlay-box p{font-size:clamp(11px,2.8vw,14px);color:var(--dim);margin:4px 0;line-height:1.4;}
+.score-big{font-size:clamp(28px,7vw,40px);font-weight:800;margin:8px 0;color:var(--gold);}
+.stars-row{font-size:clamp(22px,5.5vw,34px);margin:6px 0;}
+.overlay-btn{margin-top:12px;padding:clamp(10px,2.5vh,14px) clamp(24px,6vw,40px);border:none;border-radius:14px;font-size:clamp(14px,3.5vw,18px);font-weight:800;cursor:pointer;transition:all 0.15s;color:#fff;}
+.overlay-btn:active{transform:scale(0.95);}
+.overlay-btn.primary{background:var(--teal);box-shadow:0 4px 15px rgba(15,155,142,0.4);}
+.overlay-btn.secondary{background:rgba(255,255,255,0.15);margin-left:8px;}
+
+/* Completion effects */
+@keyframes pulse-success{0%{box-shadow:0 0 0 0 rgba(15,155,142,0.5)}70%{box-shadow:0 0 0 12px rgba(15,155,142,0)}100%{box-shadow:0 0 0 0 rgba(15,155,142,0)}}
+.cell.connected{animation:pulse-success 0.6s ease;}
+@keyframes floatUp{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-30px)}}
+.float-text{position:absolute;font-weight:800;pointer-events:none;animation:floatUp 0.8s ease forwards;z-index:20;}
+
+/* Sound wave viz */
+#wave-display{width:90%;max-width:360px;height:clamp(32px,5vh,48px);border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);overflow:hidden;}
+#wave-canvas{width:100%;height:100%;display:block;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1><span class="w1">Tube</span> <span class="w2">Tones</span></h1>
+    <span id="hint-text">Route sound from mics to speakers</span>
+  </header>
+  <div id="hud">
+    <div class="hud-item"><span class="hud-label">Level</span>&nbsp;<span class="hud-val" id="level-num">1</span><span class="hud-label">/6</span></div>
+    <div class="hud-item"><span class="hud-label">Moves</span>&nbsp;<span class="hud-val" id="moves">0</span></div>
+    <div class="hud-item"><span class="hud-label">Score</span>&nbsp;<span class="hud-val" id="score">0</span></div>
+  </div>
+  <div id="game-area">
+    <div id="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--mic)"></div> Mic</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--tube)"></div> Tube</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--speaker)"></div> Speaker</div>
+    </div>
+    <div id="wave-display"><canvas id="wave-canvas"></canvas></div>
+    <div id="grid-wrap"><div id="grid"></div></div>
+    <div id="palette-area">
+      <div id="palette-label">Tap a tube, then tap a cell to place it</div>
+      <div id="palette"></div>
+    </div>
+    <div id="actions">
+      <button class="act-btn" id="clear-btn">Clear</button>
+      <button class="act-btn" id="check-btn">Test Sound &#x1f50a;</button>
+    </div>
+  </div>
+</div>
+<div id="overlay"><div id="overlay-box"></div></div>
+
+<script>
+(function(){
+'use strict';
+
+// ─── CONSTANTS ───
+const NOTES = ['C','D','E','F','G','A','B'];
+const FREQS = {C:261.6,D:293.7,E:329.6,F:349.2,G:392.0,A:440.0,B:493.9};
+const TUBE_TYPES = ['straight','bend','tee','cross'];
+// Connection directions: 0=up,1=right,2=down,3=left
+const CONNECTIONS = {
+  straight: [[0,2],[1,3]], // vertical or horizontal (rotates)
+  bend:     [[0,1]],       // connects up-right (rotates)
+  tee:      [[0,1,2]],     // T-junction (rotates)
+  cross:    [[0,1,2,3]]    // all directions
+};
+
+const DIR_DR = [[-1,0],[0,1],[1,0],[0,-1]]; // up,right,down,left
+const OPPOSITE = [2,3,0,1];
+
+// Tube SVG paths (will be rotated via CSS)
+function tubeSVG(type, rotation) {
+  const r = rotation * 90;
+  // Colors
+  const c = '#4fc3f7';
+  const cDark = '#0288d1';
+  let paths = '';
+  const s = 40; // viewBox size
+  const w = 10; // tube width
+  const m = s/2; // midpoint
+
+  if (type === 'straight') {
+    paths = `<rect x="${m-w/2}" y="0" width="${w}" height="${s}" rx="2" fill="${c}" stroke="${cDark}" stroke-width="1"/>
+             <rect x="${m-2}" y="0" width="4" height="${s}" fill="rgba(255,255,255,0.3)" rx="1"/>`;
+  } else if (type === 'bend') {
+    paths = `<path d="M${m-w/2},0 L${m-w/2},${m-w/2} Q${m-w/2},${m+w/2} ${m+w/2},${m+w/2} L${s},${m+w/2} L${s},${m-w/2} L${m+w/2},${m-w/2} Q${m+w/2},${m-w/2} ${m+w/2},${m-w/2} L${m+w/2},0 Z" fill="${c}" stroke="${cDark}" stroke-width="1"/>
+    <path d="M${m},0 L${m},${m} Q${m},${m} ${m},${m} L${s},${m}" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>`;
+  } else if (type === 'tee') {
+    paths = `<rect x="${m-w/2}" y="0" width="${w}" height="${s}" rx="2" fill="${c}" stroke="${cDark}" stroke-width="1"/>
+             <rect x="${m}" y="${m-w/2}" width="${m}" height="${w}" rx="2" fill="${c}" stroke="${cDark}" stroke-width="1"/>
+             <line x1="${m}" y1="0" x2="${m}" y2="${s}" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
+             <line x1="${m}" y1="${m}" x2="${s}" y2="${m}" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>`;
+  } else { // cross
+    paths = `<rect x="${m-w/2}" y="0" width="${w}" height="${s}" rx="2" fill="${c}" stroke="${cDark}" stroke-width="1"/>
+             <rect x="0" y="${m-w/2}" width="${s}" height="${w}" rx="2" fill="${c}" stroke="${cDark}" stroke-width="1"/>
+             <line x1="${m}" y1="0" x2="${m}" y2="${s}" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>
+             <line x1="0" y1="${m}" x2="${s}" y2="${m}" stroke="rgba(255,255,255,0.3)" stroke-width="3"/>`;
+  }
+  return `<svg viewBox="0 0 ${s} ${s}" style="transform:rotate(${r}deg)">${paths}</svg>`;
+}
+
+// ─── LEVELS ───
+// Each level: {rows, cols, mics:[{r,c,note,dir}], speakers:[{r,c,note,dir}], blocked:[[r,c],...], palette:{type:count,...}, par}
+// dir = direction the sound exits/enters (0=up,1=right,2=down,3=left)
+const LEVELS = [
+  // Level 1: Simple straight path
+  { rows:3, cols:5,
+    mics:[{r:1,c:0,note:'C',dir:1}],
+    speakers:[{r:1,c:4,note:'C',dir:3}],
+    blocked:[],
+    palette:{straight:3},
+    par:3
+  },
+  // Level 2: One bend needed
+  { rows:4, cols:4,
+    mics:[{r:0,c:1,note:'E',dir:2}],
+    speakers:[{r:2,c:3,note:'E',dir:3}],
+    blocked:[[1,2],[1,3]],
+    palette:{straight:2,bend:2},
+    par:4
+  },
+  // Level 3: Two mics, two speakers, crossing paths
+  { rows:4, cols:5,
+    mics:[{r:0,c:1,note:'C',dir:2},{r:3,c:0,note:'G',dir:1}],
+    speakers:[{r:0,c:4,note:'G',dir:3},{r:3,c:3,note:'C',dir:3}],
+    blocked:[[1,0],[2,4]],
+    palette:{straight:4,bend:3},
+    par:6
+  },
+  // Level 4: T-junction puzzle
+  { rows:4, cols:5,
+    mics:[{r:0,c:2,note:'A',dir:2}],
+    speakers:[{r:3,c:0,note:'A',dir:0},{r:3,c:4,note:'A',dir:0}],
+    blocked:[[1,0],[1,4],[2,1],[2,3]],
+    palette:{straight:3,bend:2,tee:1},
+    par:5
+  },
+  // Level 5: Multi-note routing
+  { rows:5, cols:5,
+    mics:[{r:0,c:0,note:'C',dir:2},{r:0,c:4,note:'E',dir:2},{r:4,c:0,note:'G',dir:1}],
+    speakers:[{r:4,c:4,note:'C',dir:3},{r:2,c:2,note:'E',dir:0},{r:4,c:2,note:'G',dir:0}],
+    blocked:[[1,1],[3,3],[1,3],[3,1]],
+    palette:{straight:5,bend:4,tee:1},
+    par:8
+  },
+  // Level 6: Complex routing with cross
+  { rows:5, cols:6,
+    mics:[{r:0,c:0,note:'C',dir:2},{r:0,c:5,note:'E',dir:2},{r:4,c:0,note:'G',dir:1},{r:2,c:5,note:'A',dir:3}],
+    speakers:[{r:4,c:5,note:'C',dir:0},{r:4,c:3,note:'E',dir:0},{r:0,c:3,note:'G',dir:2},{r:2,c:0,note:'A',dir:1}],
+    blocked:[[1,2],[3,4],[1,4],[3,1]],
+    palette:{straight:6,bend:5,tee:2,cross:1},
+    par:10
+  }
+];
+
+// ─── STATE ───
+let currentLevel = 0;
+let grid = []; // grid[r][c] = null | {type, rotation} | 'mic' | 'speaker' | 'blocked'
+let selectedPalette = null; // {type, rotation}
+let selectedRotation = 0;
+let moves = 0;
+let totalScore = 0;
+let audioCtx = null;
+let animFrame = 0;
+let activeFlows = []; // for wave animation
+let levelData = null;
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+// ─── AUDIO ───
+function initAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playNote(note, duration, delay) {
+  if (!audioCtx) return;
+  const freq = FREQS[note];
+  if (!freq) return;
+  const t = audioCtx.currentTime + (delay || 0);
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(freq, t);
+  gain.gain.setValueAtTime(0.15, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + duration);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + duration);
+}
+
+function playSuccess() {
+  if (!audioCtx) return;
+  [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+    const t = audioCtx.currentTime + i * 0.1;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f, t);
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.4);
+  });
+}
+
+function playFail() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(150, t);
+  osc.frequency.exponentialRampToValueAtTime(80, t + 0.3);
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.3);
+}
+
+function playPlace() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(600, t);
+  osc.frequency.exponentialRampToValueAtTime(900, t + 0.08);
+  gain.gain.setValueAtTime(0.06, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+function playRemove() {
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(500, t);
+  osc.frequency.exponentialRampToValueAtTime(300, t + 0.08);
+  gain.gain.setValueAtTime(0.05, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start(t);
+  osc.stop(t + 0.1);
+}
+
+// ─── TUBE CONNECTION LOGIC ───
+function getConnections(type, rotation) {
+  // Returns array of direction indices this tube connects
+  const base = CONNECTIONS[type];
+  const dirs = new Set();
+  for (const group of base) {
+    for (const d of group) {
+      dirs.add((d + rotation) % 4);
+    }
+  }
+  return [...dirs];
+}
+
+function canConnect(type, rotation, fromDir) {
+  // Check if a tube of this type/rotation accepts connection from direction fromDir
+  // fromDir is the direction we're COMING FROM (so we need to check if the tube has the opposite direction)
+  const needed = OPPOSITE[fromDir];
+  return getConnections(type, rotation).includes(fromDir);
+}
+
+// ─── PATH FINDING ───
+// BFS from each mic, following tube connections, return which speakers each mic reaches
+function traceAllPaths() {
+  const lvl = levelData;
+  const results = []; // [{mic, reachedSpeakers:[{r,c,note}], path:[[r,c],...]}]
+
+  for (const mic of lvl.mics) {
+    const visited = new Set();
+    const queue = [{r: mic.r, c: mic.c, fromDir: -1}];
+    const path = [];
+    const reached = [];
+
+    // The mic outputs in direction mic.dir
+    // So we start by moving in that direction
+    const startR = mic.r + DIR_DR[mic.dir][0];
+    const startC = mic.c + DIR_DR[mic.dir][1];
+
+    if (startR < 0 || startR >= lvl.rows || startC < 0 || startC >= lvl.cols) {
+      results.push({mic, reached:[], path:[]});
+      continue;
+    }
+
+    const bfsQueue = [{r: startR, c: startC, enterDir: OPPOSITE[mic.dir]}];
+    const visitedKey = (r,c) => `${r},${c}`;
+    const visitedSet = new Set();
+    visitedSet.add(visitedKey(mic.r, mic.c));
+    const pathCells = [[mic.r, mic.c]];
+
+    while (bfsQueue.length > 0) {
+      const {r, c, enterDir} = bfsQueue.shift();
+      const key = visitedKey(r, c);
+      if (visitedSet.has(key)) continue;
+      visitedSet.add(key);
+
+      // Check if this is a speaker
+      const spk = lvl.speakers.find(s => s.r === r && s.c === c);
+      if (spk) {
+        // Check if we're entering from the right direction
+        if (enterDir === spk.dir) {
+          reached.push(spk);
+          pathCells.push([r, c]);
+        }
+        continue; // Don't go through speakers
+      }
+
+      // Check if there's a tube here
+      const cell = grid[r] && grid[r][c];
+      if (!cell || typeof cell !== 'object' || !cell.type) continue;
+
+      // Check if this tube accepts the entering direction
+      const conns = getConnections(cell.type, cell.rotation);
+      if (!conns.includes(enterDir)) continue;
+
+      pathCells.push([r, c]);
+
+      // Follow all OTHER connections (not the one we entered from)
+      for (const dir of conns) {
+        if (dir === enterDir) continue; // don't go back
+        const nr = r + DIR_DR[dir][0];
+        const nc = c + DIR_DR[dir][1];
+        if (nr >= 0 && nr < lvl.rows && nc >= 0 && nc < lvl.cols && !visitedSet.has(visitedKey(nr, nc))) {
+          bfsQueue.push({r: nr, c: nc, enterDir: OPPOSITE[dir]});
+        }
+      }
+    }
+
+    results.push({mic, reached, path: pathCells});
+  }
+
+  return results;
+}
+
+// ─── GRID RENDERING ───
+function renderGrid() {
+  const lvl = levelData;
+  const gridEl = $('#grid');
+  gridEl.style.gridTemplateColumns = `repeat(${lvl.cols}, var(--cell))`;
+  gridEl.style.gridTemplateRows = `repeat(${lvl.rows}, var(--cell))`;
+  gridEl.innerHTML = '';
+
+  for (let r = 0; r < lvl.rows; r++) {
+    for (let c = 0; c < lvl.cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      // Check if mic
+      const mic = lvl.mics.find(m => m.r === r && m.c === c);
+      if (mic) {
+        cell.classList.add('mic');
+        cell.innerHTML = `🎙️<span class="note-label">${mic.note}</span>`;
+        // Add direction indicator
+        cell.title = `Mic: ${mic.note} (outputs ${['up','right','down','left'][mic.dir]})`;
+        addDirectionIndicator(cell, mic.dir, 'var(--mic)');
+      }
+      // Check if speaker
+      else if (lvl.speakers.find(s => s.r === r && s.c === c)) {
+        const spk = lvl.speakers.find(s => s.r === r && s.c === c);
+        cell.classList.add('speaker');
+        cell.innerHTML = `🔊<span class="note-label">${spk.note}</span>`;
+        cell.title = `Speaker: wants ${spk.note} (receives from ${['up','right','down','left'][spk.dir]})`;
+        addDirectionIndicator(cell, spk.dir, 'var(--speaker)');
+      }
+      // Check if blocked
+      else if (lvl.blocked.some(b => b[0] === r && b[1] === c)) {
+        cell.classList.add('empty');
+        cell.style.background = 'rgba(255,255,255,0.01)';
+        cell.innerHTML = '<span style="opacity:0.15;font-size:clamp(14px,3.5vw,20px)">✕</span>';
+      }
+      // Placeable cell
+      else {
+        const tubeData = grid[r][c];
+        if (tubeData && typeof tubeData === 'object') {
+          cell.classList.add('tube', 'placed');
+          cell.innerHTML = `<div class="tube-piece">${tubeSVG(tubeData.type, tubeData.rotation)}</div>`;
+        } else {
+          cell.classList.add('tube');
+        }
+        cell.addEventListener('click', () => onCellClick(r, c));
+      }
+
+      gridEl.appendChild(cell);
+    }
+  }
+}
+
+function addDirectionIndicator(cell, dir, color) {
+  const arrow = document.createElement('div');
+  arrow.style.cssText = `position:absolute;font-size:10px;color:${color};opacity:0.7;`;
+  const arrows = ['▲','▶','▼','◀'];
+  arrow.textContent = arrows[dir];
+  const positions = [
+    'top:0;left:50%;transform:translateX(-50%)',
+    'right:1px;top:50%;transform:translateY(-50%)',
+    'bottom:0;left:50%;transform:translateX(-50%)',
+    'left:1px;top:50%;transform:translateY(-50%)'
+  ];
+  arrow.style.cssText += positions[dir];
+  cell.appendChild(arrow);
+}
+
+// ─── PALETTE RENDERING ───
+function renderPalette() {
+  const lvl = levelData;
+  const pal = $('#palette');
+  pal.innerHTML = '';
+
+  // Count how many of each type are already placed
+  const placed = {};
+  for (let r = 0; r < lvl.rows; r++) {
+    for (let c = 0; c < lvl.cols; c++) {
+      const cell = grid[r][c];
+      if (cell && typeof cell === 'object') {
+        placed[cell.type] = (placed[cell.type] || 0) + 1;
+      }
+    }
+  }
+
+  for (const [type, total] of Object.entries(lvl.palette)) {
+    const usedCount = placed[type] || 0;
+    const remaining = total - usedCount;
+
+    const item = document.createElement('div');
+    item.className = 'pal-item';
+    if (remaining <= 0) item.classList.add('used');
+    if (selectedPalette && selectedPalette.type === type) item.classList.add('selected');
+
+    item.innerHTML = `<div class="tube-piece">${tubeSVG(type, selectedPalette && selectedPalette.type === type ? selectedRotation : 0)}</div>`;
+
+    if (remaining > 0) {
+      const countBadge = document.createElement('div');
+      countBadge.className = 'pal-count';
+      countBadge.textContent = remaining;
+      item.appendChild(countBadge);
+    }
+
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      initAudio();
+      if (selectedPalette && selectedPalette.type === type) {
+        // Rotate
+        selectedRotation = (selectedRotation + 1) % 4;
+        playPlace();
+      } else {
+        if (remaining <= 0) return;
+        selectedPalette = {type};
+        selectedRotation = 0;
+        playPlace();
+      }
+      renderPalette();
+    });
+
+    item.title = `${type} tube (${remaining} left) — tap to select, tap again to rotate`;
+    pal.appendChild(item);
+  }
+}
+
+function getAvailableCount(type) {
+  const lvl = levelData;
+  const total = lvl.palette[type] || 0;
+  let used = 0;
+  for (let r = 0; r < lvl.rows; r++) {
+    for (let c = 0; c < lvl.cols; c++) {
+      const cell = grid[r][c];
+      if (cell && typeof cell === 'object' && cell.type === type) used++;
+    }
+  }
+  return total - used;
+}
+
+// ─── CELL CLICK ───
+function onCellClick(r, c) {
+  initAudio();
+  const lvl = levelData;
+
+  // If cell has a tube, remove it or rotate it
+  const cell = grid[r][c];
+  if (cell && typeof cell === 'object') {
+    if (selectedPalette) {
+      // Replace with selected
+      if (getAvailableCount(selectedPalette.type) <= 0 && selectedPalette.type !== cell.type) return;
+      grid[r][c] = {type: selectedPalette.type, rotation: selectedRotation};
+      moves++;
+      playPlace();
+    } else {
+      // Tap existing tube to rotate it, or long press to remove
+      // For simplicity: tap to rotate, double-tap handled via timer
+      cell.rotation = (cell.rotation + 1) % 4;
+      moves++;
+      playPlace();
+    }
+  } else {
+    // Empty cell — place selected tube
+    if (!selectedPalette) return;
+    if (getAvailableCount(selectedPalette.type) <= 0) return;
+    grid[r][c] = {type: selectedPalette.type, rotation: selectedRotation};
+    moves++;
+    playPlace();
+  }
+
+  $('#moves').textContent = moves;
+  renderGrid();
+  renderPalette();
+}
+
+// ─── REMOVE TUBE (right-click or long press) ───
+document.addEventListener('contextmenu', (e) => {
+  const cell = e.target.closest('.cell.placed');
+  if (!cell) return;
+  e.preventDefault();
+  const r = +cell.dataset.r;
+  const c = +cell.dataset.c;
+  grid[r][c] = null;
+  playRemove();
+  renderGrid();
+  renderPalette();
+});
+
+// Long press for mobile removal
+let longPressTimer = null;
+document.addEventListener('touchstart', (e) => {
+  const cell = e.target.closest('.cell.placed');
+  if (!cell) return;
+  longPressTimer = setTimeout(() => {
+    const r = +cell.dataset.r;
+    const c = +cell.dataset.c;
+    grid[r][c] = null;
+    playRemove();
+    renderGrid();
+    renderPalette();
+  }, 500);
+});
+document.addEventListener('touchend', () => { clearTimeout(longPressTimer); });
+document.addEventListener('touchmove', () => { clearTimeout(longPressTimer); });
+
+// ─── CLEAR ───
+$('#clear-btn').addEventListener('click', () => {
+  initAudio();
+  playRemove();
+  const lvl = levelData;
+  for (let r = 0; r < lvl.rows; r++) {
+    for (let c = 0; c < lvl.cols; c++) {
+      if (grid[r][c] && typeof grid[r][c] === 'object') {
+        grid[r][c] = null;
+      }
+    }
+  }
+  selectedPalette = null;
+  selectedRotation = 0;
+  renderGrid();
+  renderPalette();
+});
+
+// ─── TEST SOUND ───
+$('#check-btn').addEventListener('click', () => {
+  initAudio();
+  const results = traceAllPaths();
+  const lvl = levelData;
+
+  // Animate flow
+  animateFlow(results);
+
+  // Check if all speakers are reached with correct notes
+  let allCorrect = true;
+  let correctCount = 0;
+  const speakersReached = new Set();
+
+  for (const res of results) {
+    for (const spk of res.reached) {
+      speakersReached.add(`${spk.r},${spk.c}`);
+      if (spk.note === res.mic.note) {
+        correctCount++;
+        // Play the note with delay for satisfaction
+        playNote(spk.note, 0.4, correctCount * 0.15);
+      } else {
+        allCorrect = false;
+        // Wrong note sound
+        setTimeout(() => playFail(), correctCount * 150 + 100);
+      }
+    }
+  }
+
+  // Check if all speakers are reached
+  if (speakersReached.size < lvl.speakers.length) {
+    allCorrect = false;
+  }
+
+  if (allCorrect && speakersReached.size === lvl.speakers.length) {
+    // Level complete!
+    setTimeout(() => {
+      playSuccess();
+      const par = lvl.par;
+      const stars = moves <= par ? 3 : moves <= par + 2 ? 2 : 1;
+      const pts = stars * 100;
+      totalScore += pts;
+      $('#score').textContent = totalScore;
+      showLevelComplete(stars, pts);
+    }, lvl.speakers.length * 200 + 300);
+  } else {
+    // Show feedback
+    setTimeout(() => {
+      const reached = speakersReached.size;
+      const total = lvl.speakers.length;
+      showFloatText($('#check-btn'), `${reached}/${total} speakers`, reached > 0 ? 'var(--gold)' : 'var(--accent)');
+    }, 400);
+  }
+});
+
+// ─── FLOW ANIMATION ───
+function animateFlow(results) {
+  const gridEl = $('#grid');
+  const rect = gridEl.getBoundingClientRect();
+  const lvl = levelData;
+  const cellSize = rect.width / lvl.cols;
+
+  // Remove old particles
+  document.querySelectorAll('.flow-particle').forEach(p => p.remove());
+
+  activeFlows = [];
+
+  for (const res of results) {
+    if (res.path.length < 2) continue;
+    const isCorrect = res.reached.some(s => s.note === res.mic.note);
+    const color = isCorrect ? 'var(--teal)' : 'var(--accent)';
+
+    for (let i = 0; i < res.path.length; i++) {
+      setTimeout(() => {
+        const [pr, pc] = res.path[i];
+        const particle = document.createElement('div');
+        particle.className = 'flow-particle';
+        particle.style.background = color;
+        particle.style.boxShadow = `0 0 8px ${color}`;
+        particle.style.left = (rect.left + pc * cellSize + cellSize/2 - 3) + 'px';
+        particle.style.top = (rect.top + pr * cellSize + cellSize/2 - 3) + 'px';
+        particle.style.transition = 'opacity 0.4s';
+        document.body.appendChild(particle);
+
+        // Highlight cell
+        const cellEl = gridEl.children[pr * lvl.cols + pc];
+        if (cellEl) {
+          cellEl.classList.add('connected');
+          cellEl.style.boxShadow = `0 0 12px ${color}`;
+          setTimeout(() => {
+            cellEl.classList.remove('connected');
+            cellEl.style.boxShadow = '';
+          }, 600);
+        }
+
+        setTimeout(() => {
+          particle.style.opacity = '0';
+          setTimeout(() => particle.remove(), 400);
+        }, 300);
+      }, i * 120);
+    }
+  }
+}
+
+function showFloatText(anchor, text, color) {
+  const rect = anchor.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'float-text';
+  el.textContent = text;
+  el.style.color = color;
+  el.style.left = rect.left + rect.width/2 - 40 + 'px';
+  el.style.top = rect.top - 20 + 'px';
+  el.style.fontSize = '14px';
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+// ─── WAVE CANVAS ANIMATION ───
+function drawWave() {
+  const canvas = $('#wave-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width = canvas.clientWidth * dpr;
+  const H = canvas.height = canvas.clientHeight * dpr;
+  ctx.clearRect(0, 0, W, H);
+
+  if (!levelData) return;
+  const lvl = levelData;
+  const mid = H / 2;
+  const amp = H * 0.35;
+
+  // Draw target waveform based on mic notes
+  ctx.lineWidth = 1.5 * dpr;
+  for (let mi = 0; mi < lvl.mics.length; mi++) {
+    const mic = lvl.mics[mi];
+    const freq = FREQS[mic.note] / 261.6; // normalize
+    ctx.beginPath();
+    const hue = mi * 60;
+    ctx.strokeStyle = `hsla(${340 + mi * 50}, 80%, 65%, 0.6)`;
+    for (let x = 0; x < W; x++) {
+      const y = mid + Math.sin((x / W) * Math.PI * 2 * freq * 2 + animFrame * 0.03 + mi) * amp / lvl.mics.length;
+      if (x === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  animFrame++;
+  requestAnimationFrame(drawWave);
+}
+
+// ─── LEVEL MANAGEMENT ───
+function loadLevel(idx) {
+  currentLevel = idx;
+  levelData = LEVELS[idx];
+  const lvl = levelData;
+
+  // Initialize grid
+  grid = [];
+  for (let r = 0; r < lvl.rows; r++) {
+    grid[r] = [];
+    for (let c = 0; c < lvl.cols; c++) {
+      grid[r][c] = null;
+    }
+  }
+
+  moves = 0;
+  selectedPalette = null;
+  selectedRotation = 0;
+
+  $('#level-num').textContent = idx + 1;
+  $('#moves').textContent = 0;
+
+  renderGrid();
+  renderPalette();
+}
+
+function showLevelComplete(stars, pts) {
+  const box = $('#overlay-box');
+  const starsStr = '★'.repeat(stars) + '☆'.repeat(3 - stars);
+  const parText = moves <= levelData.par ? 'Under par!' : moves <= levelData.par + 2 ? 'Close to par!' : 'Over par';
+
+  const isLast = currentLevel >= LEVELS.length - 1;
+
+  box.innerHTML = `
+    <h2>Level ${currentLevel + 1} Complete!</h2>
+    <div class="stars-row" style="color:var(--gold)">${starsStr}</div>
+    <p>${parText} (${moves} moves, par ${levelData.par})</p>
+    <div class="score-big">+${pts}</div>
+    <p style="margin-top:4px">Total: ${totalScore}</p>
+    ${isLast
+      ? `<p style="margin-top:8px;color:var(--teal);font-weight:700">All levels complete!</p>
+         <button class="overlay-btn primary" id="restart-all-btn">Play Again</button>`
+      : `<button class="overlay-btn primary" id="next-level-btn">Next Level →</button>`
+    }
+  `;
+
+  $('#overlay').classList.add('show');
+
+  setTimeout(() => {
+    if (isLast) {
+      const btn = document.getElementById('restart-all-btn');
+      if (btn) btn.addEventListener('click', () => {
+        totalScore = 0;
+        $('#score').textContent = 0;
+        $('#overlay').classList.remove('show');
+        loadLevel(0);
+      });
+    } else {
+      const btn = document.getElementById('next-level-btn');
+      if (btn) btn.addEventListener('click', () => {
+        $('#overlay').classList.remove('show');
+        loadLevel(currentLevel + 1);
+      });
+    }
+  }, 0);
+}
+
+function showIntro() {
+  const box = $('#overlay-box');
+  box.innerHTML = `
+    <h2 style="color:var(--tube)">Tube <span style="color:var(--accent)">Tones</span></h2>
+    <p style="margin:8px 0;font-size:clamp(12px,3vw,15px);">Route sound through tubes from 🎙️ <strong>microphones</strong> to 🔊 <strong>speakers</strong>!</p>
+    <p style="font-size:clamp(10px,2.4vw,13px);">Each mic broadcasts a note. Connect it to the speaker that wants that note.</p>
+    <p style="font-size:clamp(10px,2.4vw,13px);margin-top:6px;color:var(--dim);">
+      <strong>Tap</strong> a tube piece below, then <strong>tap</strong> a grid cell to place it.<br>
+      Tap a piece again to <strong>rotate</strong> it before placing.<br>
+      Tap a placed tube to <strong>rotate</strong> it. Long-press to <strong>remove</strong>.<br>
+      Hit <strong>Test Sound</strong> to check your routing!
+    </p>
+    <button class="overlay-btn primary" id="start-btn" style="margin-top:14px">Start Playing 🎵</button>
+  `;
+  $('#overlay').classList.add('show');
+
+  setTimeout(() => {
+    const btn = document.getElementById('start-btn');
+    if (btn) btn.addEventListener('click', () => {
+      initAudio();
+      $('#overlay').classList.remove('show');
+      loadLevel(0);
+    });
+  }, 0);
+}
+
+// ─── INIT ───
+drawWave();
+showIntro();
+
+})();
+</script>
+</body>
+</html>

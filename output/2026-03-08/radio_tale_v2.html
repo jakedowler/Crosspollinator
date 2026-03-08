@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Frequency</title>
+<style>
+  :root {
+    --amber: #F4A942;
+    --coral: #E8734A;
+    --cream: #FFF8E7;
+    --green: #5B8C5A;
+    --brown: #3D2C1E;
+    --dark: #2C2418;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--cream);
+    color: var(--brown);
+    font-family: 'Georgia', 'Times New Roman', serif;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+
+  header {
+    text-align: center;
+    padding: 6px 0 2px;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 1.3rem;
+    letter-spacing: 0.15em;
+    color: var(--coral);
+    text-transform: uppercase;
+  }
+
+  header p {
+    font-size: 0.65rem;
+    opacity: 0.5;
+    font-style: italic;
+  }
+
+  #game {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 480px;
+    padding: 0 12px;
+    min-height: 0;
+    gap: 4px;
+  }
+
+  /* --- Radio display --- */
+  #radio-panel {
+    background: linear-gradient(180deg, #F5E6C8 0%, #E8D5AA 100%);
+    border-radius: 16px;
+    border: 2px solid #D4B88C;
+    padding: 10px 14px;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.1);
+    flex-shrink: 0;
+  }
+
+  #freq-display {
+    background: var(--dark);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: var(--amber);
+    font-family: 'Courier New', monospace;
+    font-size: 0.72rem;
+    min-height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.4;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #freq-display .static-overlay {
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent, transparent 2px,
+      rgba(244,169,66,0.03) 2px, rgba(244,169,66,0.03) 4px
+    );
+    animation: scanline 0.1s steps(3) infinite;
+    pointer-events: none;
+  }
+
+  @keyframes scanline {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(4px); }
+  }
+
+  /* --- Station presets --- */
+  #stations-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    padding: 6px 0 2px;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  .station-btn {
+    background: linear-gradient(180deg, #E8D5AA, #D4B88C);
+    border: 2px solid #C4A878;
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.65rem;
+    color: var(--brown);
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: all 0.2s;
+    text-align: center;
+    min-width: 52px;
+    position: relative;
+  }
+
+  .station-btn:active { transform: scale(0.95); }
+
+  .station-btn.active {
+    border-color: var(--amber);
+    background: linear-gradient(180deg, #FFE8B0, #F4D080);
+    box-shadow: 0 0 10px rgba(244,169,66,0.4);
+  }
+
+  .station-btn.visited {
+    opacity: 0.5;
+  }
+
+  .station-btn.locked {
+    border-color: var(--green);
+    background: linear-gradient(180deg, #C8E8C0, #A0D098);
+    opacity: 1;
+  }
+
+  .station-name {
+    font-weight: bold;
+    font-size: 0.6rem;
+    display: block;
+  }
+
+  .station-freq {
+    font-size: 0.55rem;
+    opacity: 0.6;
+  }
+
+  /* --- Signal & decode area --- */
+  #decode-area {
+    flex-shrink: 0;
+    min-height: 0;
+  }
+
+  #signal-bar {
+    height: 4px;
+    background: #E0D0B0;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+
+  #signal-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--coral), var(--amber), var(--green));
+    border-radius: 2px;
+    transition: width 0.3s;
+  }
+
+  /* --- Waveform tuning puzzle --- */
+  #wave-puzzle {
+    display: none;
+    background: var(--dark);
+    border-radius: 10px;
+    padding: 8px;
+    margin: 2px 0;
+  }
+
+  #wave-puzzle.show { display: block; }
+
+  #wave-canvas {
+    width: 100%;
+    height: 48px;
+    border-radius: 6px;
+    cursor: pointer;
+    touch-action: none;
+  }
+
+  #wave-hint {
+    font-family: 'Courier New', monospace;
+    font-size: 0.58rem;
+    color: var(--amber);
+    text-align: center;
+    margin-top: 3px;
+    opacity: 0.7;
+  }
+
+  /* --- Fragment choice --- */
+  #choice-area {
+    display: none;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  #choice-area.show { display: flex; flex-direction: column; }
+
+  #choice-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--coral);
+    opacity: 0.7;
+  }
+
+  .choice-btn {
+    background: rgba(244,169,66,0.08);
+    border: 1.5px solid #D4B88C;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 0.68rem;
+    line-height: 1.3;
+    color: var(--brown);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    touch-action: manipulation;
+  }
+
+  .choice-btn:active { transform: scale(0.98); }
+
+  .choice-btn:hover, .choice-btn:focus {
+    border-color: var(--amber);
+    background: rgba(244,169,66,0.15);
+  }
+
+  .choice-btn.selected {
+    border-color: var(--green);
+    background: rgba(91,140,90,0.12);
+  }
+
+  /* --- Story timeline --- */
+  #story-area {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  #story-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--coral);
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  #story-slots {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .story-slot {
+    background: rgba(244,169,66,0.08);
+    border: 1.5px dashed #D4B88C;
+    border-radius: 8px;
+    padding: 5px 8px;
+    font-size: 0.68rem;
+    line-height: 1.3;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    color: #B89860;
+    transition: all 0.3s;
+    flex-shrink: 0;
+  }
+
+  .story-slot.filled {
+    background: rgba(91,140,90,0.1);
+    border: 1.5px solid var(--green);
+    color: var(--brown);
+    cursor: pointer;
+  }
+
+  .story-slot.filled.wrong {
+    background: rgba(232,115,74,0.1);
+    border-color: var(--coral);
+  }
+
+  .story-slot.filled.correct {
+    background: rgba(91,140,90,0.18);
+    border-color: var(--green);
+    cursor: default;
+  }
+
+  .story-slot.active {
+    border-color: var(--amber);
+    background: rgba(244,169,66,0.18);
+    box-shadow: 0 0 8px rgba(244,169,66,0.25);
+  }
+
+  .slot-num {
+    font-weight: bold;
+    margin-right: 6px;
+    opacity: 0.5;
+    font-size: 0.6rem;
+    flex-shrink: 0;
+  }
+
+  /* --- Bottom bar --- */
+  #bottom-bar {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    padding: 3px 0;
+    flex-shrink: 0;
+  }
+
+  #found-count {
+    font-size: 0.65rem;
+    color: var(--green);
+  }
+
+  .action-btn {
+    background: linear-gradient(180deg, var(--green), #4A7A49);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 7px 18px;
+    font-size: 0.75rem;
+    font-family: inherit;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(91,140,90,0.3);
+    transition: all 0.2s;
+    touch-action: manipulation;
+    display: none;
+  }
+
+  .action-btn.show { display: inline-block; }
+  .action-btn:active { transform: scale(0.96); }
+
+  #info {
+    font-size: 0.55rem;
+    text-align: center;
+    opacity: 0.4;
+    padding: 2px 0;
+    flex-shrink: 0;
+  }
+
+  /* --- End screen --- */
+  #end-screen {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(255,248,231,0.97);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    z-index: 10;
+    padding: 24px;
+  }
+
+  #end-screen.show { display: flex; }
+
+  #end-screen h2 {
+    font-size: 1.4rem;
+    color: var(--coral);
+    text-align: center;
+  }
+
+  #end-screen .tale-text {
+    max-width: 360px;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: var(--brown);
+    text-align: center;
+    font-style: italic;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  #end-screen .score {
+    font-size: 0.8rem;
+    color: var(--green);
+    font-weight: bold;
+  }
+
+  #play-again {
+    background: var(--green);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 10px 28px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+
+  #play-again:active { transform: scale(0.96); }
+
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 0 4px rgba(244,169,66,0.2); }
+    50% { box-shadow: 0 0 14px rgba(244,169,66,0.5); }
+  }
+
+  .glow { animation: glow 0.5s ease-in-out 3; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Frequency</h1>
+  <p>radio &times; tale &mdash; tune stations, choose your story</p>
+</header>
+
+<div id="game">
+  <div id="radio-panel">
+    <div id="freq-display">
+      <div class="static-overlay"></div>
+      <span id="display-text">Pick a station to tune in...</span>
+    </div>
+  </div>
+
+  <div id="stations-row"></div>
+
+  <div id="wave-puzzle">
+    <canvas id="wave-canvas"></canvas>
+    <div id="wave-hint">Match the waveform to clear the signal</div>
+  </div>
+
+  <div id="signal-bar"><div id="signal-fill"></div></div>
+
+  <div id="choice-area">
+    <div id="choice-label">Two versions received &mdash; pick the true fragment</div>
+    <button class="choice-btn" id="choice-a"></button>
+    <button class="choice-btn" id="choice-b"></button>
+  </div>
+
+  <div id="story-area">
+    <div id="story-label">The Tale &mdash; tap two fragments to swap</div>
+    <div id="story-slots"></div>
+  </div>
+
+  <div id="bottom-bar">
+    <span id="found-count"></span>
+    <button class="action-btn" id="check-btn">CHECK ORDER</button>
+  </div>
+
+  <div id="info">Tune each station, decode the signal, choose wisely</div>
+</div>
+
+<div id="end-screen">
+  <h2 id="end-title">Tale Complete!</h2>
+  <div class="tale-text" id="end-tale"></div>
+  <div class="score" id="end-score"></div>
+  <button id="play-again">Play Again</button>
+</div>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- Tales: each fragment has a true version and a false version ---
+  const TALES = [
+    {
+      title: "The Signal in the Stars",
+      fragments: [
+        {
+          real: "Long ago, a lonely lighthouse keeper heard whispers in the static of her radio.",
+          fake: "Long ago, a lonely lighthouse keeper heard music from a whale-song transmitter."
+        },
+        {
+          real: "Each night, the whispers grew clearer, telling of a star that sang to those who listened.",
+          fake: "Each night, the music faded further, until only silence filled the tower."
+        },
+        {
+          real: "She learned to tune her dial with patience, filtering noise from meaning.",
+          fake: "She gave up on the dial and instead watched the horizon for passing ships."
+        },
+        {
+          real: "One evening, the static parted like curtains, and a voice said: 'You found me.'",
+          fake: "One evening, the antenna snapped in a storm, and she heard nothing ever again."
+        },
+        {
+          real: "It was the voice of another keeper, across the sea, who had been searching too.",
+          fake: "It was only an echo of her own voice, reflected off the ionosphere."
+        },
+        {
+          real: "Together, their signals intertwined, and the story they shared lit up the dark.",
+          fake: "Alone, she wrote the story down in a logbook that nobody would ever read."
+        },
+        {
+          real: "From that night on, no keeper was ever truly alone on the airwaves.",
+          fake: "From that night on, she kept the radio off and preferred the quiet."
+        }
+      ]
+    },
+    {
+      title: "The Fox and the Frequency",
+      fragments: [
+        {
+          real: "A clever fox discovered an old radio buried beneath an oak tree.",
+          fake: "A clever fox stole a shiny radio from a sleeping traveler's camp."
+        },
+        {
+          real: "When she turned the dial, she heard tales from distant lands and forgotten times.",
+          fake: "When she turned the dial, she heard only weather reports and traffic updates."
+        },
+        {
+          real: "Each frequency held a different chapter: one of bravery, one of kindness, one of wit.",
+          fake: "Each frequency played the same advertisement over and over without end."
+        },
+        {
+          real: "The fox shared these stories with the forest creatures each evening at dusk.",
+          fake: "The fox kept the stories secret, hoarding them like acorns for winter."
+        },
+        {
+          real: "But one frequency was nothing but static, no matter how carefully she tuned.",
+          fake: "But one frequency played a lullaby so sweet that all who heard it fell asleep."
+        },
+        {
+          real: "An old owl told her: 'That frequency is yours to fill. Tell your own tale.'",
+          fake: "An old owl told her: 'That frequency is broken. Best throw the radio away.'"
+        },
+        {
+          real: "So the fox spoke into the static, and her story joined the chorus of all the rest.",
+          fake: "So the fox buried the radio again and returned to her quiet den."
+        }
+      ]
+    },
+    {
+      title: "The Wandering Broadcast",
+      fragments: [
+        {
+          real: "Once, a traveling storyteller carried a tiny radio transmitter in her pack.",
+          fake: "Once, a traveling merchant carried a broken radio she planned to sell for parts."
+        },
+        {
+          real: "In every village she visited, she broadcast one tale and listened for one in return.",
+          fake: "In every village she visited, she sold the same tale for a handful of coins."
+        },
+        {
+          real: "The tales she collected changed with each retelling, growing stranger and more wonderful.",
+          fake: "The tales she collected stayed exactly the same, word for word, never changing."
+        },
+        {
+          real: "A tale of a fish became a tale of a flying whale; a lost shoe became a golden compass.",
+          fake: "A tale of a fish stayed a tale of a fish; nothing ever transformed."
+        },
+        {
+          real: "She realized the stories weren't hers to keep \u2014 they belonged to the air itself.",
+          fake: "She realized the stories were hers alone, and she locked them in a chest."
+        },
+        {
+          real: "On her last night, she set the transmitter to broadcast forever on a single frequency.",
+          fake: "On her last night, she smashed the transmitter so no one else could use it."
+        },
+        {
+          real: "Even now, if you tune to just the right spot, you can hear her tales still traveling.",
+          fake: "Even now, the airwaves are silent where her frequency once hummed."
+        }
+      ]
+    }
+  ];
+
+  const STATION_NAMES = [
+    "WOLD", "KFBL", "WNTL", "KSTV", "WMTH", "KOAK", "WFRQ"
+  ];
+
+  // --- State ---
+  let tale, stations, storyOrder, activeSlot, phase, waveState;
+  let correctChoices, totalStations, checkAttempts;
+
+  // --- DOM ---
+  const displayText  = document.getElementById('display-text');
+  const stationsRow  = document.getElementById('stations-row');
+  const wavePuzzle   = document.getElementById('wave-puzzle');
+  const waveCanvas   = document.getElementById('wave-canvas');
+  const waveHint     = document.getElementById('wave-hint');
+  const signalFill   = document.getElementById('signal-fill');
+  const choiceArea   = document.getElementById('choice-area');
+  const choiceLabel  = document.getElementById('choice-label');
+  const choiceA      = document.getElementById('choice-a');
+  const choiceB      = document.getElementById('choice-b');
+  const storyLabel   = document.getElementById('story-label');
+  const storySlotsEl = document.getElementById('story-slots');
+  const foundCountEl = document.getElementById('found-count');
+  const checkBtn     = document.getElementById('check-btn');
+  const endScreen    = document.getElementById('end-screen');
+  const endTitle     = document.getElementById('end-title');
+  const endTale      = document.getElementById('end-tale');
+  const endScore     = document.getElementById('end-score');
+  const playAgainBtn = document.getElementById('play-again');
+  const ctx          = waveCanvas.getContext('2d');
+
+  function init() {
+    tale = TALES[Math.floor(Math.random() * TALES.length)];
+    totalStations = tale.fragments.length;
+    correctChoices = 0;
+    checkAttempts = 0;
+    activeSlot = null;
+    phase = 'stations'; // stations -> wave -> choice -> (repeat) -> arrange
+
+    // Create stations with shuffled fragment assignment
+    const fragOrder = Array.from({length: totalStations}, (_, i) => i);
+    shuffle(fragOrder);
+
+    const freqs = [];
+    for (let i = 0; i < totalStations; i++) {
+      freqs.push((88.1 + (i * 2.8) + Math.random() * 1.2).toFixed(1));
+    }
+
+    stations = fragOrder.map((fragIdx, i) => ({
+      name: STATION_NAMES[i % STATION_NAMES.length],
+      freq: freqs[i],
+      fragIdx: fragIdx,
+      state: 'available' // available, tuning, decoded, locked
+    }));
+
+    // Build station buttons
+    stationsRow.innerHTML = '';
+    stations.forEach((st, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'station-btn';
+      btn.innerHTML = '<span class="station-name">' + st.name + '</span><span class="station-freq">' + st.freq + ' FM</span>';
+      btn.addEventListener('click', () => onStationClick(i));
+      stationsRow.appendChild(btn);
+    });
+
+    // Build story slots
+    storySlotsEl.innerHTML = '';
+    storyOrder = new Array(totalStations).fill(null);
+    for (let i = 0; i < totalStations; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'story-slot';
+      slot.innerHTML = '<span class="slot-num">' + (i + 1) + '.</span><span class="slot-text">\u2022 \u2022 \u2022</span>';
+      slot.addEventListener('click', () => onSlotClick(i));
+      storySlotsEl.appendChild(slot);
+    }
+
+    waveState = null;
+    wavePuzzle.classList.remove('show');
+    choiceArea.classList.remove('show');
+    checkBtn.classList.remove('show');
+    endScreen.classList.remove('show');
+    signalFill.style.width = '0%';
+    displayText.textContent = 'Pick a station to tune in...';
+    updateFoundCount();
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  // --- Station click: start waveform puzzle ---
+  function onStationClick(idx) {
+    const st = stations[idx];
+    if (st.state === 'locked') return;
+
+    // Highlight active station
+    const btns = stationsRow.children;
+    for (let i = 0; i < btns.length; i++) {
+      btns[i].classList.remove('active');
+    }
+    btns[idx].classList.add('active');
+
+    st.state = 'tuning';
+    phase = 'wave';
+    choiceArea.classList.remove('show');
+
+    displayText.textContent = 'Tuning to ' + st.name + ' at ' + st.freq + ' FM...';
+
+    // Set up waveform puzzle for this station
+    startWavePuzzle(idx);
+  }
+
+  // --- Waveform puzzle: match frequency by tapping/clicking at the right rhythm ---
+  function startWavePuzzle(stationIdx) {
+    wavePuzzle.classList.add('show');
+
+    const frag = tale.fragments[stations[stationIdx].fragIdx];
+    // Generate a target waveform pattern (3 peaks to match)
+    const targetFreq = 1.5 + Math.random() * 2.5; // waves per canvas width
+    const targetAmp = 0.6 + Math.random() * 0.3;
+    const targetPhase = Math.random() * Math.PI * 2;
+
+    waveState = {
+      stationIdx: stationIdx,
+      targetFreq: targetFreq,
+      targetAmp: targetAmp,
+      targetPhase: targetPhase,
+      userFreq: 2.0,
+      userAmp: 0.5,
+      clarity: 0,
+      isDragging: false,
+      dragStartX: 0,
+      dragStartY: 0,
+      startFreq: 2.0,
+      startAmp: 0.5,
+      solved: false
+    };
+
+    waveHint.textContent = 'Drag left/right for frequency, up/down for amplitude';
+    signalFill.style.width = '0%';
+    drawWaves();
+  }
+
+  function drawWaves() {
+    if (!waveState) return;
+    const w = waveCanvas.width = waveCanvas.offsetWidth * 2;
+    const h = waveCanvas.height = waveCanvas.offsetHeight * 2;
+    ctx.clearRect(0, 0, w, h);
+
+    const midY = h / 2;
+    const scale = h * 0.38;
+
+    // Draw target wave (dim)
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(244,169,66,0.25)';
+    ctx.lineWidth = 2;
+    for (let x = 0; x < w; x++) {
+      const t = x / w * Math.PI * 2 * waveState.targetFreq;
+      const y = midY - Math.sin(t + waveState.targetPhase) * scale * waveState.targetAmp;
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Draw user wave
+    const freqDiff = Math.abs(waveState.userFreq - waveState.targetFreq);
+    const ampDiff = Math.abs(waveState.userAmp - waveState.targetAmp);
+    const clarity = Math.max(0, 1 - freqDiff / 2 - ampDiff / 0.5);
+    waveState.clarity = clarity;
+
+    let color;
+    if (clarity > 0.85) color = '#5B8C5A';
+    else if (clarity > 0.5) color = '#F4A942';
+    else color = '#E8734A';
+
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    for (let x = 0; x < w; x++) {
+      const t = x / w * Math.PI * 2 * waveState.userFreq;
+      const y = midY - Math.sin(t + waveState.targetPhase) * scale * waveState.userAmp;
+      // Add static noise when not clear
+      const noise = (1 - clarity) * (Math.random() - 0.5) * scale * 0.4;
+      x === 0 ? ctx.moveTo(x, y + noise) : ctx.lineTo(x, y + noise);
+    }
+    ctx.stroke();
+
+    // Signal strength
+    signalFill.style.width = (clarity * 100) + '%';
+    signalFill.style.background = color;
+
+    // Update display with garbled text
+    if (!waveState.solved) {
+      const frag = tale.fragments[stations[waveState.stationIdx].fragIdx];
+      if (clarity > 0.85) {
+        displayText.textContent = garbleText(frag.real, 0.6);
+        waveHint.textContent = 'Signal locked! Tap the display to decode.';
+        waveState.solved = true;
+      } else {
+        displayText.textContent = garbleText(frag.real, clarity * 0.4);
+      }
+    }
+  }
+
+  function garbleText(text, clarity) {
+    if (clarity < 0.05) return '~~ static ~~';
+    const staticChars = '~*\u2022\u00b7\u2591\u2592:;';
+    return text.split('').map(ch => {
+      if (ch === ' ') return ' ';
+      return Math.random() > clarity
+        ? staticChars[Math.floor(Math.random() * staticChars.length)]
+        : ch;
+    }).join('');
+  }
+
+  // --- Canvas interaction for wave matching ---
+  waveCanvas.addEventListener('pointerdown', function(e) {
+    if (!waveState || waveState.solved) {
+      if (waveState && waveState.solved) showChoices();
+      return;
+    }
+    waveState.isDragging = true;
+    waveState.dragStartX = e.clientX;
+    waveState.dragStartY = e.clientY;
+    waveState.startFreq = waveState.userFreq;
+    waveState.startAmp = waveState.userAmp;
+    waveCanvas.setPointerCapture(e.pointerId);
+  });
+
+  waveCanvas.addEventListener('pointermove', function(e) {
+    if (!waveState || !waveState.isDragging) return;
+    const dx = e.clientX - waveState.dragStartX;
+    const dy = e.clientY - waveState.dragStartY;
+    waveState.userFreq = Math.max(0.5, Math.min(5, waveState.startFreq + dx / 80));
+    waveState.userAmp = Math.max(0.15, Math.min(0.95, waveState.startAmp - dy / 120));
+    drawWaves();
+  });
+
+  waveCanvas.addEventListener('pointerup', function() {
+    if (!waveState) return;
+    waveState.isDragging = false;
+  });
+
+  waveCanvas.addEventListener('pointercancel', function() {
+    if (!waveState) return;
+    waveState.isDragging = false;
+  });
+
+  // Tapping display when solved
+  document.getElementById('freq-display').addEventListener('click', function() {
+    if (waveState && waveState.solved) showChoices();
+  });
+
+  // --- Show two fragment versions to choose from ---
+  function showChoices() {
+    if (!waveState) return;
+    const st = stations[waveState.stationIdx];
+    const frag = tale.fragments[st.fragIdx];
+    phase = 'choice';
+
+    wavePuzzle.classList.remove('show');
+    choiceArea.classList.add('show');
+
+    // Randomize order of real/fake
+    const showRealFirst = Math.random() < 0.5;
+    choiceA.textContent = showRealFirst ? frag.real : frag.fake;
+    choiceB.textContent = showRealFirst ? frag.fake : frag.real;
+    choiceA.dataset.isReal = showRealFirst ? '1' : '0';
+    choiceB.dataset.isReal = showRealFirst ? '0' : '1';
+    choiceA.classList.remove('selected');
+    choiceB.classList.remove('selected');
+
+    displayText.textContent = 'Two signals received from ' + st.name + ' \u2014 which is the real broadcast?';
+    choiceLabel.textContent = 'Two versions received \u2014 pick the true fragment';
+  }
+
+  function onChoice(btn, isReal) {
+    if (phase !== 'choice') return;
+    const st = stations[waveState.stationIdx];
+    const frag = tale.fragments[st.fragIdx];
+
+    // Lock the station
+    st.state = 'locked';
+    const stBtn = stationsRow.children[waveState.stationIdx];
+    stBtn.classList.remove('active');
+    stBtn.classList.add('locked');
+
+    // Store the chosen text (real or fake)
+    st.chosenText = isReal === '1' ? frag.real : frag.fake;
+    st.choseCorrectly = isReal === '1';
+    if (st.choseCorrectly) correctChoices++;
+
+    btn.classList.add('selected');
+    choiceArea.classList.remove('show');
+
+    // Place in next empty slot
+    const emptySlot = storyOrder.indexOf(null);
+    if (emptySlot >= 0) {
+      storyOrder[emptySlot] = waveState.stationIdx; // store station index
+      const slot = storySlotsEl.children[emptySlot];
+      slot.classList.add('filled', 'glow');
+      slot.querySelector('.slot-text').textContent = st.chosenText;
+      setTimeout(() => slot.classList.remove('glow'), 1800);
+    }
+
+    if (isReal === '1') {
+      displayText.textContent = 'True signal captured from ' + st.name + '!';
+    } else {
+      displayText.textContent = 'Signal captured from ' + st.name + ' \u2014 but was it the right one?';
+    }
+
+    waveState = null;
+    signalFill.style.width = '100%';
+    signalFill.style.background = '#5B8C5A';
+    phase = 'stations';
+    updateFoundCount();
+
+    // Check if all stations decoded
+    const allLocked = stations.every(s => s.state === 'locked');
+    if (allLocked) {
+      phase = 'arrange';
+      displayText.textContent = 'All stations decoded! Now arrange fragments in story order.';
+      checkBtn.classList.add('show');
+    }
+  }
+
+  choiceA.addEventListener('click', () => onChoice(choiceA, choiceA.dataset.isReal));
+  choiceB.addEventListener('click', () => onChoice(choiceB, choiceB.dataset.isReal));
+
+  function updateFoundCount() {
+    const locked = stations ? stations.filter(s => s.state === 'locked').length : 0;
+    if (locked === 0) {
+      foundCountEl.textContent = '';
+    } else if (locked < totalStations) {
+      foundCountEl.textContent = locked + ' / ' + totalStations + ' decoded';
+    } else {
+      foundCountEl.textContent = 'All ' + totalStations + ' decoded!';
+    }
+  }
+
+  // --- Story slot swapping ---
+  function onSlotClick(slotIdx) {
+    if (storyOrder[slotIdx] === null) return;
+    const slot = storySlotsEl.children[slotIdx];
+    if (slot.classList.contains('correct')) return;
+
+    if (activeSlot === null) {
+      activeSlot = slotIdx;
+      slot.classList.add('active');
+    } else if (activeSlot === slotIdx) {
+      slot.classList.remove('active');
+      activeSlot = null;
+    } else {
+      const slotA = storySlotsEl.children[activeSlot];
+      slotA.classList.remove('active');
+
+      // Swap
+      [storyOrder[activeSlot], storyOrder[slotIdx]] = [storyOrder[slotIdx], storyOrder[activeSlot]];
+      updateSlotDisplay(activeSlot);
+      updateSlotDisplay(slotIdx);
+
+      slotA.classList.remove('wrong', 'correct');
+      slot.classList.remove('wrong', 'correct');
+      activeSlot = null;
+    }
+  }
+
+  function updateSlotDisplay(idx) {
+    const slot = storySlotsEl.children[idx];
+    const stIdx = storyOrder[idx];
+    if (stIdx !== null) {
+      slot.querySelector('.slot-text').textContent = stations[stIdx].chosenText;
+      slot.classList.add('filled');
+    } else {
+      slot.querySelector('.slot-text').textContent = '\u2022 \u2022 \u2022';
+      slot.classList.remove('filled');
+    }
+  }
+
+  // --- Check order ---
+  checkBtn.addEventListener('click', function() {
+    if (phase !== 'arrange') return;
+    checkAttempts++;
+
+    let correct = 0;
+    for (let i = 0; i < totalStations; i++) {
+      const slot = storySlotsEl.children[i];
+      slot.classList.remove('wrong', 'correct');
+      const stIdx = storyOrder[i];
+      if (stIdx !== null && stations[stIdx].fragIdx === i) {
+        slot.classList.add('correct');
+        correct++;
+      } else {
+        slot.classList.add('wrong');
+      }
+    }
+
+    if (correct === totalStations) {
+      displayText.textContent = 'The tale is complete!';
+      setTimeout(showEnd, 800);
+    } else {
+      displayText.textContent = correct + ' of ' + totalStations + ' in the right place. Keep rearranging!';
+    }
+  });
+
+  function showEnd() {
+    // Count how many correct choices and correct orderings
+    const wrongChoices = totalStations - correctChoices;
+
+    endTitle.textContent = tale.title;
+
+    // Show the TRUE tale always
+    endTale.textContent = tale.fragments.map(f => f.real).join(' ');
+
+    let rating;
+    if (correctChoices === totalStations && checkAttempts <= 2) {
+      rating = 'Perfect Reception \u2014 true signal, perfect order!';
+    } else if (correctChoices === totalStations) {
+      rating = 'True Signal \u2014 every fragment authentic!';
+    } else if (wrongChoices === 1) {
+      rating = 'Almost True \u2014 one garbled fragment slipped through';
+    } else {
+      rating = 'Signal Found \u2014 ' + wrongChoices + ' fragments were imposters';
+    }
+
+    endScore.textContent = rating + ' (' + checkAttempts + ' ordering attempt' + (checkAttempts === 1 ? '' : 's') + ')';
+    endScreen.classList.add('show');
+  }
+
+  playAgainBtn.addEventListener('click', init);
+
+  // --- Animate static on display ---
+  setInterval(function() {
+    if (phase === 'stations' && !waveState) {
+      const allLocked = stations && stations.every(s => s.state === 'locked');
+      if (!allLocked && stations) {
+        const available = stations.filter(s => s.state === 'available').length;
+        if (available > 0) {
+          displayText.textContent = garbleText('pick a station to tune in...', 0.4);
+        }
+      }
+    }
+    if (waveState && !waveState.solved && !waveState.isDragging) {
+      drawWaves();
+    }
+  }, 300);
+
+  // --- Start ---
+  init();
+
+})();
+</script>
+
+</body>
+</html>
