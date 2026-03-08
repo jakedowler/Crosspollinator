@@ -38,8 +38,15 @@ def scan() -> list[dict]:
         date_str = date_dir.name  # e.g. "2026-03-08"
 
         for html_file in sorted(date_dir.glob("*.html")):
-            # Parse word_a and word_b from filename: word_a_word_b.html
+            # Parse word_a, word_b, and optional version from filename
+            # Format: word_a_word_b.html (v1) or word_a_word_b_v2.html (v2+)
             stem = html_file.stem
+            version = 1
+            version_match = re.search(r"_v(\d+)$", stem)
+            if version_match:
+                version = int(version_match.group(1))
+                stem = stem[: version_match.start()]
+
             parts = stem.split("_", 1)
             word_a = parts[0] if len(parts) >= 1 else stem
             word_b = parts[1] if len(parts) >= 2 else ""
@@ -55,6 +62,7 @@ def scan() -> list[dict]:
                 "name": title,
                 "desc": tagline,
                 "path": f"output/{date_str}/{html_file.name}",
+                "version": version,
             })
 
     return apps

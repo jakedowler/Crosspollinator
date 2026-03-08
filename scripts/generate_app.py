@@ -165,14 +165,37 @@ def generate(word_a: str, word_b: str) -> str:
     return html
 
 
-def save(html: str, word_a: str, word_b: str) -> Path:
-    """Write HTML to output/<date>/ and return the file path."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    day_dir = OUTPUT_DIR / today
+def save(html: str, word_a: str, word_b: str, date: str | None = None) -> Path:
+    """Write HTML to output/<date>/ and return the file path.
+
+    If a file for this word pair already exists on the given date,
+    auto-increment the version (word_a_word_b_v2.html, _v3.html, etc.).
+    """
+    import re as _re
+
+    day = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day_dir = OUTPUT_DIR / day
     day_dir.mkdir(parents=True, exist_ok=True)
 
     slug = f"{word_a.lower()}_{word_b.lower()}"
-    path = day_dir / f"{slug}.html"
+
+    # Find existing versions for this word pair on this date
+    existing = list(day_dir.glob(f"{slug}*.html"))
+    max_ver = 0
+    for f in existing:
+        m = _re.search(r"_v(\d+)\.html$", f.name)
+        if m:
+            max_ver = max(max_ver, int(m.group(1)))
+        elif f.name == f"{slug}.html":
+            max_ver = max(max_ver, 1)
+
+    if max_ver == 0:
+        # First version
+        path = day_dir / f"{slug}.html"
+    else:
+        # Next version
+        path = day_dir / f"{slug}_v{max_ver + 1}.html"
+
     path.write_text(html, encoding="utf-8")
     return path
 

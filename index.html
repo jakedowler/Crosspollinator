@@ -447,7 +447,7 @@ function render() {
                         <span class="word">${app.word_b}</span>
                     </div>
                     <div class="info">
-                        <div class="app-name">${app.name || (app.word_a + ' × ' + app.word_b)}</div>
+                        <div class="app-name">${app.name || (app.word_a + ' × ' + app.word_b)}${app.version > 1 ? ' <span style="font-size:0.65rem;color:var(--green);font-weight:700;margin-left:0.3rem">v' + app.version + '</span>' : ''}</div>
                         ${app.desc ? `<div class="app-desc">${app.desc}</div>` : ''}
                     </div>
                     <div class="play-btn">Play</div>
@@ -465,11 +465,19 @@ function render() {
     renderFeedbackHistory();
 }
 
+const REPO = 'jakedowler/Crosspollinator';
+
 let currentFbGame = '';
 let currentFbMode = 'feedback'; // 'feedback' or 'iterate'
 let currentFbWordA = '';
 let currentFbWordB = '';
 let currentFbPath = '';
+
+function ghIssueUrl(title, body, labels) {
+    const params = new URLSearchParams({ title, body });
+    if (labels) params.set('labels', labels);
+    return `https://github.com/${REPO}/issues/new?${params}`;
+}
 
 function openFeedback(game, path) {
     currentFbGame = game;
@@ -494,9 +502,9 @@ function openIterate(wordA, wordB, path) {
     document.getElementById('fbTitle').textContent = 'Iterate: ' + currentFbGame;
     document.getElementById('fbText').value = '';
     document.getElementById('fbText').placeholder = 'What should change? e.g. "Make the mechanic more like Wordle" or "Too hard for kids, simplify"';
-    document.getElementById('fbHint').textContent = 'Describe improvements. Save to log, or copy a CLI command to regenerate with your feedback baked in.';
+    document.getElementById('fbHint').textContent = 'Describe what to improve. Saves locally and opens a GitHub Issue automatically.';
     document.getElementById('fbHint').style.display = 'block';
-    document.getElementById('fbCopyCmd').style.display = 'inline-block';
+    document.getElementById('fbCopyCmd').style.display = 'none';
     document.getElementById('fbSaved').style.display = 'none';
     document.getElementById('fbModal').classList.add('open');
     document.getElementById('fbText').focus();
@@ -509,6 +517,8 @@ function closeFeedback() {
 function submitFeedback() {
     const text = document.getElementById('fbText').value.trim();
     if (!text) return;
+
+    // Save locally
     const feedback = JSON.parse(localStorage.getItem('cpFeedback') || '[]');
     feedback.push({
         game: currentFbGame,
@@ -518,23 +528,16 @@ function submitFeedback() {
         time: new Date().toISOString()
     });
     localStorage.setItem('cpFeedback', JSON.stringify(feedback));
+
+    // Open GitHub Issue automatically
+    const label = currentFbMode === 'iterate' ? 'iterate' : 'feedback';
+    const title = `[${label}] ${currentFbGame}`;
+    const body = `**Game:** ${currentFbGame}\n**Path:** ${currentFbPath}\n**Type:** ${label}\n\n${text}`;
+    window.open(ghIssueUrl(title, body, label), '_blank');
+
     document.getElementById('fbSaved').style.display = 'block';
     setTimeout(closeFeedback, 800);
     renderFeedbackHistory();
-}
-
-function copyIterateCommand() {
-    const text = document.getElementById('fbText').value.trim();
-    const feedback = text ? ` Feedback to incorporate: ${text}` : '';
-    const cmd = `cd Crosspollinator && python3 -c "import sys; sys.path.insert(0,'scripts'); from generate_app import generate, save; html = generate('${currentFbWordA}','${currentFbWordB}'); save(html,'${currentFbWordA}','${currentFbWordB}')"`;
-    const full = feedback
-        ? `# Iterate ${currentFbGame}\\n# ${feedback}\\n${cmd}`
-        : cmd;
-    navigator.clipboard.writeText(full).then(() => {
-        const btn = document.getElementById('fbCopyCmd');
-        btn.textContent = 'Copied!';
-        setTimeout(() => btn.textContent = 'Copy command', 1500);
-    });
 }
 
 // Archive functions
@@ -547,6 +550,14 @@ function archiveGame(path) {
     if (!archived.includes(path)) {
         archived.push(path);
         localStorage.setItem('cpArchived', JSON.stringify(archived));
+    }
+    // Find game info for the issue
+    const app = APPS.find(a => a.path === path);
+    if (app) {
+        const game = app.word_a + ' \u00d7 ' + app.word_b;
+        const title = `[archive] ${game}`;
+        const body = `**Game:** ${game}\n**Path:** ${path}\n**Action:** Archive this game — hide from portal, deprioritize these words.`;
+        window.open(ghIssueUrl(title, body, 'archive'), '_blank');
     }
     render();
 }
