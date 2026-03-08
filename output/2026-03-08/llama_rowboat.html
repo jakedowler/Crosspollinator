@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Llama Crossing</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#E8DCC8;}
+
+:root{
+  --sand:#E8DCC8;--water:#4A90B8;--water-deep:#2C6E91;--wood:#8B5E3C;
+  --wool:#F5F0E6;--accent:#D4763A;--green:#6B8E4E;--sky:#C8DDE8;
+  --text:#3E2F1C;--gold:#D4A24E;
+}
+
+#app{width:100%;height:100vh;height:100dvh;display:flex;flex-direction:column;align-items:center;overflow:hidden;position:relative;background:linear-gradient(180deg,var(--sky) 0%,var(--sky) 18%,var(--water) 18%,var(--water-deep) 82%,var(--sand) 82%,var(--sand) 100%);}
+
+header{width:100%;padding:6px 12px;display:flex;justify-content:space-between;align-items:center;z-index:10;}
+header h1{font-size:clamp(16px,3.8vw,24px);color:var(--text);font-weight:800;letter-spacing:0.5px;}
+header h1 span{color:var(--accent);}
+#hint-text{font-size:clamp(10px,2.2vw,13px);color:var(--text);opacity:0.7;text-align:right;max-width:50%;}
+
+#hud{display:flex;gap:clamp(10px,3vw,20px);padding:2px 12px 4px;z-index:10;align-items:center;}
+.hud-item{display:flex;align-items:center;gap:4px;font-size:clamp(12px,2.8vw,15px);font-weight:700;color:var(--text);}
+.hud-label{font-weight:400;opacity:0.7;font-size:clamp(10px,2.2vw,12px);}
+
+#river-area{flex:1;width:100%;position:relative;overflow:hidden;touch-action:none;}
+
+#boat{position:absolute;width:clamp(80px,22vw,140px);height:clamp(50px,14vw,90px);transition:left 0.15s ease-out;z-index:5;}
+#boat-body{width:100%;height:60%;background:var(--wood);border-radius:0 0 50% 50%;position:absolute;bottom:0;box-shadow:0 4px 8px rgba(0,0,0,0.3);}
+#boat-plank{width:70%;height:4px;background:#A0703C;position:absolute;bottom:35%;left:15%;border-radius:2px;}
+.oar{position:absolute;width:6px;height:clamp(30px,8vw,50px);background:#6B4226;border-radius:3px;bottom:40%;transition:transform 0.3s;}
+.oar.left{left:-4px;transform-origin:top center;transform:rotate(-20deg);}
+.oar.right{right:-4px;transform-origin:top center;transform:rotate(20deg);}
+.oar.rowing-left{transform:rotate(20deg);}
+.oar.rowing-right{transform:rotate(-20deg);}
+
+.llama-on-boat{position:absolute;top:-clamp(24px,6vw,38px);font-size:clamp(22px,6vw,38px);transition:all 0.3s;}
+
+#river-surface{position:absolute;top:0;left:0;width:100%;height:100%;}
+.wave{position:absolute;width:clamp(60px,18vw,120px);height:clamp(8px,2vw,14px);border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top:none;animation:drift linear infinite;}
+@keyframes drift{0%{transform:translateX(0)}100%{transform:translateX(-200px);opacity:0;}}
+
+.obstacle{position:absolute;font-size:clamp(24px,6vw,40px);z-index:4;transition:top 0.05s linear;}
+
+.cargo-item{position:absolute;font-size:clamp(20px,5vw,34px);z-index:3;cursor:pointer;transition:transform 0.2s;}
+.cargo-item:hover,.cargo-item:active{transform:scale(1.2);}
+.cargo-item.collected{animation:collect 0.4s ease forwards;}
+@keyframes collect{0%{transform:scale(1);opacity:1}100%{transform:scale(0) translateY(-30px);opacity:0;}}
+
+#bank-left,#bank-right{position:absolute;top:0;height:100%;width:clamp(30px,8vw,50px);z-index:2;}
+#bank-left{left:0;background:linear-gradient(90deg,var(--sand) 40%,transparent);}
+#bank-right{right:0;background:linear-gradient(270deg,var(--sand) 40%,transparent);}
+
+.bank-grass{position:absolute;font-size:clamp(12px,3vw,18px);}
+
+#llama-queue{position:absolute;left:4px;display:flex;flex-direction:column;gap:2px;z-index:6;top:50%;transform:translateY(-50%);}
+.queue-llama{font-size:clamp(16px,4vw,26px);opacity:0.5;transition:all 0.3s;}
+.queue-llama.next{opacity:1;transform:scale(1.1);}
+
+#dest-pen{position:absolute;right:4px;top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;gap:2px;align-items:center;}
+.pen-llama{font-size:clamp(16px,4vw,26px);animation:penPop 0.4s ease;}
+@keyframes penPop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+
+#controls{display:flex;gap:clamp(8px,3vw,16px);padding:8px 0 10px;z-index:10;}
+.ctrl-btn{width:clamp(60px,18vw,90px);height:clamp(44px,12vw,64px);border-radius:14px;border:3px solid var(--wood);background:var(--wool);font-size:clamp(18px,5vw,30px);font-weight:700;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;-webkit-user-select:none;}
+.ctrl-btn:active{background:var(--accent);color:#fff;transform:scale(0.95);}
+#btn-row-left{border-color:var(--accent);}
+#btn-row-right{border-color:var(--accent);}
+#btn-load{border-color:var(--green);font-size:clamp(11px,2.8vw,16px);font-weight:800;letter-spacing:0.5px;}
+
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100;flex-direction:column;align-items:center;justify-content:center;}
+#overlay.show{display:flex;}
+#overlay-box{background:var(--wool);border-radius:20px;padding:clamp(20px,5vw,36px);text-align:center;max-width:88%;box-shadow:0 8px 30px rgba(0,0,0,0.3);}
+#overlay-box h2{font-size:clamp(22px,5vw,32px);color:var(--accent);margin-bottom:8px;}
+#overlay-box p{font-size:clamp(13px,3vw,17px);color:var(--text);margin-bottom:14px;line-height:1.4;}
+#overlay-box .stat{font-size:clamp(11px,2.5vw,14px);color:var(--text);opacity:0.7;margin-bottom:4px;}
+.overlay-btn{padding:12px 32px;border-radius:14px;border:none;background:var(--accent);color:#fff;font-size:clamp(15px,3.5vw,20px);font-weight:700;cursor:pointer;margin-top:6px;}
+.overlay-btn:active{transform:scale(0.95);}
+
+#splash{display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:200;flex-direction:column;align-items:center;justify-content:center;}
+#splash-box{background:var(--wool);border-radius:20px;padding:clamp(20px,5vw,36px);text-align:center;max-width:88%;}
+#splash-box h2{font-size:clamp(24px,6vw,36px);color:var(--accent);margin-bottom:6px;}
+#splash-box .emoji-row{font-size:clamp(28px,8vw,48px);margin-bottom:10px;}
+#splash-box p{font-size:clamp(13px,3vw,16px);color:var(--text);margin-bottom:14px;line-height:1.5;}
+
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.bobbing{animation:bob 2s ease-in-out infinite;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Llama <span>Crossing</span></h1>
+    <div id="hint-text">Row your herd across the river</div>
+  </header>
+  <div id="hud">
+    <div class="hud-item">&#x1F999; <span id="hud-llamas">0/6</span><span class="hud-label">&nbsp;delivered</span></div>
+    <div class="hud-item">&#x1F4E6; <span id="hud-cargo">0</span><span class="hud-label">&nbsp;cargo</span></div>
+    <div class="hud-item">&#x2764;&#xFE0F; <span id="hud-hp">3</span></div>
+    <div class="hud-item">&#x2B50; <span id="hud-score">0</span></div>
+  </div>
+  <div id="river-area">
+    <div id="bank-left"></div>
+    <div id="bank-right"></div>
+    <div id="river-surface"></div>
+    <div id="llama-queue"></div>
+    <div id="dest-pen"></div>
+    <div id="boat"></div>
+  </div>
+  <div id="controls">
+    <button class="ctrl-btn" id="btn-row-left">&#x2B05;</button>
+    <button class="ctrl-btn" id="btn-load">LOAD</button>
+    <button class="ctrl-btn" id="btn-row-right">&#x27A1;</button>
+  </div>
+</div>
+
+<div id="splash">
+  <div id="splash-box">
+    <h2>Llama Crossing</h2>
+    <div class="emoji-row">&#x1F999; &#x1F6F6; &#x1F30A;</div>
+    <p>Row your rowboat to ferry llamas across the river!<br>
+    Dodge rocks and logs. Collect cargo bundles for bonus points.<br>
+    Use arrow buttons or A/D keys. Space to load/dock.</p>
+    <button class="overlay-btn" onclick="startGame()">Start Rowing!</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="overlay-box">
+    <h2 id="ol-title">Well Done!</h2>
+    <p id="ol-msg"></p>
+    <div class="stat" id="ol-stat"></div>
+    <button class="overlay-btn" onclick="restartGame()">Row Again</button>
+  </div>
+</div>
+
+<script>
+const TOTAL_LLAMAS = 6;
+const BOAT_CAPACITY = 2;
+const RIVER_SPEED_BASE = 1.2;
+const OBSTACLE_INTERVAL = 2200;
+const CARGO_INTERVAL = 3400;
+const CURRENT_STRENGTH = 0.3;
+
+let gameState = {
+  running: false,
+  boatX: 0.5,
+  boatSide: 'left',
+  llamasOnBoard: 0,
+  llamasWaiting: TOTAL_LLAMAS,
+  llamasDelivered: 0,
+  cargo: 0,
+  score: 0,
+  hp: 3,
+  obstacles: [],
+  cargoItems: [],
+  riverFlow: 0,
+  lastObstacle: 0,
+  lastCargo: 0,
+  rowCooldown: 0,
+  currentDir: 0,
+  boatVelX: 0,
+  driftY: 0
+};
+
+const riverArea = document.getElementById('river-area');
+const boatEl = document.getElementById('boat');
+const queueEl = document.getElementById('llama-queue');
+const penEl = document.getElementById('dest-pen');
+
+let riverW, riverH, boatW, boatH;
+let animFrame;
+let lastTime = 0;
+let waves = [];
+let touchActive = { left: false, right: false };
+
+function initDimensions() {
+  riverW = riverArea.clientWidth;
+  riverH = riverArea.clientHeight;
+  boatW = boatEl.clientWidth;
+  boatH = boatEl.clientHeight;
+}
+
+function createBoatInner() {
+  boatEl.innerHTML = `
+    <div class="oar left" id="oar-l"></div>
+    <div class="oar right" id="oar-r"></div>
+    <div id="boat-body"><div id="boat-plank"></div></div>
+  `;
+  updateBoatLlamas();
+}
+
+function updateBoatLlamas() {
+  const existing = boatEl.querySelectorAll('.llama-on-boat');
+  existing.forEach(e => e.remove());
+  for (let i = 0; i < gameState.llamasOnBoard; i++) {
+    const l = document.createElement('div');
+    l.className = 'llama-on-boat';
+    l.textContent = '\u{1F999}';
+    l.style.left = (20 + i * 28) + '%';
+    boatEl.appendChild(l);
+  }
+}
+
+function updateQueue() {
+  queueEl.innerHTML = '';
+  for (let i = 0; i < gameState.llamasWaiting; i++) {
+    const d = document.createElement('div');
+    d.className = 'queue-llama' + (i === 0 ? ' next' : '');
+    d.textContent = '\u{1F999}';
+    queueEl.appendChild(d);
+  }
+}
+
+function updatePen() {
+  penEl.innerHTML = '';
+  for (let i = 0; i < gameState.llamasDelivered; i++) {
+    const d = document.createElement('div');
+    d.className = 'pen-llama';
+    d.textContent = '\u{1F999}';
+    penEl.appendChild(d);
+  }
+}
+
+function updateHUD() {
+  document.getElementById('hud-llamas').textContent = gameState.llamasDelivered + '/' + TOTAL_LLAMAS;
+  document.getElementById('hud-cargo').textContent = gameState.cargo;
+  document.getElementById('hud-hp').textContent = gameState.hp;
+  document.getElementById('hud-score').textContent = gameState.score;
+}
+
+function positionBoat() {
+  const x = gameState.boatX * (riverW - boatW);
+  const baseY = (riverH - boatH) / 2;
+  const yOff = gameState.driftY;
+  boatEl.style.left = x + 'px';
+  boatEl.style.top = (baseY + yOff) + 'px';
+}
+
+function spawnWaves() {
+  const surface = document.getElementById('river-surface');
+  for (let i = 0; i < 8; i++) {
+    const w = document.createElement('div');
+    w.className = 'wave';
+    w.style.top = (Math.random() * 90) + '%';
+    w.style.left = (Math.random() * 120) + '%';
+    w.style.animationDuration = (3 + Math.random() * 4) + 's';
+    w.style.animationDelay = (Math.random() * 3) + 's';
+    surface.appendChild(w);
+  }
+}
+
+function spawnBankGrass() {
+  const bankL = document.getElementById('bank-left');
+  const bankR = document.getElementById('bank-right');
+  const plants = ['\u{1F33F}', '\u{1F331}', '\u{1F33E}', '\u{1F343}'];
+  for (let i = 0; i < 6; i++) {
+    const g = document.createElement('div');
+    g.className = 'bank-grass';
+    g.textContent = plants[Math.floor(Math.random() * plants.length)];
+    g.style.top = (10 + Math.random() * 80) + '%';
+    g.style.left = (Math.random() * 60) + '%';
+    bankL.appendChild(g);
+
+    const g2 = document.createElement('div');
+    g2.className = 'bank-grass';
+    g2.textContent = plants[Math.floor(Math.random() * plants.length)];
+    g2.style.top = (10 + Math.random() * 80) + '%';
+    g2.style.right = (Math.random() * 60) + '%';
+    bankR.appendChild(g2);
+  }
+}
+
+function spawnObstacle() {
+  const types = [
+    { emoji: '\u{1FAA8}', name: 'rock', dmg: 1 },
+    { emoji: '\u{1FAB5}', name: 'log', dmg: 1 },
+    { emoji: '\u{1F30A}', name: 'wave', dmg: 0 }
+  ];
+  const t = types[Math.floor(Math.random() * types.length)];
+  const side = Math.random() < 0.5 ? 'top' : 'bottom';
+  const x = 0.15 + Math.random() * 0.7;
+  const ob = {
+    x: x,
+    y: side === 'top' ? -0.1 : 1.1,
+    vy: side === 'top' ? (0.8 + Math.random() * 0.6) : -(0.8 + Math.random() * 0.6),
+    vx: (Math.random() - 0.5) * 0.3,
+    ...t,
+    el: null
+  };
+  const el = document.createElement('div');
+  el.className = 'obstacle';
+  el.textContent = t.emoji;
+  el.setAttribute('aria-label', t.name);
+  riverArea.appendChild(el);
+  ob.el = el;
+  gameState.obstacles.push(ob);
+}
+
+function spawnCargo() {
+  const items = ['\u{1F4E6}', '\u{1F9F6}', '\u{1F3FA}'];
+  const emoji = items[Math.floor(Math.random() * items.length)];
+  const x = 0.2 + Math.random() * 0.6;
+  const y = Math.random() * 0.8 + 0.1;
+  const c = { x, y, emoji, el: null, collected: false, life: 5 };
+  const el = document.createElement('div');
+  el.className = 'cargo-item';
+  el.textContent = emoji;
+  el.style.left = (x * riverW) + 'px';
+  el.style.top = (y * riverH) + 'px';
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    collectCargo(c);
+  });
+  riverArea.appendChild(el);
+  c.el = el;
+  gameState.cargoItems.push(c);
+}
+
+function collectCargo(c) {
+  if (c.collected) return;
+  const bx = gameState.boatX;
+  const dist = Math.abs(c.x - bx);
+  if (dist < 0.2) {
+    c.collected = true;
+    c.el.classList.add('collected');
+    gameState.cargo++;
+    gameState.score += 15;
+    updateHUD();
+    setTimeout(() => { if (c.el.parentNode) c.el.remove(); }, 500);
+  }
+}
+
+function rowBoat(dir) {
+  if (!gameState.running) return;
+  if (gameState.rowCooldown > 0) return;
+
+  const force = 0.06;
+  gameState.boatVelX += dir * force;
+  gameState.rowCooldown = 0.15;
+
+  const oarL = document.getElementById('oar-l');
+  const oarR = document.getElementById('oar-r');
+  if (dir < 0) {
+    oarL.classList.add('rowing-left');
+    oarR.classList.add('rowing-left');
+    setTimeout(() => { oarL.classList.remove('rowing-left'); oarR.classList.remove('rowing-left'); }, 300);
+  } else {
+    oarL.classList.add('rowing-right');
+    oarR.classList.add('rowing-right');
+    setTimeout(() => { oarL.classList.remove('rowing-right'); oarR.classList.remove('rowing-right'); }, 300);
+  }
+}
+
+function loadUnload() {
+  if (!gameState.running) return;
+  const bx = gameState.boatX;
+
+  if (bx < 0.12) {
+    // At left bank — load llamas
+    const space = BOAT_CAPACITY - gameState.llamasOnBoard;
+    const toLoad = Math.min(space, gameState.llamasWaiting);
+    if (toLoad > 0) {
+      gameState.llamasOnBoard += toLoad;
+      gameState.llamasWaiting -= toLoad;
+      gameState.score += 5 * toLoad;
+      updateBoatLlamas();
+      updateQueue();
+      updateHUD();
+    }
+  } else if (bx > 0.88) {
+    // At right bank — unload llamas
+    if (gameState.llamasOnBoard > 0) {
+      const delivered = gameState.llamasOnBoard;
+      gameState.llamasDelivered += delivered;
+      gameState.score += 25 * delivered + gameState.cargo * 5;
+      gameState.llamasOnBoard = 0;
+      updateBoatLlamas();
+      updatePen();
+      updateHUD();
+
+      if (gameState.llamasDelivered >= TOTAL_LLAMAS) {
+        winGame();
+        return;
+      }
+    }
+  }
+}
+
+function checkCollisions() {
+  const bx = gameState.boatX;
+  const by = 0.5 + gameState.driftY / riverH;
+  const hitRadius = 0.07;
+
+  for (let i = gameState.obstacles.length - 1; i >= 0; i--) {
+    const ob = gameState.obstacles[i];
+    const dx = ob.x - bx;
+    const dy = ob.y - by;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < hitRadius && ob.dmg > 0) {
+      gameState.hp -= ob.dmg;
+      gameState.score = Math.max(0, gameState.score - 10);
+      ob.dmg = 0; // only hit once
+      boatEl.style.filter = 'brightness(2)';
+      setTimeout(() => { boatEl.style.filter = ''; }, 200);
+
+      // Lose a llama overboard if carrying
+      if (gameState.llamasOnBoard > 0 && Math.random() < 0.4) {
+        gameState.llamasOnBoard--;
+        gameState.llamasWaiting++;
+        updateBoatLlamas();
+        updateQueue();
+      }
+
+      updateHUD();
+      if (gameState.hp <= 0) {
+        loseGame();
+        return;
+      }
+    }
+  }
+}
+
+function update(dt) {
+  if (!gameState.running) return;
+
+  // Cooldown
+  if (gameState.rowCooldown > 0) gameState.rowCooldown -= dt;
+
+  // Continuous rowing from held buttons
+  if (touchActive.left) rowBoat(-1);
+  if (touchActive.right) rowBoat(1);
+
+  // Gentle bobbing effect (visual only, not punishing)
+  const bobAmount = Math.sin(Date.now() / 800) * 3;
+  gameState.driftY = bobAmount;
+
+  // Apply velocity
+  gameState.boatX += gameState.boatVelX * dt * 8;
+  gameState.boatVelX *= 0.92; // friction
+
+  // Clamp
+  gameState.boatX = Math.max(0.02, Math.min(0.98, gameState.boatX));
+
+  positionBoat();
+
+  // Update obstacles
+  const now = Date.now();
+  if (now - gameState.lastObstacle > OBSTACLE_INTERVAL) {
+    spawnObstacle();
+    gameState.lastObstacle = now;
+  }
+  if (now - gameState.lastCargo > CARGO_INTERVAL) {
+    spawnCargo();
+    gameState.lastCargo = now;
+  }
+
+  for (let i = gameState.obstacles.length - 1; i >= 0; i--) {
+    const ob = gameState.obstacles[i];
+    ob.y += ob.vy * dt * 0.3;
+    ob.x += ob.vx * dt * 0.3;
+    ob.x = Math.max(0.05, Math.min(0.95, ob.x));
+    ob.el.style.left = (ob.x * riverW) + 'px';
+    ob.el.style.top = (ob.y * riverH) + 'px';
+    if (ob.y < -0.2 || ob.y > 1.2) {
+      ob.el.remove();
+      gameState.obstacles.splice(i, 1);
+    }
+  }
+
+  // Update cargo items
+  for (let i = gameState.cargoItems.length - 1; i >= 0; i--) {
+    const c = gameState.cargoItems[i];
+    if (c.collected) {
+      gameState.cargoItems.splice(i, 1);
+      continue;
+    }
+    c.life -= dt;
+    if (c.life <= 0) {
+      c.el.remove();
+      gameState.cargoItems.splice(i, 1);
+      continue;
+    }
+    if (c.life < 1.5) c.el.style.opacity = c.life / 1.5;
+  }
+
+  checkCollisions();
+
+  // Update button label
+  const bx = gameState.boatX;
+  const loadBtn = document.getElementById('btn-load');
+  if (bx < 0.12 && gameState.llamasWaiting > 0) {
+    loadBtn.textContent = 'LOAD';
+    loadBtn.style.borderColor = 'var(--green)';
+  } else if (bx > 0.88 && gameState.llamasOnBoard > 0) {
+    loadBtn.textContent = 'DOCK';
+    loadBtn.style.borderColor = 'var(--gold)';
+  } else {
+    loadBtn.textContent = '\u{1F999}';
+    loadBtn.style.borderColor = 'var(--wood)';
+  }
+}
+
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = Math.min(0.1, (timestamp - lastTime) / 1000);
+  lastTime = timestamp;
+  update(dt);
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function winGame() {
+  gameState.running = false;
+  const bonus = gameState.cargo * 10;
+  gameState.score += bonus;
+  updateHUD();
+  document.getElementById('ol-title').textContent = 'Herd Delivered! \u{1F999}\u{2728}';
+  document.getElementById('ol-msg').textContent =
+    'All ' + TOTAL_LLAMAS + ' llamas safely across the river! The herd is reunited on greener pastures.';
+  document.getElementById('ol-stat').textContent =
+    'Score: ' + gameState.score + ' | Cargo collected: ' + gameState.cargo + ' | HP remaining: ' + gameState.hp;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function loseGame() {
+  gameState.running = false;
+  document.getElementById('ol-title').textContent = 'Capsized! \u{1F30A}';
+  document.getElementById('ol-msg').textContent =
+    'Your rowboat couldn\'t take any more hits. ' + gameState.llamasDelivered + ' of ' + TOTAL_LLAMAS + ' llamas made it across.';
+  document.getElementById('ol-stat').textContent =
+    'Score: ' + gameState.score + ' | Cargo: ' + gameState.cargo;
+  document.getElementById('overlay').classList.add('show');
+}
+
+function resetState() {
+  // Clean up DOM
+  gameState.obstacles.forEach(o => o.el.remove());
+  gameState.cargoItems.forEach(c => { if (c.el.parentNode) c.el.remove(); });
+
+  gameState = {
+    running: false,
+    boatX: 0.08,
+    boatSide: 'left',
+    llamasOnBoard: 0,
+    llamasWaiting: TOTAL_LLAMAS,
+    llamasDelivered: 0,
+    cargo: 0,
+    score: 0,
+    hp: 3,
+    obstacles: [],
+    cargoItems: [],
+    riverFlow: 0,
+    lastObstacle: Date.now(),
+    lastCargo: Date.now(),
+    rowCooldown: 0,
+    currentDir: 0,
+    boatVelX: 0,
+    driftY: 0
+  };
+}
+
+function startGame() {
+  document.getElementById('splash').style.display = 'none';
+  resetState();
+  gameState.running = true;
+  initDimensions();
+  createBoatInner();
+  positionBoat();
+  updateQueue();
+  updatePen();
+  updateHUD();
+  lastTime = 0;
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function restartGame() {
+  document.getElementById('overlay').classList.remove('show');
+  if (animFrame) cancelAnimationFrame(animFrame);
+  resetState();
+  gameState.running = true;
+  initDimensions();
+  createBoatInner();
+  positionBoat();
+  updateQueue();
+  updatePen();
+  updateHUD();
+  lastTime = 0;
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// Controls
+document.getElementById('btn-row-left').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  touchActive.left = true;
+  rowBoat(-1);
+});
+document.getElementById('btn-row-left').addEventListener('pointerup', () => { touchActive.left = false; });
+document.getElementById('btn-row-left').addEventListener('pointerleave', () => { touchActive.left = false; });
+
+document.getElementById('btn-row-right').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  touchActive.right = true;
+  rowBoat(1);
+});
+document.getElementById('btn-row-right').addEventListener('pointerup', () => { touchActive.right = false; });
+document.getElementById('btn-row-right').addEventListener('pointerleave', () => { touchActive.right = false; });
+
+document.getElementById('btn-load').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  loadUnload();
+});
+
+// Keyboard controls
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') { touchActive.left = true; rowBoat(-1); }
+  if (e.key === 'ArrowRight' || e.key === 'd') { touchActive.right = true; rowBoat(1); }
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); loadUnload(); }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') touchActive.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') touchActive.right = false;
+});
+
+// Resize handling
+window.addEventListener('resize', () => {
+  initDimensions();
+  positionBoat();
+});
+
+// Initial setup
+spawnWaves();
+spawnBankGrass();
+</script>
+</body>
+</html>
