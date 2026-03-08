@@ -11,7 +11,6 @@
     --cream: #FFF8E7;
     --green: #5B8C5A;
     --brown: #3D2C1E;
-    --dial-bg: #F0E0C0;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -78,7 +77,7 @@
     color: var(--amber);
     font-family: 'Courier New', monospace;
     font-size: 0.75rem;
-    min-height: 60px;
+    min-height: 56px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -118,7 +117,7 @@
 
   /* --- Dial --- */
   #dial-area {
-    padding: 6px 0;
+    padding: 4px 0;
     flex-shrink: 0;
   }
 
@@ -146,7 +145,6 @@
     pointer-events: none;
   }
 
-  /* Frequency tick marks */
   #dial-ticks {
     display: flex;
     justify-content: space-between;
@@ -173,17 +171,70 @@
     transition: width 0.15s;
   }
 
+  /* --- Buttons row --- */
+  #btn-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+    min-height: 36px;
+  }
+
+  #found-count {
+    font-size: 0.7rem;
+    color: var(--green);
+    flex-shrink: 0;
+  }
+
+  .action-btn {
+    background: linear-gradient(180deg, var(--amber), #D48A20);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 7px 18px;
+    font-size: 0.78rem;
+    font-family: inherit;
+    font-weight: bold;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(212,138,32,0.3);
+    transition: all 0.2s;
+    touch-action: manipulation;
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  .action-btn.ready {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .action-btn:active {
+    transform: scale(0.96);
+  }
+
+  #check-btn {
+    background: linear-gradient(180deg, var(--green), #4A7A49);
+    box-shadow: 0 2px 8px rgba(91,140,90,0.3);
+    display: none;
+  }
+
+  #check-btn.show {
+    display: inline-block;
+  }
+
   /* --- Story timeline --- */
   #story-area {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
   }
 
   #story-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--coral);
@@ -197,23 +248,23 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
     scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
   }
 
   .story-slot {
     background: rgba(244,169,66,0.08);
     border: 1.5px dashed #D4B88C;
     border-radius: 8px;
-    padding: 6px 10px;
-    font-size: 0.72rem;
-    line-height: 1.35;
-    min-height: 32px;
+    padding: 5px 8px;
+    font-size: 0.68rem;
+    line-height: 1.3;
+    min-height: 28px;
     display: flex;
     align-items: center;
     color: #B89860;
     transition: all 0.3s;
-    cursor: pointer;
     flex-shrink: 0;
   }
 
@@ -221,7 +272,7 @@
     background: rgba(91,140,90,0.1);
     border: 1.5px solid var(--green);
     color: var(--brown);
-    cursor: default;
+    cursor: pointer;
   }
 
   .story-slot.filled.wrong {
@@ -229,65 +280,33 @@
     border-color: var(--coral);
   }
 
+  .story-slot.filled.correct {
+    background: rgba(91,140,90,0.18);
+    border-color: var(--green);
+    cursor: default;
+  }
+
   .story-slot.active {
     border-color: var(--amber);
-    background: rgba(244,169,66,0.15);
-    box-shadow: 0 0 8px rgba(244,169,66,0.2);
+    background: rgba(244,169,66,0.18);
+    box-shadow: 0 0 8px rgba(244,169,66,0.25);
   }
 
   .slot-num {
     font-weight: bold;
-    margin-right: 8px;
+    margin-right: 6px;
     opacity: 0.5;
-    font-size: 0.65rem;
-    flex-shrink: 0;
-  }
-
-  /* --- Lock button --- */
-  #lock-btn {
-    background: linear-gradient(180deg, var(--amber), #D48A20);
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 8px 24px;
-    font-size: 0.85rem;
-    font-family: inherit;
-    font-weight: bold;
-    letter-spacing: 0.05em;
-    cursor: pointer;
-    align-self: center;
-    box-shadow: 0 2px 8px rgba(212,138,32,0.3);
-    transition: all 0.2s;
-    flex-shrink: 0;
-    opacity: 0.3;
-    pointer-events: none;
-    touch-action: manipulation;
-  }
-
-  #lock-btn.ready {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  #lock-btn:active {
-    transform: scale(0.96);
-  }
-
-  /* --- Status / info --- */
-  #info {
     font-size: 0.6rem;
+    flex-shrink: 0;
+  }
+
+  /* --- Info --- */
+  #info {
+    font-size: 0.58rem;
     text-align: center;
     opacity: 0.45;
-    padding: 4px 0;
+    padding: 3px 0;
     flex-shrink: 0;
-  }
-
-  #found-count {
-    font-size: 0.7rem;
-    text-align: center;
-    color: var(--green);
-    flex-shrink: 0;
-    min-height: 1.2em;
   }
 
   /* --- End screen --- */
@@ -295,13 +314,13 @@
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(255,248,231,0.95);
+    background: rgba(255,248,231,0.96);
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 12px;
+    gap: 14px;
     z-index: 10;
-    padding: 20px;
+    padding: 24px;
   }
 
   #end-screen.show {
@@ -309,22 +328,26 @@
   }
 
   #end-screen h2 {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     color: var(--coral);
+    text-align: center;
   }
 
   #end-screen .tale-text {
     max-width: 360px;
-    font-size: 0.85rem;
-    line-height: 1.6;
+    font-size: 0.82rem;
+    line-height: 1.7;
     color: var(--brown);
     text-align: center;
     font-style: italic;
+    max-height: 50vh;
+    overflow-y: auto;
   }
 
   #end-screen .score {
     font-size: 0.8rem;
     color: var(--green);
+    font-weight: bold;
   }
 
   #play-again {
@@ -339,14 +362,23 @@
     touch-action: manipulation;
   }
 
-  /* Glow pulse for discovered fragment */
+  #play-again:active {
+    transform: scale(0.96);
+  }
+
   @keyframes glow {
     0%, 100% { box-shadow: 0 0 4px rgba(244,169,66,0.2); }
-    50% { box-shadow: 0 0 16px rgba(244,169,66,0.5); }
+    50% { box-shadow: 0 0 14px rgba(244,169,66,0.5); }
   }
 
   .glow {
-    animation: glow 0.6s ease-in-out 3;
+    animation: glow 0.5s ease-in-out 3;
+  }
+
+  @keyframes celebrate {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
   }
 </style>
 </head>
@@ -377,16 +409,18 @@
 
   <div id="signal-bar"><div id="signal-fill"></div></div>
 
-  <div id="found-count"></div>
-
-  <div id="lock-btn">LOCK IN FRAGMENT</div>
+  <div id="btn-row">
+    <span id="found-count"></span>
+    <button class="action-btn" id="lock-btn">LOCK IN</button>
+    <button class="action-btn" id="check-btn">CHECK ORDER</button>
+  </div>
 
   <div id="story-area">
-    <div id="story-label">The Tale (arrange in order)</div>
+    <div id="story-label">The Tale &mdash; tap two fragments to swap their order</div>
     <div id="story-slots"></div>
   </div>
 
-  <div id="info">Drag dial &bull; Find fragments &bull; Build the tale</div>
+  <div id="info">Drag the dial to discover fragments hidden in the static</div>
 </div>
 
 <div id="end-screen">
@@ -400,7 +434,6 @@
 (function() {
   'use strict';
 
-  // --- Tale fragments (several short folk tales to pick from) ---
   const TALES = [
     {
       title: "The Signal in the Stars",
@@ -433,7 +466,7 @@
         "In every village she visited, she broadcast one tale and listened for one in return.",
         "The tales she collected changed with each retelling, growing stranger and more wonderful.",
         "A tale of a fish became a tale of a flying whale; a lost shoe became a golden compass.",
-        "She realized the stories weren't hers to keep; they belonged to the air itself.",
+        "She realized the stories weren't hers to keep \u2014 they belonged to the air itself.",
         "On her last night, she set the transmitter to broadcast forever on a single frequency.",
         "Even now, if you tune to just the right spot, you can hear her tales still traveling."
       ]
@@ -442,14 +475,16 @@
 
   // --- Game state ---
   let currentTale;
-  let fragmentFreqs = []; // { freq: number, index: number, found: boolean }
-  let dialPos = 0; // 0 to 1
-  let currentlyTuned = null; // index of fragment currently in range
-  let foundFragments = []; // indices of found fragments in order found
-  let storyOrder = []; // player's ordering: storyOrder[slotIndex] = fragmentIndex
+  let fragmentFreqs = [];
+  let dialPos = 0;
+  let currentlyTuned = null;
+  let foundFragments = [];
+  let storyOrder = [];
   let activeSlot = null;
   let sweepCount = 0;
   let isDragging = false;
+  let allFound = false;
+  let gameOver = false;
 
   const displayText = document.getElementById('display-text');
   const freqLabel = document.getElementById('freq-label');
@@ -458,6 +493,7 @@
   const signalFill = document.getElementById('signal-fill');
   const foundCountEl = document.getElementById('found-count');
   const lockBtn = document.getElementById('lock-btn');
+  const checkBtn = document.getElementById('check-btn');
   const storySlotsEl = document.getElementById('story-slots');
   const endScreen = document.getElementById('end-screen');
   const endTitle = document.getElementById('end-title');
@@ -466,25 +502,28 @@
   const playAgain = document.getElementById('play-again');
 
   function init() {
-    // Pick a random tale
     currentTale = TALES[Math.floor(Math.random() * TALES.length)];
     const n = currentTale.fragments.length;
 
-    // Assign each fragment a random frequency position (0-1), well-spaced
+    // Assign each fragment a random frequency position, well-spaced
     fragmentFreqs = [];
     const spacing = 1 / (n + 1);
     for (let i = 0; i < n; i++) {
-      // Spread evenly with some jitter
       const base = spacing * (i + 1);
-      const jitter = (Math.random() - 0.5) * spacing * 0.6;
+      const jitter = (Math.random() - 0.5) * spacing * 0.5;
       fragmentFreqs.push({
-        freq: Math.max(0.03, Math.min(0.97, base + jitter)),
+        freq: Math.max(0.04, Math.min(0.96, base + jitter)),
         index: i,
         found: false
       });
     }
-    // Shuffle so frequency order != story order
-    fragmentFreqs.sort(() => Math.random() - 0.5);
+    // Shuffle frequency positions so they don't map to story order
+    const freqValues = fragmentFreqs.map(f => f.freq);
+    for (let i = freqValues.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [freqValues[i], freqValues[j]] = [freqValues[j], freqValues[i]];
+    }
+    fragmentFreqs.forEach((f, i) => f.freq = freqValues[i]);
 
     foundFragments = [];
     storyOrder = new Array(n).fill(null);
@@ -492,37 +531,41 @@
     currentlyTuned = null;
     sweepCount = 0;
     dialPos = 0;
+    allFound = false;
+    gameOver = false;
 
     // Build story slots
     storySlotsEl.innerHTML = '';
     for (let i = 0; i < n; i++) {
       const slot = document.createElement('div');
       slot.className = 'story-slot';
-      slot.innerHTML = `<span class="slot-num">${i + 1}.</span><span class="slot-text">???</span>`;
-      slot.addEventListener('click', () => onSlotClick(i));
+      slot.innerHTML = '<span class="slot-num">' + (i + 1) + '.</span><span class="slot-text">\u2022 \u2022 \u2022</span>';
+      slot.addEventListener('click', function() { onSlotClick(i); });
       storySlotsEl.appendChild(slot);
     }
 
     updateDisplay();
     updateFoundCount();
     lockBtn.classList.remove('ready');
+    checkBtn.classList.remove('show', 'ready');
     endScreen.classList.remove('show');
+    displayText.textContent = 'Sweep the dial to find story fragments...';
   }
 
   function freqToMHz(pos) {
     return (88 + pos * 20).toFixed(1);
   }
 
-  function getSignalStrength(dialPos) {
-    // Find closest fragment and return signal strength (0-1)
+  function getSignalStrength(pos) {
     let best = 0;
     let bestIdx = -1;
-    const tuneWidth = 0.025; // how close you need to be
+    var tuneWidth = 0.028;
 
-    for (const frag of fragmentFreqs) {
+    for (var i = 0; i < fragmentFreqs.length; i++) {
+      var frag = fragmentFreqs[i];
       if (frag.found) continue;
-      const dist = Math.abs(dialPos - frag.freq);
-      const strength = Math.max(0, 1 - dist / tuneWidth);
+      var dist = Math.abs(pos - frag.freq);
+      var strength = Math.max(0, 1 - dist / tuneWidth);
       if (strength > best) {
         best = strength;
         bestIdx = frag.index;
@@ -533,48 +576,65 @@
   }
 
   function garbleText(text, clarity) {
-    // clarity 0 = full static, 1 = clear
-    if (clarity < 0.1) return '~~ static ~~';
-    const chars = text.split('');
-    const result = chars.map(ch => {
-      if (ch === ' ') return ' ';
-      if (Math.random() > clarity) {
-        const staticChars = '~*#@%&!?.:;';
-        return staticChars[Math.floor(Math.random() * staticChars.length)];
+    if (clarity < 0.05) return '~~ static ~~';
+    var chars = text.split('');
+    var result = [];
+    var staticChars = '~*\u2022\u00b7\u2591\u2592:;';
+    for (var i = 0; i < chars.length; i++) {
+      var ch = chars[i];
+      if (ch === ' ') {
+        result.push(' ');
+      } else if (Math.random() > clarity) {
+        result.push(staticChars[Math.floor(Math.random() * staticChars.length)]);
+      } else {
+        result.push(ch);
       }
-      return ch;
-    });
+    }
     return result.join('');
   }
 
   function updateDisplay() {
-    const mhz = freqToMHz(dialPos);
+    if (gameOver) return;
+
+    var mhz = freqToMHz(dialPos);
     freqLabel.textContent = mhz + ' MHz';
 
-    const { strength, fragmentIndex } = getSignalStrength(dialPos);
+    if (allFound) {
+      signalFill.style.width = '100%';
+      signalFill.style.background = 'var(--green)';
+      return;
+    }
+
+    var info = getSignalStrength(dialPos);
+    var strength = info.strength;
+    var fragmentIndex = info.fragmentIndex;
     signalFill.style.width = (strength * 100) + '%';
 
     if (strength > 0.1 && fragmentIndex >= 0) {
       currentlyTuned = fragmentIndex;
-      const text = currentTale.fragments[fragmentIndex];
-      displayText.textContent = garbleText(text, strength);
+      var text = currentTale.fragments[fragmentIndex];
 
       if (strength > 0.85) {
         displayText.textContent = text;
         lockBtn.classList.add('ready');
       } else {
+        displayText.textContent = garbleText(text, strength);
         lockBtn.classList.remove('ready');
       }
     } else {
       currentlyTuned = null;
-      displayText.textContent = strength > 0 ? garbleText('searching...', 0.3) : '~~ static ~~';
+      if (strength > 0.02) {
+        displayText.textContent = garbleText('searching the airwaves...', 0.25);
+      } else {
+        displayText.textContent = '~~ static ~~';
+      }
       lockBtn.classList.remove('ready');
     }
 
     // Update knob position
-    const trackWidth = dialTrack.offsetWidth;
-    const knobWidth = 28;
-    const maxLeft = trackWidth - knobWidth - 4;
+    var trackWidth = dialTrack.offsetWidth;
+    var knobWidth = 28;
+    var maxLeft = trackWidth - knobWidth - 4;
     dialKnob.style.left = (2 + dialPos * maxLeft) + 'px';
 
     // Signal color
@@ -588,47 +648,56 @@
   }
 
   function updateFoundCount() {
-    const n = currentTale.fragments.length;
-    const found = foundFragments.length;
-    foundCountEl.textContent = found > 0 ? `Fragments found: ${found} / ${n}` : '';
+    var n = currentTale.fragments.length;
+    var found = foundFragments.length;
+    if (found === 0) {
+      foundCountEl.textContent = '';
+    } else if (found < n) {
+      foundCountEl.textContent = found + ' / ' + n + ' found';
+    } else {
+      foundCountEl.textContent = 'All ' + n + ' found!';
+    }
   }
 
   // --- Dial interaction ---
-  function getDialPos(clientX) {
-    const rect = dialTrack.getBoundingClientRect();
-    const x = clientX - rect.left;
+  function getDialPosFromX(clientX) {
+    var rect = dialTrack.getBoundingClientRect();
+    var x = clientX - rect.left;
     return Math.max(0, Math.min(1, x / rect.width));
   }
 
-  dialTrack.addEventListener('pointerdown', (e) => {
+  dialTrack.addEventListener('pointerdown', function(e) {
+    if (allFound) return;
     isDragging = true;
-    dialPos = getDialPos(e.clientX);
+    dialPos = getDialPosFromX(e.clientX);
     sweepCount++;
     updateDisplay();
     dialTrack.setPointerCapture(e.pointerId);
   });
 
-  dialTrack.addEventListener('pointermove', (e) => {
+  dialTrack.addEventListener('pointermove', function(e) {
     if (!isDragging) return;
-    dialPos = getDialPos(e.clientX);
+    dialPos = getDialPosFromX(e.clientX);
     updateDisplay();
   });
 
-  dialTrack.addEventListener('pointerup', () => {
+  dialTrack.addEventListener('pointerup', function() {
     isDragging = false;
   });
 
-  dialTrack.addEventListener('pointercancel', () => {
+  dialTrack.addEventListener('pointercancel', function() {
     isDragging = false;
   });
 
   // --- Lock in fragment ---
-  lockBtn.addEventListener('click', () => {
-    if (currentlyTuned === null) return;
-    const fragIdx = currentlyTuned;
+  lockBtn.addEventListener('click', function() {
+    if (currentlyTuned === null || allFound) return;
+    var fragIdx = currentlyTuned;
 
-    // Mark as found
-    const frag = fragmentFreqs.find(f => f.index === fragIdx);
+    var frag = null;
+    for (var i = 0; i < fragmentFreqs.length; i++) {
+      if (fragmentFreqs[i].index === fragIdx) { frag = fragmentFreqs[i]; break; }
+    }
     if (!frag || frag.found) return;
     frag.found = true;
     foundFragments.push(fragIdx);
@@ -636,112 +705,123 @@
     updateFoundCount();
     lockBtn.classList.remove('ready');
 
-    // Find first empty slot and fill it (player can reorder later)
-    const emptySlot = storyOrder.indexOf(null);
+    // Place in first empty slot
+    var emptySlot = storyOrder.indexOf(null);
     if (emptySlot >= 0) {
       placeFragment(emptySlot, fragIdx);
     }
 
     currentlyTuned = null;
-    updateDisplay();
 
     // Check if all found
     if (foundFragments.length === currentTale.fragments.length) {
-      displayText.textContent = 'All fragments found! Arrange the tale, then check your order.';
-      setTimeout(checkAutoComplete, 500);
+      allFound = true;
+      displayText.textContent = 'All fragments found! Now arrange them in the right order.';
+      checkBtn.classList.add('show', 'ready');
+      lockBtn.classList.remove('ready');
     }
+
+    updateDisplay();
   });
 
   function placeFragment(slotIdx, fragIdx) {
     storyOrder[slotIdx] = fragIdx;
-    const slot = storySlotsEl.children[slotIdx];
+    var slot = storySlotsEl.children[slotIdx];
     slot.classList.add('filled');
     slot.classList.add('glow');
     slot.querySelector('.slot-text').textContent = currentTale.fragments[fragIdx];
-    setTimeout(() => slot.classList.remove('glow'), 2000);
+    setTimeout(function() { slot.classList.remove('glow'); }, 1800);
   }
 
   // --- Slot reordering ---
   function onSlotClick(slotIdx) {
-    if (storyOrder[slotIdx] === null) return; // empty slot
+    if (gameOver) return;
+    if (storyOrder[slotIdx] === null) return;
+
+    var slot = storySlotsEl.children[slotIdx];
+    if (slot.classList.contains('correct')) return; // locked in place
 
     if (activeSlot === null) {
-      // Select this slot
       activeSlot = slotIdx;
-      storySlotsEl.children[slotIdx].classList.add('active');
+      slot.classList.add('active');
     } else if (activeSlot === slotIdx) {
-      // Deselect
-      storySlotsEl.children[slotIdx].classList.remove('active');
+      slot.classList.remove('active');
       activeSlot = null;
     } else {
       // Swap
-      const slotA = storySlotsEl.children[activeSlot];
-      const slotB = storySlotsEl.children[slotIdx];
+      var slotA = storySlotsEl.children[activeSlot];
+      var slotB = slot;
 
       slotA.classList.remove('active');
 
-      // Swap data
-      const temp = storyOrder[activeSlot];
+      var temp = storyOrder[activeSlot];
       storyOrder[activeSlot] = storyOrder[slotIdx];
       storyOrder[slotIdx] = temp;
 
       // Update text
-      if (storyOrder[activeSlot] !== null) {
-        slotA.querySelector('.slot-text').textContent = currentTale.fragments[storyOrder[activeSlot]];
-        slotA.classList.add('filled');
-      } else {
-        slotA.querySelector('.slot-text').textContent = '???';
-        slotA.classList.remove('filled');
-      }
-      if (storyOrder[slotIdx] !== null) {
-        slotB.querySelector('.slot-text').textContent = currentTale.fragments[storyOrder[slotIdx]];
-        slotB.classList.add('filled');
-      } else {
-        slotB.querySelector('.slot-text').textContent = '???';
-        slotB.classList.remove('filled');
-      }
+      updateSlotDisplay(activeSlot);
+      updateSlotDisplay(slotIdx);
 
-      // Remove wrong highlights
-      slotA.classList.remove('wrong');
-      slotB.classList.remove('wrong');
+      // Clear any wrong/correct highlights from previous check
+      slotA.classList.remove('wrong', 'correct');
+      slotB.classList.remove('wrong', 'correct');
 
       activeSlot = null;
-      checkAutoComplete();
     }
   }
 
-  function checkAutoComplete() {
-    if (foundFragments.length < currentTale.fragments.length) return;
-    if (storyOrder.includes(null)) return;
+  function updateSlotDisplay(idx) {
+    var slot = storySlotsEl.children[idx];
+    var fragIdx = storyOrder[idx];
+    if (fragIdx !== null) {
+      slot.querySelector('.slot-text').textContent = currentTale.fragments[fragIdx];
+      slot.classList.add('filled');
+    } else {
+      slot.querySelector('.slot-text').textContent = '\u2022 \u2022 \u2022';
+      slot.classList.remove('filled');
+    }
+  }
 
-    // Check if order is correct
-    let correct = 0;
-    for (let i = 0; i < storyOrder.length; i++) {
-      const slot = storySlotsEl.children[i];
+  // --- Check order ---
+  checkBtn.addEventListener('click', function() {
+    if (!allFound || gameOver) return;
+
+    var correct = 0;
+    var n = storyOrder.length;
+
+    for (var i = 0; i < n; i++) {
+      var slot = storySlotsEl.children[i];
+      slot.classList.remove('wrong', 'correct');
+
       if (storyOrder[i] === i) {
-        slot.classList.remove('wrong');
-        slot.classList.add('filled');
+        slot.classList.add('correct');
         correct++;
       } else {
         slot.classList.add('wrong');
       }
     }
 
-    if (correct === storyOrder.length) {
-      setTimeout(() => showEnd(), 600);
+    if (correct === n) {
+      gameOver = true;
+      displayText.textContent = 'The tale is complete!';
+      setTimeout(showEnd, 800);
+    } else {
+      displayText.textContent = correct + ' of ' + n + ' fragments in the right place. Keep rearranging!';
     }
-  }
+  });
 
   function showEnd() {
     endTitle.textContent = currentTale.title;
     endTale.textContent = currentTale.fragments.join(' ');
 
-    const n = currentTale.fragments.length;
-    const sweepRating = sweepCount <= n + 2 ? 'Perfect Tuning!' :
-                        sweepCount <= n + 5 ? 'Sharp Ears!' :
-                        sweepCount <= n + 10 ? 'Good Reception' : 'Signal Found';
-    endScore.textContent = `${sweepRating} (${sweepCount} dial sweeps)`;
+    var n = currentTale.fragments.length;
+    var rating;
+    if (sweepCount <= n + 2) rating = 'Perfect Tuning!';
+    else if (sweepCount <= n + 5) rating = 'Sharp Ears!';
+    else if (sweepCount <= n + 10) rating = 'Good Reception';
+    else rating = 'Signal Found';
 
+    endScore.textContent = rating + ' \u2014 ' + sweepCount + ' dial sweeps';
     endScreen.classList.add('show');
   }
 
@@ -750,16 +830,24 @@
   // --- Start ---
   init();
 
-  // Re-garble static text periodically for visual effect
-  setInterval(() => {
-    if (currentlyTuned !== null && !isDragging) return;
-    if (currentlyTuned === null && displayText.textContent !== 'All fragments found! Arrange the tale, then check your order.') {
-      const { strength } = getSignalStrength(dialPos);
-      if (strength < 0.85) {
-        updateDisplay();
+  // Animate static when not tuned to a fragment
+  setInterval(function() {
+    if (gameOver || isDragging) return;
+    if (!allFound && currentlyTuned === null) {
+      var info = getSignalStrength(dialPos);
+      if (info.strength < 0.85) {
+        // Re-garble for visual effect
+        if (info.strength > 0.1 && info.fragmentIndex >= 0) {
+          displayText.textContent = garbleText(currentTale.fragments[info.fragmentIndex], info.strength);
+        } else if (info.strength > 0.02) {
+          displayText.textContent = garbleText('searching the airwaves...', 0.25);
+        } else {
+          var staticTexts = ['~~ static ~~', '~ ~ static ~ ~', '~~~ static ~~~'];
+          displayText.textContent = staticTexts[Math.floor(Math.random() * staticTexts.length)];
+        }
       }
     }
-  }, 200);
+  }, 250);
 
 })();
 </script>
