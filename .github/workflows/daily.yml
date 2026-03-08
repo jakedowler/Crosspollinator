@@ -1,0 +1,35 @@
+name: Daily Crosspollinator
+
+on:
+  schedule:
+    # Every day at 12:00 UTC
+    - cron: "0 12 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+
+jobs:
+  crosspollinate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily generation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        working-directory: scripts
+        run: python run_daily.py
+
+      - name: Push changes
+        run: |
+          git config user.name "Crosspollinator Bot"
+          git config user.email "crosspollinator[bot]@users.noreply.github.com"
+          git push
