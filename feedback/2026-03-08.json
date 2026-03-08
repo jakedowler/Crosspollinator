@@ -1,0 +1,106 @@
+[
+  {
+    "game": "bunn × beseem",
+    "path": "output/2026-03-08/bunn_beseem.html",
+    "type": "feedback",
+    "text": "Love the silliness of the concept! Game feels like it judges the propriety wrong in some cases",
+    "time": "2026-03-08T12:00:01Z",
+    "filed": false
+  },
+  {
+    "game": "chimpanzee × ketchup",
+    "path": "output/2026-03-08/chimpanzee_ketchup.html",
+    "type": "feedback",
+    "text": "There is nothing about a chimpanzee here. And the correct guess is red, which throws off the player.",
+    "time": "2026-03-08T12:00:02Z",
+    "filed": false
+  },
+  {
+    "game": "jewel × shelter",
+    "path": "output/2026-03-08/jewel_shelter.html",
+    "type": "feedback",
+    "text": "Too easy, color coding feels like a core mechanic but not represented well. Theme is too dark and lifeless.",
+    "time": "2026-03-08T12:00:03Z",
+    "filed": false
+  },
+  {
+    "game": "llama × rowboat",
+    "path": "output/2026-03-08/llama_rowboat.html",
+    "type": "feedback",
+    "text": "Very fun idea! But controls are an issue. If you tap left or right too quickly it zooms in and you can't see the game. Not clear what the falling items do or what happens when you collect cargo.",
+    "time": "2026-03-08T12:00:04Z",
+    "filed": false
+  },
+  {
+    "game": "jewel × shelter",
+    "path": "output/2026-03-08/jewel_shelter.html",
+    "type": "feedback",
+    "text": "First level did not seem solvable. Colors still don't make sense",
+    "time": "2026-03-08T12:00:05Z",
+    "filed": false
+  },
+  {
+    "game": "llama × rowboat",
+    "path": "output/2026-03-08/llama_rowboat.html",
+    "type": "feedback",
+    "text": "The game zooms in when trying to click cargo quickly",
+    "time": "2026-03-08T12:00:06Z",
+    "filed": false
+  },
+  {
+    "game": "bunn × beseem",
+    "path": "output/2026-03-08/bunn_beseem.html",
+    "type": "feedback",
+    "text": "Needs more content, more objective grading system",
+    "time": "2026-03-08T12:00:07Z",
+    "filed": false
+  },
+  {
+    "game": "llama × rowboat",
+    "path": "output/2026-03-08/llama_rowboat.html",
+    "type": "feedback",
+    "text": "Too singular in dimension but the theme is killer",
+    "time": "2026-03-08T12:00:08Z",
+    "filed": false
+  },
+  {
+    "game": "tubing × microphone",
+    "path": "output/2026-03-08/tubing_microphone.html",
+    "type": "feedback",
+    "text": "Feels too much like \"drag slider up and down until the progress bar goes up\" simulator. There is some spark missing. Interesting concept though",
+    "time": "2026-03-08T12:00:09Z",
+    "filed": false
+  },
+  {
+    "game": "rollercoaster × adjust",
+    "path": "output/2026-03-08/rollercoaster_adjust.html",
+    "type": "feedback",
+    "text": "There is no track to tune",
+    "time": "2026-03-08T12:00:10Z",
+    "filed": false
+  },
+  {
+    "game": "radio × tale",
+    "path": "output/2026-03-08/radio_tale.html",
+    "type": "feedback",
+    "text": "This is fun but the radio dial part of the game is weak- feels like busy work",
+    "time": "2026-03-08T12:00:11Z",
+    "filed": false
+  },
+  {
+    "game": "llama × rowboat",
+    "path": "output/2026-03-08/llama_rowboat.html",
+    "type": "feedback",
+    "text": "Boat seems to move on its own. Up and down are very fast",
+    "time": "2026-03-08T12:00:12Z",
+    "filed": false
+  },
+  {
+    "game": "tubing × microphone",
+    "path": "output/2026-03-08/tubing_microphone.html",
+    "type": "feedback",
+    "text": "The 2nd level is not solvable",
+    "time": "2026-03-08T12:00:13Z",
+    "filed": false
+  }
+]
