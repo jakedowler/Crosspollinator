@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   crosspollinate:
@@ -35,26 +33,3 @@ jobs:
           git config user.name "Crosspollinator Bot"
           git config user.email "crosspollinator[bot]@users.noreply.github.com"
           git push
-
-  deploy:
-    needs: crosspollinate
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref }}
-
-      - name: Pull latest (includes today's app)
-        run: git pull origin ${{ github.ref_name }}
-
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
-
-      - id: deployment
-        uses: actions/deploy-pages@v4
