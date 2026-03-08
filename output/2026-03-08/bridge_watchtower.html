@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bridge Watch</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, sans-serif; background: #87CEEB; }
+#game-container {
+  display: flex; flex-direction: column; height: 100vh; width: 100vw;
+  background: linear-gradient(180deg, #87CEEB 0%, #B0E0FF 40%, #90EE90 60%, #7BC77B 100%);
+}
+#header {
+  text-align: center; padding: 8px; background: rgba(255,255,255,0.3);
+  backdrop-filter: blur(4px); z-index: 10;
+}
+#header h1 { font-size: 1.4em; color: #2c5f2d; text-shadow: 1px 1px 0 #fff; letter-spacing: 2px; }
+#header p { font-size: 0.75em; color: #3a7d3a; }
+#hud {
+  display: flex; justify-content: space-between; padding: 6px 16px;
+  font-size: 0.9em; color: #2c5f2d; font-weight: bold;
+}
+canvas { flex: 1; display: block; cursor: crosshair; }
+#overlay {
+  display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center;
+}
+#overlay.show { display: flex; }
+#overlay-box {
+  background: #fffbe6; border-radius: 16px; padding: 32px 40px; text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+#overlay-box h2 { color: #d35400; font-size: 1.8em; margin-bottom: 8px; }
+#overlay-box p { color: #555; margin-bottom: 16px; font-size: 1.1em; }
+#overlay-box button {
+  padding: 10px 28px; font-size: 1.1em; background: #27ae60; color: #fff;
+  border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+}
+#overlay-box button:hover { background: #2ecc71; }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <div id="header">
+    <h1>Bridge Watch</h1>
+    <p>Draw bridges between towers to stop the invaders!</p>
+  </div>
+  <div id="hud">
+    <span>Wave: <span id="wave-num">1</span></span>
+    <span>Score: <span id="score">0</span></span>
+    <span>Lives: <span id="lives">5</span></span>
+    <span>Planks: <span id="planks">10</span></span>
+  </div>
+  <canvas id="c"></canvas>
+</div>
+<div id="overlay">
+  <div id="overlay-box">
+    <h2 id="ol-title">Bridge Watch</h2>
+    <p id="ol-msg">Draw bridges between towers to block enemies.<br>Click one tower, then another to build a bridge!<br>Enemies that hit a bridge are destroyed.</p>
+    <button id="ol-btn">Start Game</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const olTitle = document.getElementById('ol-title');
+const olMsg = document.getElementById('ol-msg');
+const olBtn = document.getElementById('ol-btn');
+
+let W, H;
+function resize() {
+  const rect = canvas.getBoundingClientRect();
+  W = canvas.width = rect.width;
+  H = canvas.height = rect.height;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Game state
+let towers = [];
+let bridges = [];
+let enemies = [];
+let particles = [];
+let score = 0;
+let lives = 5;
+let planks = 10;
+let wave = 1;
+let selectedTower = null;
+let gameRunning = false;
+let spawnTimer = 0;
+let enemiesToSpawn = 0;
+let waveDelay = 0;
+let totalEnemiesThisWave = 0;
+let enemiesDefeated = 0;
+
+const TOWER_RADIUS = 22;
+const BRIDGE_DURATION = 6000; // ms
+const COLORS = ['#e74c3c','#e67e22','#f1c40f','#2ecc71','#3498db','#9b59b6','#1abc9c'];
+
+function towerColor(i) { return COLORS[i % COLORS.length]; }
+
+function initTowers() {
+  towers = [];
+  const rows = 3;
+  const cols = 4;
+  const mx = 80, my = 40;
+  const gx = (W - mx * 2) / (cols - 1);
+  const gy = (H - my * 2) / (rows - 1);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const jx = (r % 2 === 1) ? gx * 0.5 : 0;
+      towers.push({
+        x: mx + c * gx + jx,
+        y: my + r * gy,
+        color: towerColor(r * cols + c),
+        pulse: Math.random() * Math.PI * 2
+      });
+    }
+  }
+}
+
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function pointToSegDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(px - ax, py - ay);
+  let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+function spawnEnemy() {
+  // Enter from edges, target a random point on the other side
+  const side = Math.random() < 0.5 ? 0 : 1; // 0=left, 1=right
+  const speed = 0.8 + wave * 0.15 + Math.random() * 0.5;
+  const ey = 30 + Math.random() * (H - 60);
+  const tx = side === 0 ? W + 30 : -30;
+  const ty = 30 + Math.random() * (H - 60);
+  enemies.push({
+    x: side === 0 ? -20 : W + 20,
+    y: ey,
+    tx, ty,
+    speed,
+    radius: 10 + Math.random() * 4,
+    color: `hsl(${Math.random()*40 + 0}, 80%, 45%)`,
+    hp: 1
+  });
+}
+
+function addParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const sp = 1 + Math.random() * 3;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * sp,
+      vy: Math.sin(angle) * sp,
+      life: 1,
+      color,
+      size: 2 + Math.random() * 4
+    });
+  }
+}
+
+function getTowerAt(mx, my) {
+  for (let i = 0; i < towers.length; i++) {
+    if (dist({x: mx, y: my}, towers[i]) < TOWER_RADIUS + 10) return i;
+  }
+  return -1;
+}
+
+canvas.addEventListener('click', (e) => {
+  if (!gameRunning) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const ti = getTowerAt(mx, my);
+  if (ti === -1) { selectedTower = null; return; }
+  if (selectedTower === null) {
+    selectedTower = ti;
+  } else if (selectedTower !== ti) {
+    if (planks > 0) {
+      // Check if bridge already exists
+      const exists = bridges.some(b =>
+        (b.a === selectedTower && b.b === ti) || (b.a === ti && b.b === selectedTower)
+      );
+      if (!exists) {
+        bridges.push({ a: selectedTower, b: ti, born: Date.now(), duration: BRIDGE_DURATION });
+        planks--;
+        updateHUD();
+      }
+    }
+    selectedTower = null;
+  } else {
+    selectedTower = null;
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!gameRunning) return;
+  const rect = canvas.getBoundingClientRect();
+  canvas._mx = e.clientX - rect.left;
+  canvas._my = e.clientY - rect.top;
+});
+
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('lives').textContent = lives;
+  document.getElementById('planks').textContent = planks;
+  document.getElementById('wave-num').textContent = wave;
+}
+
+function startWave() {
+  totalEnemiesThisWave = 4 + wave * 3;
+  enemiesToSpawn = totalEnemiesThisWave;
+  enemiesDefeated = 0;
+  spawnTimer = 0;
+  planks += 3 + wave;
+  updateHUD();
+}
+
+function showOverlay(title, msg, btnText, cb) {
+  olTitle.textContent = title;
+  olMsg.innerHTML = msg;
+  olBtn.textContent = btnText;
+  overlay.classList.add('show');
+  olBtn.onclick = () => { overlay.classList.remove('show'); cb(); };
+}
+
+function startGame() {
+  score = 0; lives = 5; planks = 10; wave = 1;
+  bridges = []; enemies = []; particles = [];
+  selectedTower = null;
+  gameRunning = true;
+  initTowers();
+  startWave();
+  updateHUD();
+}
+
+let lastTime = 0;
+function gameLoop(ts) {
+  const dt = Math.min(ts - lastTime, 50);
+  lastTime = ts;
+
+  resize();
+  ctx.clearRect(0, 0, W, H);
+
+  // Draw water/river stripes for decoration
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = `rgba(100,180,255,${0.08 + i * 0.02})`;
+    const yy = H * 0.3 + i * H * 0.12;
+    ctx.fillRect(0, yy, W, 8);
+  }
+
+  if (gameRunning) {
+    // Spawn enemies
+    if (enemiesToSpawn > 0) {
+      spawnTimer += dt;
+      const interval = Math.max(300, 1200 - wave * 80);
+      if (spawnTimer > interval) {
+        spawnEnemy();
+        enemiesToSpawn--;
+        spawnTimer = 0;
+      }
+    }
+
+    // Remove expired bridges
+    const now = Date.now();
+    bridges = bridges.filter(b => now - b.born < b.duration);
+
+    // Update enemies
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      const e = enemies[i];
+      const dx = e.tx - e.x, dy = e.ty - e.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 2) {
+        // Enemy crossed — lose a life
+        lives--;
+        addParticles(e.x, e.y, '#e74c3c', 8);
+        enemies.splice(i, 1);
+        updateHUD();
+        if (lives <= 0) {
+          gameRunning = false;
+          showOverlay('Game Over!', `Final Score: ${score}<br>You reached Wave ${wave}`, 'Play Again', startGame);
+        }
+        continue;
+      }
+      e.x += (dx / d) * e.speed;
+      e.y += (dy / d) * e.speed;
+
+      // Check bridge collisions
+      let hit = false;
+      for (let j = bridges.length - 1; j >= 0; j--) {
+        const b = bridges[j];
+        const ta = towers[b.a], tb = towers[b.b];
+        const pd = pointToSegDist(e.x, e.y, ta.x, ta.y, tb.x, tb.y);
+        if (pd < e.radius + 6) {
+          hit = true;
+          score += 10;
+          addParticles(e.x, e.y, '#f1c40f', 15);
+          enemies.splice(i, 1);
+          // Bridge takes damage — reduce remaining time
+          b.duration -= 800;
+          enemiesDefeated++;
+          updateHUD();
+          break;
+        }
+      }
+
+      if (!hit && (e.x < -50 || e.x > W + 50 || e.y < -50 || e.y > H + 50)) {
+        enemies.splice(i, 1);
+      }
+    }
+
+    // Check wave complete
+    if (enemiesToSpawn === 0 && enemies.length === 0 && gameRunning) {
+      waveDelay += dt;
+      if (waveDelay > 1500) {
+        wave++;
+        waveDelay = 0;
+        score += wave * 25;
+        startWave();
+      }
+    } else {
+      waveDelay = 0;
+    }
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.02;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // --- DRAW ---
+
+  // Draw bridges
+  const now2 = Date.now();
+  for (const b of bridges) {
+    const ta = towers[b.a], tb = towers[b.b];
+    const age = (now2 - b.born) / b.duration;
+    const alpha = age > 0.7 ? 1 - (age - 0.7) / 0.3 : 1;
+    // Planks
+    const dx = tb.x - ta.x, dy = tb.y - ta.y;
+    const len = Math.hypot(dx, dy);
+    const nx = -dy / len, ny = dx / len;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    // Rope lines
+    ctx.strokeStyle = '#8B4513';
+    ctx.lineWidth = 3;
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(ta.x + nx * 8 * s, ta.y + ny * 8 * s);
+      ctx.lineTo(tb.x + nx * 8 * s, tb.y + ny * 8 * s);
+      ctx.stroke();
+    }
+    // Plank boards
+    const plankCount = Math.floor(len / 14);
+    for (let p = 0; p <= plankCount; p++) {
+      const t = p / plankCount;
+      const px = ta.x + dx * t, py = ta.y + dy * t;
+      ctx.strokeStyle = '#DEB887';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.moveTo(px + nx * 8, py + ny * 8);
+      ctx.lineTo(px - nx * 8, py - ny * 8);
+      ctx.stroke();
+    }
+    // Glow when fresh
+    if (age < 0.2) {
+      ctx.strokeStyle = `rgba(46,204,113,${0.6 * (1 - age / 0.2)})`;
+      ctx.lineWidth = 12;
+      ctx.beginPath();
+      ctx.moveTo(ta.x, ta.y);
+      ctx.lineTo(tb.x, tb.y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // Draw towers
+  for (let i = 0; i < towers.length; i++) {
+    const t = towers[i];
+    t.pulse += 0.03;
+    const pSize = Math.sin(t.pulse) * 3;
+
+    // Tower base (stone)
+    ctx.fillStyle = '#bdc3c7';
+    const bw = 30, bh = 36;
+    ctx.fillRect(t.x - bw / 2, t.y - bh / 2 + 6, bw, bh);
+    // Battlements
+    ctx.fillStyle = '#95a5a6';
+    for (let b = 0; b < 3; b++) {
+      ctx.fillRect(t.x - bw / 2 + b * 12, t.y - bh / 2, 8, 10);
+    }
+    // Colored flag
+    ctx.fillStyle = t.color;
+    ctx.beginPath();
+    ctx.moveTo(t.x + 2, t.y - bh / 2 - 12);
+    ctx.lineTo(t.x + 16, t.y - bh / 2 - 6);
+    ctx.lineTo(t.x + 2, t.y - bh / 2);
+    ctx.fill();
+    // Flagpole
+    ctx.strokeStyle = '#7f8c8d';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(t.x + 2, t.y - bh / 2 - 14);
+    ctx.lineTo(t.x + 2, t.y - bh / 2 + 6);
+    ctx.stroke();
+
+    // Selection ring
+    if (selectedTower === i) {
+      ctx.strokeStyle = '#f1c40f';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(t.x, t.y, TOWER_RADIUS + 6 + pSize, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Hover highlight
+    if (canvas._mx !== undefined) {
+      if (dist({x: canvas._mx, y: canvas._my}, t) < TOWER_RADIUS + 10) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, TOWER_RADIUS + 4, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Draw enemies
+  for (const e of enemies) {
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.beginPath();
+    ctx.ellipse(e.x + 2, e.y + e.radius + 2, e.radius * 0.8, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Body
+    ctx.fillStyle = e.color;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.radius, 0, Math.PI * 2);
+    ctx.fill();
+    // Eyes
+    ctx.fillStyle = '#fff';
+    const ex = (e.tx - e.x) > 0 ? 3 : -3;
+    ctx.beginPath();
+    ctx.arc(e.x + ex - 2, e.y - 2, 3, 0, Math.PI * 2);
+    ctx.arc(e.x + ex + 4, e.y - 2, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#000';
+    ctx.beginPath();
+    ctx.arc(e.x + ex - 1, e.y - 2, 1.5, 0, Math.PI * 2);
+    ctx.arc(e.x + ex + 5, e.y - 2, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Angry mouth
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(e.x + ex + 1, e.y + 4, 3, 0, Math.PI);
+    ctx.stroke();
+  }
+
+  // Draw particles
+  for (const p of particles) {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // Wave incoming text
+  if (enemiesToSpawn > 0 && enemies.length < 3 && totalEnemiesThisWave > 5) {
+    ctx.fillStyle = 'rgba(231,76,60,0.7)';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${enemiesToSpawn} enemies approaching...`, W / 2, H - 20);
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+// Show start overlay
+overlay.classList.add('show');
+olBtn.onclick = () => {
+  overlay.classList.remove('show');
+  startGame();
+  lastTime = performance.now();
+  requestAnimationFrame(gameLoop);
+};
+</script>
+</body>
+</html>

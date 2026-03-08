@@ -1,6 +1,14 @@
 APPS = [
   {
     "date": "2026-03-08",
+    "word_a": "bridge",
+    "word_b": "watchtower",
+    "name": "Bridge Watch",
+    "desc": "",
+    "path": "output/2026-03-08/bridge_watchtower.html"
+  },
+  {
+    "date": "2026-03-08",
     "word_a": "bunn",
     "word_b": "beseem",
     "name": "Bun Propriety \u2014 Does This Bun Beseem the Occasion?",
