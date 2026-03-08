@@ -34,5 +34,5 @@ Updated by Claude based on feedback from the portal and conversations.
 
 ## General Notes
 
-- Word list upgraded from 370k obscure dictionary to 1,347 curated kid-friendly words
+- Word list upgraded from 370k obscure dictionary → 1,347 curated → 10,000 (NLTK dictionary filtered, concrete nouns prioritized)
 - Generation pipeline upgraded to 3-phase: Concept → Build → Playtest
