@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Ketchup Kingdom</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+html, body { width:100%; height:100%; overflow:hidden; font-family:'Segoe UI',system-ui,sans-serif; background:#FFF8E7; }
+
+#app { width:100%; height:100vh; display:flex; flex-direction:column; align-items:center; padding:8px; }
+
+h1 { font-size:clamp(18px,4vw,28px); color:#6D4C2F; margin-bottom:2px; text-align:center; }
+h1 span.red { color:#E74C3C; }
+h1 span.grn { color:#2ECC71; }
+
+#instructions { font-size:clamp(11px,2.5vw,14px); color:#6D4C2F; text-align:center; margin-bottom:6px; opacity:0.85; }
+
+#era-bar { display:flex; gap:6px; margin-bottom:6px; }
+.era-dot { width:clamp(18px,4vw,28px); height:clamp(18px,4vw,28px); border-radius:50%; border:3px solid #BDC3C7; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#fff; transition:all .3s; }
+.era-dot.solved { border-color:#2ECC71; background:#2ECC71; }
+.era-dot.active { border-color:#E67E22; background:#E67E22; }
+
+#era-name { font-size:clamp(13px,3vw,17px); font-weight:700; color:#E67E22; margin-bottom:4px; text-align:center; }
+
+#hint-area { font-size:clamp(11px,2.5vw,13px); color:#6D4C2F; background:#F1C40F33; border:2px solid #F1C40F; border-radius:10px; padding:5px 12px; margin-bottom:6px; text-align:center; min-height:28px; max-width:95%; cursor:pointer; }
+
+#grid-wrap { flex:0 0 auto; width:100%; max-width:420px; margin-bottom:6px; }
+
+.grid-row { display:flex; gap:4px; margin-bottom:4px; justify-content:center; }
+.grid-cell { width:clamp(48px,15vw,72px); height:clamp(40px,12vw,56px); border-radius:10px; border:3px solid #BDC3C7; background:#fff; display:flex; align-items:center; justify-content:center; font-size:clamp(18px,4vw,28px); transition:all .35s; position:relative; }
+.grid-cell.correct { background:#E74C3C; border-color:#C0392B; }
+.grid-cell.present { background:#F1C40F; border-color:#D4AC0D; }
+.grid-cell.absent  { background:#BDC3C7; border-color:#95A5A6; }
+.grid-cell.current { border-color:#E67E22; box-shadow:0 0 0 2px #E67E2266; }
+
+#palette { display:flex; flex-wrap:wrap; gap:clamp(3px,1vw,6px); justify-content:center; max-width:420px; margin-bottom:6px; }
+.ing-btn { padding:clamp(6px,1.5vw,10px) clamp(8px,2vw,14px); border-radius:20px; border:3px solid #6D4C2F; background:#fff; font-size:clamp(13px,2.8vw,16px); font-weight:600; color:#6D4C2F; cursor:pointer; transition:all .2s; min-width:clamp(50px,12vw,80px); text-align:center; }
+.ing-btn:hover, .ing-btn:active { background:#E67E22; color:#fff; border-color:#E67E22; }
+.ing-btn.selected { background:#2ECC71; color:#fff; border-color:#1A9B55; }
+.ing-btn.eliminated { opacity:0.35; text-decoration:line-through; }
+
+#actions { display:flex; gap:8px; margin-bottom:6px; }
+.act-btn { padding:clamp(8px,2vw,12px) clamp(16px,4vw,28px); border-radius:14px; border:none; font-size:clamp(14px,3vw,18px); font-weight:700; cursor:pointer; transition:all .2s; }
+#btn-guess { background:#E74C3C; color:#fff; }
+#btn-guess:disabled { background:#BDC3C7; }
+#btn-clear { background:#6D4C2F; color:#fff; }
+#btn-hint { background:#F1C40F; color:#6D4C2F; }
+
+#chimp-area { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+#chimp { font-size:clamp(36px,8vw,56px); transition:all .3s; }
+#pour-meter { width:clamp(100px,25vw,160px); height:14px; border-radius:7px; background:#BDC3C7; overflow:hidden; border:2px solid #6D4C2F; }
+#pour-fill { height:100%; width:0%; background:linear-gradient(90deg,#E74C3C,#E67E22); border-radius:7px; transition:width .5s; }
+#pour-label { font-size:11px; color:#6D4C2F; font-weight:600; }
+
+#msg { font-size:clamp(13px,3vw,17px); color:#6D4C2F; font-weight:700; min-height:22px; text-align:center; }
+
+#win-screen { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); z-index:100; flex-direction:column; align-items:center; justify-content:center; }
+#win-screen.show { display:flex; }
+#win-box { background:#FFF8E7; border-radius:20px; padding:clamp(20px,5vw,40px); text-align:center; max-width:90%; }
+#win-box h2 { font-size:clamp(22px,5vw,32px); color:#2ECC71; margin-bottom:10px; }
+#win-box p { font-size:clamp(14px,3vw,18px); color:#6D4C2F; margin-bottom:16px; }
+#btn-restart { padding:12px 32px; border-radius:14px; border:none; background:#E74C3C; color:#fff; font-size:18px; font-weight:700; cursor:pointer; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1><span class="grn">Chimp</span> <span class="red">Ketchup</span> Lab</h1>
+  <div id="instructions">Crack 4 lost ketchup recipes through the ages! Pick 5 ingredients per guess.</div>
+  <div id="era-bar"></div>
+  <div id="era-name"></div>
+  <div id="hint-area" onclick="useHint()">Tap for a historical clue</div>
+  <div id="chimp-area">
+    <div id="chimp">&#x1F9CD;</div>
+    <div>
+      <div id="pour-meter"><div id="pour-fill"></div></div>
+      <div id="pour-label">Pour Mastery: 0%</div>
+    </div>
+  </div>
+  <div id="grid-wrap"></div>
+  <div id="palette"></div>
+  <div id="actions">
+    <button class="act-btn" id="btn-clear" onclick="clearGuess()">Clear</button>
+    <button class="act-btn" id="btn-guess" onclick="submitGuess()" disabled>Guess!</button>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<div id="win-screen">
+  <div id="win-box">
+    <h2>Recipe Master!</h2>
+    <p id="win-msg"></p>
+    <button id="btn-restart" onclick="restartGame()">Play Again</button>
+  </div>
+</div>
+
+<script>
+const INGS = ['fish','tomato','mushroom','walnut','sugar','vinegar','salt','anchovy','ginger','plum','pepper','honey'];
+const EMOJIS = {fish:'\u{1F41F}',tomato:'\u{1F345}',mushroom:'\u{1F344}',walnut:'\u{1F330}',sugar:'\u{1F36C}',vinegar:'\u{1F9EA}',salt:'\u{1F9C2}',anchovy:'\u{1F420}',ginger:'\u{1FAD0}',plum:'\u{1F351}',pepper:'\u{1F336}',honey:'\u{1F36F}'};
+
+const ERAS = [
+  { name:'Ancient China (1600s)', recipe:['fish','salt','vinegar','plum','ginger'],
+    hints:['This recipe has NO tomatoes \u2014 they hadn\'t reached Asia yet!','Fermented sea creatures are the base of this sauce.','Southeast Asian spices and stone fruits give it tang.'] },
+  { name:'English Mushroom Era (1700s)', recipe:['mushroom','walnut','anchovy','vinegar','pepper'],
+    hints:['No tomatoes here either \u2014 the English used fungi instead.','Crushed tree nuts add body to this savory concoction.','Small salty fish are a hidden ingredient.'] },
+  { name:'Early America (1812)', recipe:['tomato','vinegar','sugar','salt','pepper'],
+    hints:['Tomatoes finally enter the picture in the New World!','This recipe was sold as MEDICINE by a doctor.','Simple pantry staples \u2014 sweet, sour, salty, spicy.'] },
+  { name:'Modern Ketchup (Today)', recipe:['tomato','sugar','vinegar','salt','ginger'],
+    hints:['Engineered to pour at exactly 0.028 mph!','The base is the same red fruit from the Americas.','A root spice adds a hidden warm note most people miss.'] }
+];
+
+const CHIMP_FACES = ['\u{1F9CD}','\u{1F9D0}','\u{1F9EA}','\u{1F3C6}'];
+const TOOLS = ['twig','bark strip','leaf cup','stone hammer'];
+
+let era = 0, row = 0, selected = [], guesses = [], hintIdx = 0, hintsUsed = 0;
+let eliminated = new Set(), totalScore = 0;
+
+function init() {
+  era = 0; totalScore = 0; eliminated.clear();
+  renderEraBar();
+  startEra();
+}
+
+function renderEraBar() {
+  const bar = document.getElementById('era-bar');
+  bar.innerHTML = '';
+  ERAS.forEach((e, i) => {
+    const d = document.createElement('div');
+    d.className = 'era-dot' + (i < era ? ' solved' : '') + (i === era ? ' active' : '');
+    d.textContent = i + 1;
+    bar.appendChild(d);
+  });
+}
+
+function startEra() {
+  row = 0; selected = []; guesses = []; hintIdx = 0;
+  document.getElementById('era-name').textContent = ERAS[era].name + ' \u2014 Tool: ' + TOOLS[era];
+  document.getElementById('chimp').textContent = CHIMP_FACES[era];
+  document.getElementById('hint-area').textContent = 'Tap for a historical clue';
+  document.getElementById('msg').textContent = '';
+  renderGrid();
+  renderPalette();
+  updateGuessBtn();
+}
+
+function renderGrid() {
+  const wrap = document.getElementById('grid-wrap');
+  wrap.innerHTML = '';
+  for (let r = 0; r < 5; r++) {
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'grid-row';
+    for (let c = 0; c < 5; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'grid-cell' + (r === row ? ' current' : '');
+      if (guesses[r]) {
+        const g = guesses[r];
+        cell.textContent = EMOJIS[g.ings[c]] || g.ings[c][0].toUpperCase();
+        cell.classList.add(g.results[c]);
+        cell.title = g.ings[c];
+      } else if (r === row) {
+        cell.textContent = selected[c] ? (EMOJIS[selected[c]] || selected[c][0].toUpperCase()) : '';
+      }
+      rowDiv.appendChild(cell);
+    }
+    wrap.appendChild(rowDiv);
+  }
+}
+
+function renderPalette() {
+  const pal = document.getElementById('palette');
+  pal.innerHTML = '';
+  INGS.forEach(ing => {
+    const btn = document.createElement('button');
+    btn.className = 'ing-btn' + (selected.includes(ing) ? ' selected' : '') + (eliminated.has(ing) ? ' eliminated' : '');
+    btn.textContent = (EMOJIS[ing] || '') + ' ' + ing;
+    btn.onclick = () => toggleIng(ing);
+    pal.appendChild(btn);
+  });
+}
+
+function toggleIng(ing) {
+  const idx = selected.indexOf(ing);
+  if (idx >= 0) { selected.splice(idx, 1); }
+  else if (selected.length < 5) { selected.push(ing); }
+  renderGrid();
+  renderPalette();
+  updateGuessBtn();
+}
+
+function clearGuess() {
+  selected = [];
+  renderGrid();
+  renderPalette();
+  updateGuessBtn();
+}
+
+function updateGuessBtn() {
+  document.getElementById('btn-guess').disabled = selected.length !== 5;
+}
+
+function useHint() {
+  const hints = ERAS[era].hints;
+  if (hintIdx < hints.length) {
+    document.getElementById('hint-area').textContent = '\u{1F4DC} ' + hints[hintIdx];
+    hintIdx++;
+    hintsUsed++;
+    // auto-eliminate based on hint knowledge
+  } else {
+    document.getElementById('hint-area').textContent = 'No more clues for this era!';
+  }
+}
+
+function submitGuess() {
+  if (selected.length !== 5) return;
+  const recipe = ERAS[era].recipe;
+  const results = [];
+  const recipeCopy = [...recipe];
+  const selCopy = [...selected];
+
+  // Pass 1: exact matches
+  for (let i = 0; i < 5; i++) {
+    if (selCopy[i] === recipeCopy[i]) {
+      results[i] = 'correct';
+      recipeCopy[i] = null;
+      selCopy[i] = null;
+    }
+  }
+  // Pass 2: present but wrong position
+  for (let i = 0; i < 5; i++) {
+    if (selCopy[i] === null) continue;
+    const j = recipeCopy.indexOf(selCopy[i]);
+    if (j >= 0) {
+      results[i] = 'present';
+      recipeCopy[j] = null;
+    } else {
+      results[i] = 'absent';
+      eliminated.add(selCopy[i]);
+    }
+  }
+
+  guesses.push({ ings: [...selected], results });
+  const won = results.every(r => r === 'correct');
+  row++;
+  selected = [];
+
+  renderGrid();
+  renderPalette();
+  updateGuessBtn();
+
+  if (won) {
+    const score = Math.max(0, (6 - row) * 25 - hintsUsed * 5);
+    totalScore += score;
+    updatePour();
+    document.getElementById('msg').textContent = 'Recipe cracked! +' + score + ' points!';
+    setTimeout(() => advanceEra(), 1400);
+  } else if (row >= 5) {
+    document.getElementById('msg').textContent = 'Out of guesses! The recipe was: ' + recipe.join(', ');
+    setTimeout(() => advanceEra(), 2200);
+  } else {
+    document.getElementById('msg').textContent = (5 - row) + ' guesses left. Study the colors!';
+  }
+}
+
+function updatePour() {
+  const pct = Math.min(100, Math.round((totalScore / 500) * 100));
+  document.getElementById('pour-fill').style.width = pct + '%';
+  document.getElementById('pour-label').textContent = 'Pour Mastery: ' + pct + '%';
+}
+
+function advanceEra() {
+  era++;
+  if (era >= ERAS.length) {
+    showWin();
+    return;
+  }
+  eliminated.clear();
+  hintsUsed = 0;
+  renderEraBar();
+  startEra();
+}
+
+function showWin() {
+  renderEraBar();
+  document.getElementById('win-msg').textContent =
+    'You traced ketchup from ancient Chinese fish sauce to the modern bottle! Score: ' + totalScore + '/500. Your chimp mastered ' + ERAS.length + ' tools along the way!';
+  document.getElementById('win-screen').classList.add('show');
+}
+
+function restartGame() {
+  document.getElementById('win-screen').classList.remove('show');
+  eliminated.clear();
+  hintsUsed = 0;
+  init();
+}
+
+init();
+</script>
+</body>
+</html>
