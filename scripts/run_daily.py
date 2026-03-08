@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from build_index import build as build_index
 from generate_app import main as generate_main
 from write_journal import write_entry
 
@@ -32,8 +33,11 @@ def run() -> None:
     html = html_path.read_text(encoding="utf-8")
     journal_path = write_entry(word_a, word_b, html)
 
-    # Step 3 — commit both files to the repo
-    git("add", str(html_path), str(journal_path))
+    # Step 3 — rebuild the landing page index
+    build_index()
+
+    # Step 4 — commit all new files to the repo
+    git("add", str(html_path), str(journal_path), "apps.js")
     git(
         "commit",
         "-m",

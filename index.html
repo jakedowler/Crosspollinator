@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crosspollinator — Daily Random Web Apps</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --border: #30363d;
+            --text: #e6edf3;
+            --muted: #8b949e;
+            --accent: #58a6ff;
+            --accent2: #f78166;
+            --green: #3fb950;
+            --purple: #bc8cff;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        header {
+            text-align: center;
+            padding: 3rem 1rem 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.5rem;
+        }
+
+        header h1 .cross { color: var(--accent); }
+        header h1 .pollinator { color: var(--accent2); }
+
+        header p {
+            color: var(--muted);
+            font-size: 1.1rem;
+            max-width: 520px;
+            margin: 0 auto;
+            line-height: 1.6;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            font-size: 0.9rem;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            color: var(--muted);
+        }
+
+        .stat b { color: var(--text); font-size: 1.1rem; }
+
+        .grid {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .day-group h2 {
+            font-size: 0.85rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 0.75rem;
+            padding-left: 0.25rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+            text-decoration: none;
+            color: var(--text);
+            transition: all 0.15s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(88, 166, 255, 0.1);
+        }
+
+        .card .words {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .card .word {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.3rem 0.6rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--purple);
+        }
+
+        .card .times {
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        .card .info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .card .app-name {
+            font-weight: 600;
+            font-size: 1.05rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .card .app-desc {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-top: 0.2rem;
+        }
+
+        .card .play-btn {
+            flex-shrink: 0;
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            font-size: 0.85rem;
+            pointer-events: none;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 1rem;
+            color: var(--muted);
+        }
+
+        .empty-state p { font-size: 1.1rem; margin-top: 0.5rem; }
+
+        footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--muted);
+            font-size: 0.8rem;
+            border-top: 1px solid var(--border);
+            margin-top: 3rem;
+        }
+
+        footer a { color: var(--accent); text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            header h1 { font-size: 1.8rem; }
+            .card { flex-wrap: wrap; }
+            .card .words { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1><span class="cross">Cross</span><span class="pollinator">pollinator</span></h1>
+    <p>Every day, two random dictionary words collide and a new web app is born. No curation, no bias — just pure creative chaos.</p>
+    <div class="stats">
+        <div class="stat">Apps built: <b id="appCount">0</b></div>
+        <div class="stat">Words used: <b id="wordCount">0</b></div>
+    </div>
+</header>
+
+<div class="grid" id="grid">
+    <div class="empty-state" id="emptyState">
+        <p>Loading apps...</p>
+    </div>
+</div>
+
+<footer>
+    <a href="https://github.com/jakedowler/Crosspollinator">GitHub</a> · Built with Claude
+</footer>
+
+<script>
+// The build script injects this. Fallback to empty if not yet built.
+let APPS = [];
+</script>
+<script src="apps.js"></script>
+<script>
+function render() {
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('emptyState');
+
+    if (!APPS || APPS.length === 0) {
+        empty.innerHTML = '<p>No apps yet. First run coming soon!</p>';
+        return;
+    }
+
+    empty.style.display = 'none';
+    document.getElementById('appCount').textContent = APPS.length;
+
+    const allWords = new Set();
+    APPS.forEach(a => { allWords.add(a.word_a); allWords.add(a.word_b); });
+    document.getElementById('wordCount').textContent = allWords.size;
+
+    // Group by date
+    const groups = {};
+    APPS.forEach(app => {
+        if (!groups[app.date]) groups[app.date] = [];
+        groups[app.date].push(app);
+    });
+
+    const dates = Object.keys(groups).sort().reverse();
+
+    grid.innerHTML = dates.map(date => `
+        <div class="day-group">
+            <h2>${new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h2>
+            ${groups[date].map(app => `
+                <a class="card" href="${app.path}">
+                    <div class="words">
+                        <span class="word">${app.word_a}</span>
+                        <span class="times">×</span>
+                        <span class="word">${app.word_b}</span>
+                    </div>
+                    <div class="info">
+                        <div class="app-name">${app.name || (app.word_a + ' × ' + app.word_b)}</div>
+                        ${app.desc ? `<div class="app-desc">${app.desc}</div>` : ''}
+                    </div>
+                    <div class="play-btn">Play</div>
+                </a>
+            `).join('')}
+        </div>
+    `).join('');
+}
+
+render();
+</script>
+
+</body>
+</html>
