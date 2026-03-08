@@ -176,9 +176,13 @@
         footer a { color: var(--accent); text-decoration: none; }
         footer a:hover { text-decoration: underline; }
 
-        /* Feedback UI */
-        .card .fb-btn {
+        /* Action buttons on cards */
+        .card-actions {
+            display: flex;
+            gap: 0.35rem;
             flex-shrink: 0;
+        }
+        .card .act-btn {
             background: none;
             border: 1px solid var(--border);
             border-radius: 6px;
@@ -188,7 +192,9 @@
             cursor: pointer;
             transition: all 0.15s;
         }
-        .card .fb-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .card .act-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .card .act-btn.archive-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+        .card .act-btn.iterate-btn:hover { border-color: var(--green); color: var(--green); }
 
         .fb-modal {
             display: none;
@@ -281,6 +287,64 @@
         }
         .fb-export:hover { border-color: var(--accent); color: var(--accent); }
 
+        /* Archived section */
+        .archived-section {
+            max-width: 900px;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+        .archived-toggle {
+            font-size: 0.85rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0;
+        }
+        .archived-toggle:hover { color: var(--text); }
+        .archived-list { margin-top: 0.75rem; }
+        .archived-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.6rem 1rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            opacity: 0.6;
+        }
+        .archived-card .info { flex: 1; }
+        .archived-card .act-btn {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.7rem;
+            color: var(--muted);
+            cursor: pointer;
+        }
+        .archived-card .act-btn:hover { border-color: var(--green); color: var(--green); }
+
+        /* Iterate modal extras */
+        .fb-box .iter-hint {
+            font-size: 0.75rem;
+            color: var(--muted);
+            margin-bottom: 0.5rem;
+        }
+        .fb-box .copy-cmd {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--muted);
+            padding: 0.3rem 0.6rem;
+            font-size: 0.7rem;
+            cursor: pointer;
+        }
+        .fb-box .copy-cmd:hover { border-color: var(--accent); color: var(--accent); }
+
         @media (max-width: 600px) {
             header h1 { font-size: 1.8rem; }
             .card { flex-wrap: wrap; }
@@ -305,6 +369,11 @@
     </div>
 </div>
 
+<div class="archived-section" id="archivedSection" style="display:none">
+    <button class="archived-toggle" id="archivedToggle" onclick="toggleArchived()">Archived (0)</button>
+    <div class="archived-list" id="archivedList" style="display:none"></div>
+</div>
+
 <div class="fb-history" id="fbHistory" style="display:none">
     <h2>Your Feedback <button class="fb-export" onclick="exportFeedback()">Copy All</button></h2>
     <div id="fbList"></div>
@@ -313,9 +382,11 @@
 <div class="fb-modal" id="fbModal">
     <div class="fb-box">
         <h3 id="fbTitle">Feedback</h3>
+        <div class="iter-hint" id="fbHint" style="display:none"></div>
         <textarea id="fbText" placeholder="What did you think? Fun? Boring? Buggy? Too complex?"></textarea>
         <div class="fb-saved" id="fbSaved">Saved!</div>
         <div class="fb-actions">
+            <button class="copy-cmd" id="fbCopyCmd" style="display:none" onclick="copyIterateCommand()">Copy command</button>
             <button class="fb-cancel" onclick="closeFeedback()">Cancel</button>
             <button class="fb-submit" onclick="submitFeedback()">Save</button>
         </div>
@@ -351,19 +422,24 @@ function render() {
     APPS.forEach(a => { allWords.add(a.word_a); allWords.add(a.word_b); });
     document.getElementById('wordCount').textContent = allWords.size;
 
-    // Group by date
-    const groups = {};
-    APPS.forEach(app => {
-        if (!groups[app.date]) groups[app.date] = [];
-        groups[app.date].push(app);
+    const archived = getArchived();
+    const activeApps = APPS.filter(app => !archived.includes(app.path));
+    const archivedApps = APPS.filter(app => archived.includes(app.path));
+
+    document.getElementById('appCount').textContent = activeApps.length;
+
+    // Group active apps by date
+    const groups2 = {};
+    activeApps.forEach(app => {
+        if (!groups2[app.date]) groups2[app.date] = [];
+        groups2[app.date].push(app);
     });
+    const dates2 = Object.keys(groups2).sort().reverse();
 
-    const dates = Object.keys(groups).sort().reverse();
-
-    grid.innerHTML = dates.map(date => `
+    grid.innerHTML = dates2.map(date => `
         <div class="day-group">
             <h2>${new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</h2>
-            ${groups[date].map(app => `
+            ${groups2[date].map(app => `
                 <a class="card" href="${app.path}">
                     <div class="words">
                         <span class="word">${app.word_a}</span>
@@ -375,21 +451,52 @@ function render() {
                         ${app.desc ? `<div class="app-desc">${app.desc}</div>` : ''}
                     </div>
                     <div class="play-btn">Play</div>
-                    <button class="fb-btn" onclick="event.preventDefault();openFeedback('${app.word_a} × ${app.word_b}', '${app.path}')">Feedback</button>
+                    <div class="card-actions">
+                        <button class="act-btn iterate-btn" onclick="event.preventDefault();openIterate('${app.word_a}','${app.word_b}','${app.path}')">Iterate</button>
+                        <button class="act-btn" onclick="event.preventDefault();openFeedback('${app.word_a} × ${app.word_b}','${app.path}')">Feedback</button>
+                        <button class="act-btn archive-btn" onclick="event.preventDefault();archiveGame('${app.path}')">Archive</button>
+                    </div>
                 </a>
             `).join('')}
         </div>
     `).join('');
 
+    renderArchivedSection(archivedApps);
     renderFeedbackHistory();
 }
 
 let currentFbGame = '';
+let currentFbMode = 'feedback'; // 'feedback' or 'iterate'
+let currentFbWordA = '';
+let currentFbWordB = '';
+let currentFbPath = '';
 
 function openFeedback(game, path) {
     currentFbGame = game;
+    currentFbMode = 'feedback';
+    currentFbPath = path;
     document.getElementById('fbTitle').textContent = 'Feedback: ' + game;
     document.getElementById('fbText').value = '';
+    document.getElementById('fbText').placeholder = 'What did you think? Fun? Boring? Buggy? Too complex?';
+    document.getElementById('fbHint').style.display = 'none';
+    document.getElementById('fbCopyCmd').style.display = 'none';
+    document.getElementById('fbSaved').style.display = 'none';
+    document.getElementById('fbModal').classList.add('open');
+    document.getElementById('fbText').focus();
+}
+
+function openIterate(wordA, wordB, path) {
+    currentFbGame = wordA + ' \u00d7 ' + wordB;
+    currentFbMode = 'iterate';
+    currentFbWordA = wordA;
+    currentFbWordB = wordB;
+    currentFbPath = path;
+    document.getElementById('fbTitle').textContent = 'Iterate: ' + currentFbGame;
+    document.getElementById('fbText').value = '';
+    document.getElementById('fbText').placeholder = 'What should change? e.g. "Make the mechanic more like Wordle" or "Too hard for kids, simplify"';
+    document.getElementById('fbHint').textContent = 'Describe improvements. Save to log, or copy a CLI command to regenerate with your feedback baked in.';
+    document.getElementById('fbHint').style.display = 'block';
+    document.getElementById('fbCopyCmd').style.display = 'inline-block';
     document.getElementById('fbSaved').style.display = 'none';
     document.getElementById('fbModal').classList.add('open');
     document.getElementById('fbText').focus();
@@ -406,12 +513,72 @@ function submitFeedback() {
     feedback.push({
         game: currentFbGame,
         text: text,
+        type: currentFbMode,
+        path: currentFbPath,
         time: new Date().toISOString()
     });
     localStorage.setItem('cpFeedback', JSON.stringify(feedback));
     document.getElementById('fbSaved').style.display = 'block';
     setTimeout(closeFeedback, 800);
     renderFeedbackHistory();
+}
+
+function copyIterateCommand() {
+    const text = document.getElementById('fbText').value.trim();
+    const feedback = text ? ` Feedback to incorporate: ${text}` : '';
+    const cmd = `cd Crosspollinator && python3 -c "import sys; sys.path.insert(0,'scripts'); from generate_app import generate, save; html = generate('${currentFbWordA}','${currentFbWordB}'); save(html,'${currentFbWordA}','${currentFbWordB}')"`;
+    const full = feedback
+        ? `# Iterate ${currentFbGame}\\n# ${feedback}\\n${cmd}`
+        : cmd;
+    navigator.clipboard.writeText(full).then(() => {
+        const btn = document.getElementById('fbCopyCmd');
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = 'Copy command', 1500);
+    });
+}
+
+// Archive functions
+function getArchived() {
+    return JSON.parse(localStorage.getItem('cpArchived') || '[]');
+}
+
+function archiveGame(path) {
+    const archived = getArchived();
+    if (!archived.includes(path)) {
+        archived.push(path);
+        localStorage.setItem('cpArchived', JSON.stringify(archived));
+    }
+    render();
+}
+
+function unarchiveGame(path) {
+    let archived = getArchived();
+    archived = archived.filter(p => p !== path);
+    localStorage.setItem('cpArchived', JSON.stringify(archived));
+    render();
+}
+
+function renderArchivedSection(archivedApps) {
+    const section = document.getElementById('archivedSection');
+    const list = document.getElementById('archivedList');
+    const toggle = document.getElementById('archivedToggle');
+    if (archivedApps.length === 0) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    toggle.textContent = `Archived (${archivedApps.length})`;
+    list.innerHTML = archivedApps.map(app => `
+        <div class="archived-card">
+            <div class="info">
+                <span style="color:var(--purple);font-weight:600">${app.word_a} \u00d7 ${app.word_b}</span>
+                <span style="color:var(--muted);font-size:0.8rem;margin-left:0.5rem">${app.name || ''}</span>
+            </div>
+            <button class="act-btn" onclick="unarchiveGame('${app.path}')">Restore</button>
+        </div>
+    `).join('');
+}
+
+function toggleArchived() {
+    const list = document.getElementById('archivedList');
+    list.style.display = list.style.display === 'none' ? 'block' : 'none';
 }
 
 function renderFeedbackHistory() {
@@ -422,7 +589,7 @@ function renderFeedbackHistory() {
     container.style.display = 'block';
     list.innerHTML = feedback.slice().reverse().map(f => `
         <div class="fb-entry">
-            <div class="fb-game">${f.game}</div>
+            <div class="fb-game">${f.game} ${f.type === 'iterate' ? '<span style="color:var(--green);font-size:0.7rem;margin-left:0.4rem">ITERATE</span>' : ''}</div>
             <div class="fb-text">${f.text}</div>
             <div class="fb-time">${new Date(f.time).toLocaleString()}</div>
         </div>
