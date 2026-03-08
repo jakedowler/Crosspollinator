@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Gem Vault</title>
+<style>
+  :root {
+    --bg: #0F1B2D;
+    --ruby: #E63946;
+    --sapphire: #457B9D;
+    --emerald: #2A9D8F;
+    --amber: #E9C46A;
+    --amethyst: #7B2D8E;
+    --light: #F1FAEE;
+    --bronze: #8B7355;
+    --panel-size: min(11vw, 11vh);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--light);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  header {
+    text-align: center;
+    padding: 6px 0 2px;
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 1.3rem;
+    letter-spacing: 0.1em;
+    background: linear-gradient(90deg, var(--ruby), var(--amber), var(--emerald), var(--sapphire), var(--amethyst));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  header p {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin-top: 1px;
+  }
+
+  #game-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 500px;
+    position: relative;
+  }
+
+  #board {
+    position: relative;
+    width: min(88vw, 88vh, 460px);
+    height: min(88vw, 88vh, 460px);
+  }
+
+  /* Grid: 7x7 hex-inspired grid, but we use a diamond layout */
+  .cell {
+    position: absolute;
+    width: var(--panel-size);
+    height: var(--panel-size);
+    border: 1.5px solid rgba(139, 115, 85, 0.25);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s, box-shadow 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--panel-size) * 0.45);
+  }
+
+  .cell:hover {
+    border-color: var(--bronze);
+    transform: scale(1.05);
+  }
+
+  .cell.occupied {
+    cursor: grab;
+  }
+
+  .cell.center-gem {
+    border: 2px solid var(--amber);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(233,196,106,0.15), transparent);
+    cursor: default;
+    font-size: calc(var(--panel-size) * 0.6);
+    box-shadow: 0 0 15px rgba(233,196,106,0.2);
+  }
+
+  .cell.center-gem.lit {
+    box-shadow: 0 0 30px rgba(233,196,106,0.6), 0 0 60px rgba(233,196,106,0.3);
+    animation: gemPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes gemPulse {
+    0%, 100% { box-shadow: 0 0 30px rgba(233,196,106,0.6), 0 0 60px rgba(233,196,106,0.3); }
+    50% { box-shadow: 0 0 45px rgba(233,196,106,0.8), 0 0 90px rgba(233,196,106,0.4); }
+  }
+
+  .cell.wall {
+    background: rgba(139, 115, 85, 0.12);
+    border-color: rgba(139, 115, 85, 0.35);
+    cursor: default;
+  }
+
+  .cell.emitter {
+    border-color: var(--light);
+    background: rgba(241, 250, 238, 0.08);
+    cursor: default;
+    font-size: calc(var(--panel-size) * 0.35);
+  }
+
+  /* Panel colors */
+  .panel-ruby { background: rgba(230, 57, 70, 0.35); border-color: var(--ruby) !important; }
+  .panel-sapphire { background: rgba(69, 123, 157, 0.35); border-color: var(--sapphire) !important; }
+  .panel-emerald { background: rgba(42, 157, 143, 0.35); border-color: var(--emerald) !important; }
+  .panel-amber { background: rgba(233, 196, 106, 0.35); border-color: var(--amber) !important; }
+  .panel-amethyst { background: rgba(123, 45, 142, 0.35); border-color: var(--amethyst) !important; }
+
+  /* Light beams */
+  .beam {
+    position: absolute;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .beam-line {
+    position: absolute;
+    height: 3px;
+    transform-origin: left center;
+    opacity: 0.85;
+    border-radius: 2px;
+    box-shadow: 0 0 6px currentColor;
+  }
+
+  /* Tray */
+  #tray {
+    display: flex;
+    gap: 8px;
+    padding: 8px 12px;
+    background: rgba(139, 115, 85, 0.1);
+    border: 1px solid rgba(139, 115, 85, 0.3);
+    border-radius: 10px;
+    margin: 6px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .tray-panel {
+    width: calc(var(--panel-size) * 1.05);
+    height: calc(var(--panel-size) * 1.05);
+    border: 2px solid;
+    border-radius: 6px;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(var(--panel-size) * 0.5);
+    transition: transform 0.15s, box-shadow 0.2s;
+    position: relative;
+  }
+
+  .tray-panel:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 12px currentColor;
+  }
+
+  .tray-panel.selected {
+    transform: scale(1.15);
+    box-shadow: 0 0 20px currentColor;
+    outline: 2px solid var(--light);
+    outline-offset: 2px;
+  }
+
+  .tray-panel .arrow {
+    position: absolute;
+    bottom: 2px;
+    right: 3px;
+    font-size: calc(var(--panel-size) * 0.25);
+    opacity: 0.8;
+  }
+
+  /* Status */
+  #status {
+    font-size: 0.75rem;
+    opacity: 0.7;
+    padding: 3px 0;
+    text-align: center;
+    flex-shrink: 0;
+    min-height: 1.2em;
+  }
+
+  #controls {
+    display: flex;
+    gap: 10px;
+    padding-bottom: 8px;
+    flex-shrink: 0;
+  }
+
+  button {
+    background: rgba(139, 115, 85, 0.2);
+    border: 1px solid var(--bronze);
+    color: var(--light);
+    padding: 6px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background 0.2s;
+  }
+
+  button:hover { background: rgba(139, 115, 85, 0.4); }
+
+  /* Win overlay */
+  #win-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 27, 45, 0.92);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+
+  #win-overlay.show { display: flex; }
+
+  #win-overlay h2 {
+    font-size: 2rem;
+    margin-bottom: 10px;
+    background: linear-gradient(90deg, var(--ruby), var(--amber), var(--emerald), var(--sapphire), var(--amethyst));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer 2s linear infinite;
+    background-size: 200%;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+
+  #win-overlay p {
+    font-size: 1rem;
+    opacity: 0.8;
+    margin-bottom: 20px;
+  }
+
+  #win-overlay .stats {
+    font-size: 0.9rem;
+    opacity: 0.7;
+    margin-bottom: 15px;
+  }
+
+  /* Sparkle particles */
+  .sparkle {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 101;
+    animation: sparkleAnim 1s ease-out forwards;
+  }
+
+  @keyframes sparkleAnim {
+    0% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0) translateY(-60px); }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>GEM VAULT</h1>
+  <p>Place panels to guide light beams to the central jewel</p>
+</header>
+
+<div id="status">Tap a panel, then tap a cell to place it. Tap placed panel to rotate.</div>
+
+<div id="game-area">
+  <div id="board"></div>
+  <canvas id="beamCanvas"></canvas>
+</div>
+
+<div id="tray"></div>
+
+<div id="controls">
+  <button onclick="resetGame()">New Puzzle</button>
+  <button onclick="clearBoard()">Clear</button>
+</div>
+
+<div id="win-overlay">
+  <h2>BRILLIANT!</h2>
+  <p>All beams reached the gem</p>
+  <div class="stats" id="win-stats"></div>
+  <button onclick="resetGame(); document.getElementById('win-overlay').classList.remove('show');">Play Again</button>
+</div>
+
+<script>
+const GRID = 7;
+const DIRS = {
+  right: { dr: 0, dc: 1, symbol: '→' },
+  left:  { dr: 0, dc: -1, symbol: '←' },
+  down:  { dr: 1, dc: 0, symbol: '↓' },
+  up:    { dr: -1, dc: 0, symbol: '↑' }
+};
+const DIR_NAMES = ['right', 'down', 'left', 'up'];
+const DIR_ARROWS = ['→', '↓', '←', '↑'];
+
+const PANEL_TYPES = [
+  { name: 'ruby', color: '#E63946', cssClass: 'panel-ruby', symbol: '◆' },
+  { name: 'sapphire', color: '#457B9D', cssClass: 'panel-sapphire', symbol: '◆' },
+  { name: 'emerald', color: '#2A9D8F', cssClass: 'panel-emerald', symbol: '◆' },
+  { name: 'amber', color: '#E9C46A', cssClass: 'panel-amber', symbol: '◆' },
+  { name: 'amethyst', color: '#7B2D8E', cssClass: 'panel-amethyst', symbol: '◆' }
+];
+
+// Panel deflection: each panel type has a reflection behavior
+// 0 = mirror-slash (/), 1 = mirror-backslash (\), 2 = split (not used), 3 = pass-through
+// Panels can be rotated between / and \ orientations
+const REFLECT_SLASH = 0;   // / mirror: right->up, down->left, left->down, up->right
+const REFLECT_BACK = 1;    // \ mirror: right->down, down->right, left->up, up->left
+
+function reflectBeam(inDir, mirrorType) {
+  if (mirrorType === REFLECT_SLASH) {
+    // / mirror
+    const map = { right: 'up', down: 'left', left: 'down', up: 'right' };
+    return map[inDir];
+  } else {
+    // \ mirror
+    const map = { right: 'down', down: 'right', left: 'up', up: 'left' };
+    return map[inDir];
+  }
+}
+
+let grid = [];       // grid[r][c] = null | { panelIndex, orientation }
+let emitters = [];   // { r, c, dir }
+let centerR, centerC;
+let panels = [];     // available panels: { type, orientation }
+let selectedPanel = null;  // index into panels array or 'board:r:c'
+let moveCount = 0;
+let startTime;
+let won = false;
+
+const board = document.getElementById('board');
+const tray = document.getElementById('tray');
+const beamCanvas = document.getElementById('beamCanvas');
+const ctx = beamCanvas.getContext('2d');
+
+function initGrid() {
+  grid = [];
+  for (let r = 0; r < GRID; r++) {
+    grid[r] = [];
+    for (let c = 0; c < GRID; c++) {
+      grid[r][c] = null;
+    }
+  }
+  centerR = 3;
+  centerC = 3;
+}
+
+function generatePuzzle() {
+  initGrid();
+  emitters = [];
+  panels = [];
+  won = false;
+  moveCount = 0;
+  startTime = Date.now();
+
+  // Place 3-4 emitters on the edges
+  const edgePositions = [];
+  for (let i = 1; i < GRID - 1; i++) {
+    edgePositions.push({ r: 0, c: i, dir: 'down' });
+    edgePositions.push({ r: GRID - 1, c: i, dir: 'up' });
+    edgePositions.push({ r: i, c: 0, dir: 'right' });
+    edgePositions.push({ r: i, c: GRID - 1, dir: 'left' });
+  }
+
+  // Shuffle and pick 3
+  shuffle(edgePositions);
+  const numEmitters = 3;
+
+  // For each emitter, create a solvable path to center by placing panels
+  const solution = [];
+
+  for (let e = 0; e < numEmitters; e++) {
+    const emitter = edgePositions[e];
+    // Find a path from emitter to center using 1-2 reflections
+    const path = findPath(emitter.r, emitter.c, emitter.dir, centerR, centerC, solution);
+    if (path) {
+      emitters.push(emitter);
+      solution.push(...path);
+    }
+  }
+
+  // If we got fewer than 2 emitters, retry
+  if (emitters.length < 2) {
+    generatePuzzle();
+    return;
+  }
+
+  // Create panels from solution (these will go in the tray)
+  const panelTypeIndices = [];
+  for (let i = 0; i < solution.length; i++) {
+    panelTypeIndices.push(i % PANEL_TYPES.length);
+  }
+  shuffle(panelTypeIndices);
+
+  for (let i = 0; i < solution.length; i++) {
+    panels.push({
+      type: panelTypeIndices[i],
+      orientation: Math.random() < 0.5 ? REFLECT_SLASH : REFLECT_BACK,
+      solutionR: solution[i].r,
+      solutionC: solution[i].c,
+      solutionOri: solution[i].orientation
+    });
+  }
+
+  // Add 1-2 extra distractor panels
+  const extraCount = Math.min(2, 5 - panels.length);
+  for (let i = 0; i < extraCount; i++) {
+    panels.push({
+      type: (panels.length + i) % PANEL_TYPES.length,
+      orientation: Math.random() < 0.5 ? REFLECT_SLASH : REFLECT_BACK,
+      solutionR: -1,
+      solutionC: -1,
+      solutionOri: -1
+    });
+  }
+
+  shuffle(panels);
+
+  // Place some walls for visual interest (not blocking solution paths)
+  const wallCandidates = [];
+  for (let r = 1; r < GRID - 1; r++) {
+    for (let c = 1; c < GRID - 1; c++) {
+      if (r === centerR && c === centerC) continue;
+      if (solution.some(s => s.r === r && s.c === c)) continue;
+      if (emitters.some(e => e.r === r && e.c === c)) continue;
+      // Check if beam passes through
+      wallCandidates.push({ r, c });
+    }
+  }
+  shuffle(wallCandidates);
+  const numWalls = Math.min(3, wallCandidates.length);
+  for (let i = 0; i < numWalls; i++) {
+    grid[wallCandidates[i].r][wallCandidates[i].c] = { wall: true };
+  }
+}
+
+function findPath(startR, startC, startDir, targetR, targetC, existing) {
+  // Try to find 1-2 reflection points that guide beam from start to target
+  // BFS-like approach with limited depth
+
+  // Try 1 reflection
+  for (let r = 1; r < GRID - 1; r++) {
+    for (let c = 1; c < GRID - 1; c++) {
+      if (r === targetR && c === targetC) continue;
+      if (existing.some(s => s.r === r && s.c === c)) continue;
+
+      for (const ori of [REFLECT_SLASH, REFLECT_BACK]) {
+        // Can beam reach (r,c) from start?
+        if (canReach(startR, startC, startDir, r, c, existing)) {
+          const newDir = reflectBeam(startDir, ori);
+          if (canReach(r, c, newDir, targetR, targetC, existing)) {
+            return [{ r, c, orientation: ori }];
+          }
+        }
+      }
+    }
+  }
+
+  // Try 2 reflections
+  for (let r1 = 1; r1 < GRID - 1; r1++) {
+    for (let c1 = 1; c1 < GRID - 1; c1++) {
+      if (r1 === targetR && c1 === targetC) continue;
+      if (existing.some(s => s.r === r1 && s.c === c1)) continue;
+
+      for (const ori1 of [REFLECT_SLASH, REFLECT_BACK]) {
+        if (!canReach(startR, startC, startDir, r1, c1, existing)) continue;
+        const dir1 = reflectBeam(startDir, ori1);
+
+        for (let r2 = 1; r2 < GRID - 1; r2++) {
+          for (let c2 = 1; c2 < GRID - 1; c2++) {
+            if (r2 === targetR && c2 === targetC) continue;
+            if (r2 === r1 && c2 === c1) continue;
+            if (existing.some(s => s.r === r2 && s.c === c2)) continue;
+
+            for (const ori2 of [REFLECT_SLASH, REFLECT_BACK]) {
+              if (canReach(r1, c1, dir1, r2, c2, existing)) {
+                const dir2 = reflectBeam(dir1, ori2);
+                if (canReach(r2, c2, dir2, targetR, targetC, existing)) {
+                  return [
+                    { r: r1, c: c1, orientation: ori1 },
+                    { r: r2, c: c2, orientation: ori2 }
+                  ];
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function canReach(fromR, fromC, dir, toR, toC, obstacles) {
+  const d = DIRS[dir];
+  let r = fromR + d.dr;
+  let c = fromC + d.dc;
+  while (r >= 0 && r < GRID && c >= 0 && c < GRID) {
+    if (r === toR && c === toC) return true;
+    if (obstacles.some(o => o.r === r && o.c === c)) return false;
+    r += d.dr;
+    c += d.dc;
+  }
+  return false;
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+}
+
+function renderBoard() {
+  board.innerHTML = '';
+  const boardRect = board.getBoundingClientRect();
+  const cellSize = boardRect.width / GRID;
+
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.left = (c * cellSize) + 'px';
+      cell.style.top = (r * cellSize) + 'px';
+      cell.style.width = cellSize + 'px';
+      cell.style.height = cellSize + 'px';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+
+      if (r === centerR && c === centerC) {
+        cell.classList.add('center-gem');
+        cell.textContent = '💎';
+      } else if (grid[r][c] && grid[r][c].wall) {
+        cell.classList.add('wall');
+        cell.textContent = '🧱';
+      } else {
+        const emitter = emitters.find(e => e.r === r && e.c === c);
+        if (emitter) {
+          cell.classList.add('emitter');
+          cell.textContent = '☀' + DIRS[emitter.dir].symbol;
+        } else if (grid[r][c] && grid[r][c].panelIndex !== undefined) {
+          const p = panels[grid[r][c].panelIndex];
+          const pt = PANEL_TYPES[p.type];
+          cell.classList.add(pt.cssClass, 'occupied');
+          const ori = grid[r][c].orientation;
+          cell.textContent = ori === REFLECT_SLASH ? '╱' : '╲';
+          cell.addEventListener('click', () => handleBoardCellClick(r, c));
+        } else if (!isEdge(r, c) || emitters.some(e => e.r === r && e.c === c)) {
+          cell.addEventListener('click', () => handleEmptyCellClick(r, c));
+        }
+      }
+
+      // Make edge cells without emitters look like border
+      if (isEdge(r, c) && !emitters.some(e => e.r === r && e.c === c) &&
+          !(r === centerR && c === centerC)) {
+        cell.classList.add('wall');
+        cell.style.opacity = '0.3';
+      }
+
+      board.appendChild(cell);
+    }
+  }
+
+  renderBeams();
+}
+
+function isEdge(r, c) {
+  return r === 0 || r === GRID - 1 || c === 0 || c === GRID - 1;
+}
+
+function renderTray() {
+  tray.innerHTML = '';
+  panels.forEach((p, i) => {
+    // Skip panels that are on the board
+    const onBoard = isOnBoard(i);
+    if (onBoard) return;
+
+    const el = document.createElement('div');
+    const pt = PANEL_TYPES[p.type];
+    el.className = 'tray-panel ' + pt.cssClass;
+    el.style.borderColor = pt.color;
+    el.style.color = pt.color;
+    el.textContent = p.orientation === REFLECT_SLASH ? '╱' : '╲';
+
+    const arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    arrow.textContent = '⟲';
+    el.appendChild(arrow);
+
+    if (selectedPanel === i) {
+      el.classList.add('selected');
+    }
+
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (selectedPanel === i) {
+        // Rotate
+        p.orientation = p.orientation === REFLECT_SLASH ? REFLECT_BACK : REFLECT_SLASH;
+        renderTray();
+      } else {
+        selectedPanel = i;
+        renderTray();
+        updateStatus('Now tap an empty cell to place the panel');
+      }
+    });
+
+    tray.appendChild(el);
+  });
+}
+
+function isOnBoard(panelIndex) {
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      if (grid[r][c] && grid[r][c].panelIndex === panelIndex) return true;
+    }
+  }
+  return false;
+}
+
+function handleEmptyCellClick(r, c) {
+  if (won) return;
+  if (grid[r][c] !== null) return;
+  if (isEdge(r, c)) return;
+  if (r === centerR && c === centerC) return;
+
+  if (selectedPanel !== null && typeof selectedPanel === 'number') {
+    // Place panel
+    const p = panels[selectedPanel];
+    grid[r][c] = { panelIndex: selectedPanel, orientation: p.orientation };
+    moveCount++;
+    selectedPanel = null;
+    updateStatus('Panel placed! Tap placed panels to rotate them.');
+    renderBoard();
+    renderTray();
+    checkWin();
+  }
+}
+
+function handleBoardCellClick(r, c) {
+  if (won) return;
+  if (!grid[r][c] || grid[r][c].panelIndex === undefined) return;
+
+  if (selectedPanel !== null && typeof selectedPanel === 'number') {
+    // Swap: pick up board panel, place tray panel
+    const boardPanelIndex = grid[r][c].panelIndex;
+    const p = panels[selectedPanel];
+    grid[r][c] = { panelIndex: selectedPanel, orientation: p.orientation };
+    selectedPanel = boardPanelIndex;
+    moveCount++;
+    renderBoard();
+    renderTray();
+    updateStatus('Swapped! Tap another cell or tap panel again to rotate.');
+    checkWin();
+  } else {
+    // Pick up or rotate
+    if (selectedPanel === 'board:' + r + ':' + c) {
+      // Rotate in place
+      grid[r][c].orientation = grid[r][c].orientation === REFLECT_SLASH ? REFLECT_BACK : REFLECT_SLASH;
+      selectedPanel = null;
+      moveCount++;
+      renderBoard();
+      renderTray();
+      checkWin();
+    } else {
+      // Pick up from board
+      selectedPanel = grid[r][c].panelIndex;
+      grid[r][c] = null;
+      moveCount++;
+      renderBoard();
+      renderTray();
+      updateStatus('Panel picked up. Tap a cell to place it, or tap it in tray to rotate.');
+    }
+  }
+}
+
+function traceBeam(startR, startC, dir) {
+  const segments = [];
+  let r = startR;
+  let c = startC;
+  let currentDir = dir;
+  const visited = new Set();
+
+  for (let step = 0; step < 30; step++) {
+    const d = DIRS[currentDir];
+    const nr = r + d.dr;
+    const nc = c + d.dc;
+
+    if (nr < 0 || nr >= GRID || nc < 0 || nc >= GRID) {
+      segments.push({ fromR: r, fromC: c, toR: nr, toC: nc, dir: currentDir, hitEdge: true });
+      break;
+    }
+
+    const key = nr + ',' + nc + ',' + currentDir;
+    if (visited.has(key)) break;
+    visited.add(key);
+
+    if (nr === centerR && nc === centerC) {
+      segments.push({ fromR: r, fromC: c, toR: nr, toC: nc, dir: currentDir, hitGem: true });
+      break;
+    }
+
+    if (grid[nr][nc] && grid[nr][nc].wall) {
+      segments.push({ fromR: r, fromC: c, toR: nr, toC: nc, dir: currentDir, hitWall: true });
+      break;
+    }
+
+    if (grid[nr][nc] && grid[nr][nc].panelIndex !== undefined) {
+      segments.push({ fromR: r, fromC: c, toR: nr, toC: nc, dir: currentDir });
+      const newDir = reflectBeam(currentDir, grid[nr][nc].orientation);
+      r = nr;
+      c = nc;
+      currentDir = newDir;
+      continue;
+    }
+
+    // Empty cell or emitter - beam passes through
+    r = nr;
+    c = nc;
+
+    if (nr === 0 || nr === GRID - 1 || nc === 0 || nc === GRID - 1) {
+      segments.push({ fromR: startR, fromC: startC, toR: nr, toC: nc, dir: currentDir, hitEdge: true });
+      break;
+    }
+  }
+
+  if (segments.length === 0) {
+    // Beam goes straight
+    let er = startR, ec = startC;
+    const d = DIRS[dir];
+    while (true) {
+      er += d.dr;
+      ec += d.dc;
+      if (er < 0 || er >= GRID || ec < 0 || ec >= GRID) {
+        segments.push({ fromR: startR, fromC: startC, toR: er, toC: ec, dir, hitEdge: true });
+        break;
+      }
+      if (er === centerR && ec === centerC) {
+        segments.push({ fromR: startR, fromC: startC, toR: er, toC: ec, dir, hitGem: true });
+        break;
+      }
+      if (grid[er][ec] && grid[er][ec].wall) {
+        segments.push({ fromR: startR, fromC: startC, toR: er, toC: ec, dir, hitWall: true });
+        break;
+      }
+    }
+  }
+
+  return segments;
+}
+
+function renderBeams() {
+  const boardRect = board.getBoundingClientRect();
+  beamCanvas.width = boardRect.width;
+  beamCanvas.height = boardRect.height;
+  beamCanvas.style.position = 'absolute';
+  beamCanvas.style.left = board.offsetLeft + 'px';
+  beamCanvas.style.top = board.offsetTop + 'px';
+  beamCanvas.style.pointerEvents = 'none';
+  beamCanvas.style.zIndex = '10';
+
+  ctx.clearRect(0, 0, beamCanvas.width, beamCanvas.height);
+  const cellSize = boardRect.width / GRID;
+
+  let allHitGem = true;
+
+  emitters.forEach((emitter, ei) => {
+    const beamColor = PANEL_TYPES[ei % PANEL_TYPES.length].color;
+    const segments = traceAllSegments(emitter.r, emitter.c, emitter.dir);
+    let hitGem = false;
+
+    segments.forEach(seg => {
+      const x1 = (seg.fromC + 0.5) * cellSize;
+      const y1 = (seg.fromR + 0.5) * cellSize;
+      const x2 = (seg.toC + 0.5) * cellSize;
+      const y2 = (seg.toR + 0.5) * cellSize;
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = seg.hitGem ? '#F1FAEE' : beamColor;
+      ctx.lineWidth = seg.hitGem ? 4 : 2.5;
+      ctx.shadowColor = beamColor;
+      ctx.shadowBlur = seg.hitGem ? 15 : 8;
+      ctx.globalAlpha = 0.85;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+
+      if (seg.hitGem) hitGem = true;
+    });
+
+    if (!hitGem) allHitGem = false;
+  });
+
+  // Update gem glow
+  const gemCell = board.querySelector('.center-gem');
+  if (gemCell) {
+    if (allHitGem && emitters.length > 0) {
+      gemCell.classList.add('lit');
+    } else {
+      gemCell.classList.remove('lit');
+    }
+  }
+}
+
+function traceAllSegments(startR, startC, startDir) {
+  const segments = [];
+  let r = startR;
+  let c = startC;
+  let dir = startDir;
+  const visited = new Set();
+
+  for (let step = 0; step < 20; step++) {
+    const d = DIRS[dir];
+    let hitSomething = false;
+    let pr = r, pc = c;
+
+    let nr = r + d.dr;
+    let nc = c + d.dc;
+
+    // Trace until hitting something
+    while (nr >= 0 && nr < GRID && nc >= 0 && nc < GRID) {
+      const key = nr + ',' + nc;
+      if (visited.has(key + ',' + dir)) {
+        segments.push({ fromR: r, fromC: c, toR: nr, toC: nc });
+        return segments;
+      }
+
+      if (nr === centerR && nc === centerC) {
+        segments.push({ fromR: r, fromC: c, toR: nr, toC: nc, hitGem: true });
+        return segments;
+      }
+
+      if (grid[nr][nc] && grid[nr][nc].wall) {
+        // Stop before wall
+        segments.push({ fromR: r, fromC: c, toR: pr, toC: pc, hitWall: true });
+        return segments;
+      }
+
+      if (grid[nr][nc] && grid[nr][nc].panelIndex !== undefined) {
+        visited.add(key + ',' + dir);
+        segments.push({ fromR: r, fromC: c, toR: nr, toC: nc });
+        dir = reflectBeam(dir, grid[nr][nc].orientation);
+        r = nr;
+        c = nc;
+        hitSomething = true;
+        break;
+      }
+
+      pr = nr;
+      pc = nc;
+      nr += d.dr;
+      nc += d.dc;
+    }
+
+    if (!hitSomething) {
+      // Beam left the board
+      segments.push({ fromR: r, fromC: c, toR: pr, toC: pc, hitEdge: true });
+      break;
+    }
+  }
+
+  return segments;
+}
+
+function checkWin() {
+  if (emitters.length === 0) return;
+
+  let allHit = true;
+  emitters.forEach(emitter => {
+    const segs = traceAllSegments(emitter.r, emitter.c, emitter.dir);
+    const hits = segs.some(s => s.hitGem);
+    if (!hits) allHit = false;
+  });
+
+  if (allHit) {
+    won = true;
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    const mins = Math.floor(elapsed / 60);
+    const secs = elapsed % 60;
+    document.getElementById('win-stats').textContent =
+      `Moves: ${moveCount} · Time: ${mins}:${secs.toString().padStart(2, '0')}`;
+    setTimeout(() => {
+      document.getElementById('win-overlay').classList.add('show');
+      createSparkles();
+    }, 600);
+  }
+}
+
+function createSparkles() {
+  const colors = ['#E63946', '#457B9D', '#2A9D8F', '#E9C46A', '#7B2D8E', '#F1FAEE'];
+  for (let i = 0; i < 40; i++) {
+    setTimeout(() => {
+      const s = document.createElement('div');
+      s.className = 'sparkle';
+      s.style.left = (20 + Math.random() * 60) + 'vw';
+      s.style.top = (20 + Math.random() * 60) + 'vh';
+      s.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      s.style.width = (4 + Math.random() * 8) + 'px';
+      s.style.height = s.style.width;
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 1000);
+    }, i * 50);
+  }
+}
+
+function updateStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function clearBoard() {
+  if (won) return;
+  for (let r = 0; r < GRID; r++) {
+    for (let c = 0; c < GRID; c++) {
+      if (grid[r][c] && grid[r][c].panelIndex !== undefined) {
+        grid[r][c] = null;
+      }
+    }
+  }
+  selectedPanel = null;
+  renderBoard();
+  renderTray();
+  updateStatus('Board cleared. Select a panel from the tray.');
+}
+
+function resetGame() {
+  selectedPanel = null;
+  won = false;
+  generatePuzzle();
+  renderBoard();
+  renderTray();
+  updateStatus('Tap a panel, then tap a cell to place it. Tap placed panel to rotate.');
+}
+
+// Handle window resize
+function onResize() {
+  renderBoard();
+}
+
+window.addEventListener('resize', onResize);
+
+// Init
+resetGame();
+</script>
+</body>
+</html>
