@@ -433,9 +433,20 @@ function render() {
     APPS.forEach(a => { allWords.add(a.word_a); allWords.add(a.word_b); });
     document.getElementById('wordCount').textContent = allWords.size;
 
+    // Only show the latest version of each game (by word pair)
+    const latestVersions = {};
+    APPS.forEach(app => {
+        const key = app.word_a + '×' + app.word_b;
+        if (!latestVersions[key] || (app.version || 1) > (latestVersions[key].version || 1)) {
+            latestVersions[key] = app;
+        }
+    });
+    const latestPaths = new Set(Object.values(latestVersions).map(a => a.path));
+    const visibleApps = APPS.filter(app => latestPaths.has(app.path));
+
     const archived = getArchived();
-    const activeApps = APPS.filter(app => !archived.includes(app.path));
-    const archivedApps = APPS.filter(app => archived.includes(app.path));
+    const activeApps = visibleApps.filter(app => !archived.includes(app.path));
+    const archivedApps = visibleApps.filter(app => archived.includes(app.path));
 
     document.getElementById('appCount').textContent = activeApps.length;
 
