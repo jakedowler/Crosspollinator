@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Llama Crossing</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation;}
 html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#E8DCC8;}
 
 :root{
@@ -48,6 +48,11 @@ header h1 span{color:var(--accent);}
 .cargo-item:hover,.cargo-item:active{transform:scale(1.2);}
 .cargo-item.collected{animation:collect 0.4s ease forwards;}
 @keyframes collect{0%{transform:scale(1);opacity:1}100%{transform:scale(0) translateY(-30px);opacity:0;}}
+
+.score-popup{position:absolute;font-size:clamp(16px,4vw,24px);font-weight:900;color:var(--gold);pointer-events:none;z-index:20;text-shadow:0 1px 3px rgba(0,0,0,0.5);animation:popUp 0.8s ease forwards;}
+@keyframes popUp{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-40px);opacity:0;}}
+
+.hit-popup{position:absolute;font-size:clamp(18px,5vw,28px);font-weight:900;color:#e74c3c;pointer-events:none;z-index:20;text-shadow:0 1px 3px rgba(0,0,0,0.5);animation:popUp 0.8s ease forwards;}
 
 #bank-left,#bank-right{position:absolute;top:0;height:100%;width:clamp(30px,8vw,50px);z-index:2;}
 #bank-left{left:0;background:linear-gradient(90deg,var(--sand) 40%,transparent);}
@@ -120,9 +125,9 @@ header h1 span{color:var(--accent);}
   <div id="splash-box">
     <h2>Llama Crossing</h2>
     <div class="emoji-row">&#x1F999; &#x1F6F6; &#x1F30A;</div>
-    <p>Row your rowboat to ferry llamas across the river!<br>
-    Dodge rocks and logs. Collect cargo bundles for bonus points.<br>
-    Use arrow buttons or A/D keys. Space to load/dock.</p>
+    <p>Row your rowboat to ferry all 6 llamas across the river!<br>
+    Dodge rocks &amp; logs (they cost HP). Tap floating cargo for bonus points.<br>
+    Use arrow buttons or A/D keys. LOAD at left bank, DOCK at right bank.</p>
     <button class="overlay-btn" onclick="startGame()">Start Rowing!</button>
   </div>
 </div>
@@ -319,6 +324,16 @@ function spawnCargo() {
   gameState.cargoItems.push(c);
 }
 
+function showPopup(x, y, text, cls) {
+  const pop = document.createElement('div');
+  pop.className = cls || 'score-popup';
+  pop.textContent = text;
+  pop.style.left = x + 'px';
+  pop.style.top = y + 'px';
+  riverArea.appendChild(pop);
+  setTimeout(() => pop.remove(), 800);
+}
+
 function collectCargo(c) {
   if (c.collected) return;
   const bx = gameState.boatX;
@@ -328,6 +343,7 @@ function collectCargo(c) {
     c.el.classList.add('collected');
     gameState.cargo++;
     gameState.score += 15;
+    showPopup(c.x * riverW, c.y * riverH - 20, '+15 cargo!');
     updateHUD();
     setTimeout(() => { if (c.el.parentNode) c.el.remove(); }, 500);
   }
@@ -405,6 +421,7 @@ function checkCollisions() {
       ob.dmg = 0; // only hit once
       boatEl.style.filter = 'brightness(2)';
       setTimeout(() => { boatEl.style.filter = ''; }, 200);
+      showPopup(ob.x * riverW, ob.y * riverH - 20, '-1 HP!', 'hit-popup');
 
       // Lose a llama overboard if carrying
       if (gameState.llamasOnBoard > 0 && Math.random() < 0.4) {

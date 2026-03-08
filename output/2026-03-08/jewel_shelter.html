@@ -6,20 +6,20 @@
 <title>Gem Vault</title>
 <style>
   :root {
-    --bg: #0F1B2D;
+    --bg: #F5F0FF;
     --ruby: #E63946;
-    --sapphire: #457B9D;
-    --emerald: #2A9D8F;
-    --amber: #E9C46A;
-    --amethyst: #7B2D8E;
-    --light: #F1FAEE;
-    --bronze: #8B7355;
+    --sapphire: #2E86C1;
+    --emerald: #27AE60;
+    --amber: #F39C12;
+    --amethyst: #8E44AD;
+    --light: #2C3E50;
+    --bronze: #8B6914;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   body {
-    background: var(--bg);
+    background: linear-gradient(135deg, #F5F0FF, #E8F4FD, #FFF5F5);
     color: var(--light);
     font-family: 'Segoe UI', system-ui, sans-serif;
     height: 100vh;
@@ -95,50 +95,52 @@
 
   .cell {
     position: absolute;
-    border: 1.5px solid rgba(139, 115, 85, 0.2);
-    border-radius: 4px;
+    border: 1.5px solid rgba(100, 80, 160, 0.15);
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: border-color 0.2s, box-shadow 0.3s;
     cursor: pointer;
     font-size: 1rem;
+    background: rgba(255,255,255,0.5);
   }
 
   .cell.interactive:hover,
   .cell.interactive:active {
-    border-color: var(--bronze);
-    box-shadow: inset 0 0 8px rgba(139,115,85,0.15);
+    border-color: var(--amethyst);
+    box-shadow: inset 0 0 8px rgba(142,68,173,0.15);
+    background: rgba(255,255,255,0.8);
   }
 
   .cell.center-gem {
-    border: 2px solid var(--amber);
+    border: 2.5px solid var(--amber);
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(233,196,106,0.12), transparent);
+    background: radial-gradient(circle, rgba(243,156,18,0.2), rgba(255,255,255,0.6));
     cursor: default;
-    box-shadow: 0 0 15px rgba(233,196,106,0.15);
+    box-shadow: 0 0 15px rgba(243,156,18,0.25);
   }
 
   .cell.center-gem.lit {
-    box-shadow: 0 0 30px rgba(233,196,106,0.6), 0 0 60px rgba(233,196,106,0.25);
+    box-shadow: 0 0 30px rgba(243,156,18,0.7), 0 0 60px rgba(243,156,18,0.3);
     animation: gemPulse 1.5s ease-in-out infinite;
   }
 
   @keyframes gemPulse {
-    0%, 100% { box-shadow: 0 0 30px rgba(233,196,106,0.6), 0 0 60px rgba(233,196,106,0.25); }
-    50% { box-shadow: 0 0 45px rgba(233,196,106,0.8), 0 0 90px rgba(233,196,106,0.35); }
+    0%, 100% { box-shadow: 0 0 30px rgba(243,156,18,0.7), 0 0 60px rgba(243,156,18,0.3); }
+    50% { box-shadow: 0 0 45px rgba(243,156,18,0.9), 0 0 90px rgba(243,156,18,0.4); }
   }
 
   .cell.wall {
-    background: rgba(139, 115, 85, 0.08);
-    border-color: rgba(139, 115, 85, 0.2);
+    background: rgba(100, 80, 160, 0.08);
+    border-color: rgba(100, 80, 160, 0.15);
     cursor: default;
-    opacity: 0.35;
+    opacity: 0.4;
   }
 
   .cell.emitter {
-    border-color: rgba(241, 250, 238, 0.6);
-    background: rgba(241, 250, 238, 0.06);
+    border-color: rgba(243,156,18,0.6);
+    background: rgba(243,156,18,0.08);
     cursor: default;
   }
 
@@ -146,11 +148,11 @@
     cursor: pointer;
   }
 
-  .panel-ruby { background: rgba(230, 57, 70, 0.3); border-color: var(--ruby) !important; }
-  .panel-sapphire { background: rgba(69, 123, 157, 0.3); border-color: var(--sapphire) !important; }
-  .panel-emerald { background: rgba(42, 157, 143, 0.3); border-color: var(--emerald) !important; }
-  .panel-amber { background: rgba(233, 196, 106, 0.3); border-color: var(--amber) !important; }
-  .panel-amethyst { background: rgba(123, 45, 142, 0.3); border-color: var(--amethyst) !important; }
+  .panel-ruby { background: rgba(230, 57, 70, 0.25); border-color: var(--ruby) !important; }
+  .panel-sapphire { background: rgba(46, 134, 193, 0.25); border-color: var(--sapphire) !important; }
+  .panel-emerald { background: rgba(39, 174, 96, 0.25); border-color: var(--emerald) !important; }
+  .panel-amber { background: rgba(243, 156, 18, 0.25); border-color: var(--amber) !important; }
+  .panel-amethyst { background: rgba(142, 68, 173, 0.25); border-color: var(--amethyst) !important; }
 
   .cell.highlight-target {
     box-shadow: inset 0 0 12px rgba(241, 250, 238, 0.15);
@@ -162,8 +164,8 @@
     display: flex;
     gap: 8px;
     padding: 8px 14px;
-    background: rgba(139, 115, 85, 0.08);
-    border: 1px solid rgba(139, 115, 85, 0.25);
+    background: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(100, 80, 160, 0.2);
     border-radius: 10px;
     margin: 6px 10px;
     flex-wrap: wrap;
@@ -212,23 +214,24 @@
   }
 
   button {
-    background: rgba(139, 115, 85, 0.15);
-    border: 1px solid rgba(139, 115, 85, 0.5);
+    background: rgba(142, 68, 173, 0.1);
+    border: 1px solid rgba(142, 68, 173, 0.4);
     color: var(--light);
     padding: 7px 18px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 0.8rem;
+    font-weight: 600;
     transition: background 0.2s;
   }
 
-  button:hover, button:active { background: rgba(139, 115, 85, 0.35); }
+  button:hover, button:active { background: rgba(142, 68, 173, 0.25); }
 
   /* Win overlay */
   #win-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(15, 27, 45, 0.93);
+    background: rgba(245, 240, 255, 0.95);
     display: none;
     flex-direction: column;
     align-items: center;
@@ -326,7 +329,7 @@
     { name: 'amethyst', color: '#7B2D8E', css: 'panel-amethyst' }
   ];
 
-  const BEAM_COLORS = ['#E63946', '#457B9D', '#2A9D8F', '#E9C46A', '#7B2D8E'];
+  const BEAM_COLORS = ['#E63946', '#2E86C1', '#27AE60', '#F39C12', '#8E44AD'];
 
   function reflect(dir, mirror) {
     if (mirror === SLASH) {
@@ -450,7 +453,7 @@
     shuffle(edges);
 
     const solution = [];
-    const targetEmitters = 3;
+    const targetEmitters = 4;
 
     for (let e = 0; e < edges.length && emitters.length < targetEmitters; e++) {
       const em = edges[e];
@@ -504,7 +507,7 @@
       }
     }
     shuffle(wallCandidates);
-    for (let i = 0; i < Math.min(3, wallCandidates.length); i++) {
+    for (let i = 0; i < Math.min(5, wallCandidates.length); i++) {
       grid[wallCandidates[i].r][wallCandidates[i].c] = { wall: true };
     }
   }

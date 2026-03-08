@@ -29,8 +29,8 @@ h1 span.grn { color:#2ECC71; }
 
 .grid-row { display:flex; gap:4px; margin-bottom:4px; justify-content:center; }
 .grid-cell { width:clamp(48px,15vw,72px); height:clamp(40px,12vw,56px); border-radius:10px; border:3px solid #BDC3C7; background:#fff; display:flex; align-items:center; justify-content:center; font-size:clamp(18px,4vw,28px); transition:all .35s; position:relative; }
-.grid-cell.correct { background:#E74C3C; border-color:#C0392B; }
-.grid-cell.present { background:#F1C40F; border-color:#D4AC0D; }
+.grid-cell.correct { background:#2ECC71; border-color:#1A9B55; }
+.grid-cell.present { background:#F39C12; border-color:#D68910; }
 .grid-cell.absent  { background:#BDC3C7; border-color:#95A5A6; }
 .grid-cell.current { border-color:#E67E22; box-shadow:0 0 0 2px #E67E2266; }
 
@@ -71,15 +71,15 @@ h1 span.grn { color:#2ECC71; }
 #legend { display:flex; gap:clamp(6px,2vw,12px); justify-content:center; margin-bottom:4px; font-size:clamp(10px,2.2vw,12px); color:#6D4C2F; font-weight:600; }
 .legend-item { display:flex; align-items:center; gap:3px; }
 .legend-swatch { width:14px; height:14px; border-radius:4px; border:2px solid #95A5A6; }
-.legend-swatch.lc { background:#E74C3C; border-color:#C0392B; }
-.legend-swatch.lp { background:#F1C40F; border-color:#D4AC0D; }
+.legend-swatch.lc { background:#2ECC71; border-color:#1A9B55; }
+.legend-swatch.lp { background:#F39C12; border-color:#D68910; }
 .legend-swatch.la { background:#BDC3C7; border-color:#95A5A6; }
 </style>
 </head>
 <body>
 <div id="app">
   <h1><span class="grn">Chimp</span> <span class="red">Ketchup</span> Lab</h1>
-  <div id="instructions">Crack 4 lost ketchup recipes through the ages! Pick 5 ingredients per guess.</div>
+  <div id="instructions">Your chimp lab partner helps you crack 4 lost ketchup recipes! Each era unlocks a new chimp tool.</div>
   <div id="era-bar"></div>
   <div id="era-name"></div>
   <div id="hint-area" onclick="useHint()">Tap for a historical clue</div>
@@ -127,8 +127,20 @@ const ERAS = [
     hints:['Engineered to pour at exactly 0.028 mph!','The base is the same red fruit from the Americas.','A root spice adds a hidden warm note most people miss.'] }
 ];
 
-const CHIMP_FACES = ['\u{1F9CD}','\u{1F9D0}','\u{1F9EA}','\u{1F3C6}'];
-const TOOLS = ['twig','bark strip','leaf cup','stone hammer'];
+const CHIMP_FACES = ['\u{1F435}','\u{1F435}','\u{1F435}','\u{1F435}'];
+const CHIMP_REACT = {
+  correct: ['\u{1F435} OOH OOH! Nailed it!','\u{1F435} *excited chimp noises*','\u{1F435} *beats chest proudly*'],
+  wrong: ['\u{1F648} Hmm, not quite...','\u{1F649} The chimp scratches its head','\u{1F64A} *confused chimp stare*'],
+  hint: ['\u{1F435} *sniffs ingredients curiously*','\u{1F435} *taps chin thoughtfully*','\u{1F435} *points at a jar excitedly*'],
+  win: '\u{1F435} *does a victory backflip!*'
+};
+const CHIMP_FACTS = [
+  'Chimps use sticks to "fish" for termites \u2014 the original dipping sauce!',
+  'Chimps strip bark to make tools, just like early cooks stripped ingredients!',
+  'Chimps fold leaves into cups for water \u2014 nature\'s first mixing bowls!',
+  'Chimps crack nuts with stone hammers \u2014 the oldest food prep technique!'
+];
+const TOOLS = ['twig \u{1F33F}','bark strip \u{1FAB5}','leaf cup \u{1F343}','stone hammer \u{1FAA8}'];
 
 let era = 0, row = 0, selected = [], guesses = [], hintIdx = 0, hintsUsed = 0;
 let eliminated = new Set(), totalScore = 0;
@@ -155,7 +167,7 @@ function startEra() {
   document.getElementById('era-name').textContent = ERAS[era].name + ' \u2014 Tool: ' + TOOLS[era];
   document.getElementById('chimp').textContent = CHIMP_FACES[era];
   document.getElementById('hint-area').textContent = 'Tap for a historical clue';
-  document.getElementById('msg').textContent = '';
+  document.getElementById('msg').textContent = CHIMP_FACTS[era];
   renderGrid();
   renderPalette();
   updateGuessBtn();
@@ -219,12 +231,13 @@ function updateGuessBtn() {
 function useHint() {
   const hints = ERAS[era].hints;
   if (hintIdx < hints.length) {
+    const react = CHIMP_REACT.hint[Math.floor(Math.random() * CHIMP_REACT.hint.length)];
     document.getElementById('hint-area').textContent = '\u{1F4DC} ' + hints[hintIdx];
+    document.getElementById('msg').textContent = react;
     hintIdx++;
     hintsUsed++;
-    // auto-eliminate based on hint knowledge
   } else {
-    document.getElementById('hint-area').textContent = 'No more clues for this era!';
+    document.getElementById('hint-area').textContent = '\u{1F648} No more clues for this era!';
   }
 }
 
@@ -269,15 +282,17 @@ function submitGuess() {
     const score = Math.max(0, (6 - row) * 25 - hintsUsed * 5);
     totalScore += score;
     updatePour();
-    document.getElementById('msg').textContent = 'Recipe cracked! +' + score + ' points!';
+    const react = CHIMP_REACT.correct[Math.floor(Math.random() * CHIMP_REACT.correct.length)];
+    document.getElementById('msg').textContent = react + ' +' + score + ' points!';
     document.getElementById('chimp').classList.add('pop');
     setTimeout(() => document.getElementById('chimp').classList.remove('pop'), 400);
     setTimeout(() => advanceEra(), 1400);
   } else if (row >= 5) {
-    document.getElementById('msg').textContent = 'Out of guesses! The recipe was: ' + recipe.join(', ');
+    document.getElementById('msg').textContent = '\u{1F648} Out of guesses! The recipe was: ' + recipe.join(', ');
     setTimeout(() => advanceEra(), 2200);
   } else {
-    document.getElementById('msg').textContent = (5 - row) + ' guesses left. Study the colors!';
+    const react = CHIMP_REACT.wrong[Math.floor(Math.random() * CHIMP_REACT.wrong.length)];
+    document.getElementById('msg').textContent = react + ' \u2014 ' + (5 - row) + ' guesses left.';
     const gridWrap = document.getElementById('grid-wrap');
     gridWrap.classList.add('shake');
     setTimeout(() => gridWrap.classList.remove('shake'), 500);
@@ -305,7 +320,7 @@ function advanceEra() {
 function showWin() {
   renderEraBar();
   document.getElementById('win-msg').textContent =
-    'You traced ketchup from ancient Chinese fish sauce to the modern bottle! Score: ' + totalScore + '/500. Your chimp mastered ' + ERAS.length + ' tools along the way!';
+    CHIMP_REACT.win + ' You and your chimp traced ketchup from ancient Chinese fish sauce to the modern bottle! Score: ' + totalScore + '/500. Your chimp mastered ' + ERAS.length + ' tools along the journey!';
   document.getElementById('win-screen').classList.add('show');
 }
 

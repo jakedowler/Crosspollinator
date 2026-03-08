@@ -20,7 +20,7 @@ APPS = [
     "word_a": "jewel",
     "word_b": "shelter",
     "name": "Gem Vault",
-    "desc": "Place panels to guide light beams to the central jewel",
+    "desc": "Place mirror panels to guide light beams to the central jewel",
     "path": "output/2026-03-08/jewel_shelter.html"
   },
   {
@@ -28,7 +28,7 @@ APPS = [
     "word_a": "llama",
     "word_b": "rowboat",
     "name": "Llama Crossing",
-    "desc": "Row your rowboat to ferry llamas across the river!\n    Dodge rocks and logs. Collect cargo bundles for bonus points.\n    Use arrow buttons or A/D keys. Space to load/dock.",
+    "desc": "Row your rowboat to ferry all 6 llamas across the river!\n    Dodge rocks &amp; logs (they cost HP). Tap floating cargo for bonus points.\n    Use arrow buttons or A/D keys. LOAD at left bank, DOCK at right bank.",
     "path": "output/2026-03-08/llama_rowboat.html"
   }
 ];
