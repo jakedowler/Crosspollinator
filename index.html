@@ -208,7 +208,10 @@
 // The build script injects this. Fallback to empty if not yet built.
 let APPS = [];
 </script>
-<script src="apps.js"></script>
+<script>
+// Cache-bust apps.js so new apps show up immediately
+document.write('<script src="apps.js?' + Date.now() + '"><\/script>');
+</script>
 <script>
 function render() {
     const grid = document.getElementById('grid');
