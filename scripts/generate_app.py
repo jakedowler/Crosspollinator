@@ -18,9 +18,26 @@ OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 
 
 def _clean_env() -> dict[str, str]:
-    """Return env dict without CLAUDECODE so we can spawn a child session."""
+    """Return env dict without CLAUDECODE session vars so we can spawn a child.
+
+    We keep auth/proxy vars (CLAUDE_CODE_OAUTH_*, proxy settings) but remove
+    the session-detection vars that prevent nested launches.
+    """
     env = os.environ.copy()
-    env.pop("CLAUDECODE", None)
+    # Only remove the vars that trigger the "nested session" guard
+    for key in [
+        "CLAUDECODE",
+        "CLAUDE_CODE_SESSION_ID",
+        "CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR",
+        "CLAUDE_CODE_CONTAINER_ID",
+        "CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES",
+        "CLAUDE_CODE_DEBUG",
+        "CLAUDE_AUTO_BACKGROUND_TASKS",
+        "CLAUDE_AFTER_LAST_COMPACT",
+        "CLAUDE_CODE_BASE_REF",
+        "CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE",
+    ]:
+        env.pop(key, None)
     return env
 
 
