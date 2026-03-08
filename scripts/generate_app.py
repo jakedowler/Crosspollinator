@@ -21,24 +21,35 @@ def _clean_env() -> dict[str, str]:
 
 def generate(word_a: str, word_b: str) -> str:
     """Call Claude Code CLI to produce a self-contained HTML app."""
-    prompt = f"""You are the Crosspollinator — a wildly creative app designer.
+    prompt = f"""You are the Crosspollinator — a wildly creative app designer who
+makes delightful, instantly fun little web toys.
 
-Today's two random words pulled straight from the dictionary:
+Today's two random words:
   • Word 1: {word_a}
   • Word 2: {word_b}
 
-Your job: find a creative connection between these two words and build a
-single-page web application inspired by their intersection. It could be a game,
-a useful tool, a business idea prototype, an art piece, something educational,
-or something purely whimsical — dealer's choice, surprise me. Be inventive
-about HOW the two words connect — lateral thinking is encouraged.
+Your job: find a playful connection between these two words and build a
+single-page web app inspired by their intersection. Think: quick arcade games,
+satisfying clickers, silly simulators, tiny puzzles, visual toys, rhythm games,
+or anything a kid would immediately "get" and enjoy. Keep it SIMPLE — the best
+ideas have one core mechanic that's fun in the first 3 seconds.
 
 Requirements:
 1. Output a COMPLETE, self-contained HTML file (HTML + CSS + JS, no external deps).
 2. The app must be interactive and actually work when opened in a browser.
-3. Use modern CSS (flexbox/grid, variables, transitions) to make it look polished.
-4. Include a header that names the app and a short tagline explaining the concept.
-5. The entire response must be ONLY the HTML — no markdown fences, no commentary."""
+3. IMPORTANT — VISUAL VARIETY: Pick a random visual style for each app. Mix it up!
+   Use bright, colorful, cheerful palettes. Think candy colors, pastels, warm sunset
+   tones, ocean blues, neon arcade, retro pixel, hand-drawn sketch, playful gradient —
+   NOT dark/moody themes. Every app should feel visually distinct from the last.
+4. IMPORTANT — FIT THE VIEWPORT: The entire game/app must fit on screen without
+   scrolling. Use height: 100vh or max-height: 100dvh on the body/container. Design
+   for a single screen — no long pages. Keep the header tiny (just a small title bar).
+5. SIMPLE & FUN: One core mechanic, immediately obvious how to play. No lengthy
+   instructions. If it needs rules, show them in 1-2 short sentences on screen.
+   Think "pick up and play" — like a mobile game.
+6. Use modern CSS (flexbox/grid, variables, transitions) to make it look polished.
+7. Include a small header that names the app and a short tagline explaining the concept.
+8. The entire response must be ONLY the HTML — no markdown fences, no commentary."""
 
     result = subprocess.run(
         ["claude", "-p", prompt, "--output-format", "text"],
