@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rare Roots — The Botanical Carnival</title>
+<style>
+  :root {
+    --bg-deep: #0d0a1a;
+    --bg-card: #1a1430;
+    --green-glow: #4eff91;
+    --green-dark: #1b6e3a;
+    --carnival-pink: #ff3fa4;
+    --carnival-gold: #ffd700;
+    --carnival-orange: #ff6b35;
+    --carnival-cyan: #00e5ff;
+    --text: #e8e4f0;
+    --text-dim: #9a92b0;
+    --radius: 12px;
+    --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg-deep);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated background vines */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 20% 80%, rgba(78, 255, 145, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(255, 63, 164, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 50%, rgba(255, 215, 0, 0.03) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  header {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 2.5rem 1rem 1.5rem;
+  }
+
+  header h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--green-glow), var(--carnival-gold), var(--carnival-pink));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+  }
+
+  header .tagline {
+    margin-top: 0.5rem;
+    font-size: 1.05rem;
+    color: var(--text-dim);
+    max-width: 640px;
+    margin-inline: auto;
+    line-height: 1.5;
+  }
+
+  header .tagline em {
+    color: var(--carnival-gold);
+    font-style: normal;
+  }
+
+  .app-container {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 1rem;
+  }
+
+  /* Garden grid */
+  .garden {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin: 1.5rem 0;
+  }
+
+  .plot {
+    aspect-ratio: 1;
+    background: var(--bg-card);
+    border: 2px solid rgba(78, 255, 145, 0.15);
+    border-radius: var(--radius);
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(1.6rem, 3vw, 2.4rem);
+    transition: transform 0.2s, border-color 0.3s, box-shadow 0.3s;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  .plot:hover {
+    transform: scale(1.05);
+    border-color: rgba(78, 255, 145, 0.4);
+  }
+
+  .plot.planted {
+    border-color: var(--green-glow);
+    box-shadow: 0 0 16px rgba(78, 255, 145, 0.2);
+  }
+
+  .plot.blooming {
+    animation: bloom-pulse 1.5s ease-in-out infinite alternate;
+  }
+
+  .plot.rare-bloom {
+    border-color: var(--carnival-gold) !important;
+    box-shadow: 0 0 24px rgba(255, 215, 0, 0.4) !important;
+    animation: rare-pulse 0.8s ease-in-out infinite alternate;
+  }
+
+  .plot .plant-emoji {
+    transition: transform 0.4s ease;
+  }
+
+  .plot.planted .plant-emoji {
+    animation: grow-in 0.5s ease-out;
+  }
+
+  @keyframes grow-in {
+    0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+    60% { transform: scale(1.3) rotate(5deg); }
+    100% { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+
+  @keyframes bloom-pulse {
+    0% { box-shadow: 0 0 12px rgba(78, 255, 145, 0.2); }
+    100% { box-shadow: 0 0 24px rgba(78, 255, 145, 0.45); }
+  }
+
+  @keyframes rare-pulse {
+    0% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.3); transform: scale(1); }
+    100% { box-shadow: 0 0 36px rgba(255, 215, 0, 0.7); transform: scale(1.04); }
+  }
+
+  /* Carnival parade */
+  .parade-container {
+    position: relative;
+    height: 60px;
+    margin: 1rem 0;
+    overflow: hidden;
+    border-radius: var(--radius);
+    background: linear-gradient(90deg, rgba(255,63,164,0.08), rgba(255,215,0,0.08), rgba(0,229,255,0.08));
+  }
+
+  .parade-track {
+    display: flex;
+    gap: 2rem;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    white-space: nowrap;
+    animation: parade-scroll 20s linear infinite;
+    font-size: 1.8rem;
+  }
+
+  @keyframes parade-scroll {
+    0% { transform: translateY(-50%) translateX(0); }
+    100% { transform: translateY(-50%) translateX(-50%); }
+  }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: center;
+    margin: 1.5rem 0;
+  }
+
+  button {
+    font-family: var(--font);
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.65rem 1.4rem;
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.2s;
+  }
+
+  button:active { transform: scale(0.96); }
+
+  .btn-plant {
+    background: linear-gradient(135deg, var(--green-dark), #28a85a);
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(78, 255, 145, 0.25);
+  }
+
+  .btn-plant:hover { box-shadow: 0 4px 24px rgba(78, 255, 145, 0.4); }
+
+  .btn-carnival {
+    background: linear-gradient(135deg, var(--carnival-pink), var(--carnival-orange));
+    color: #fff;
+    box-shadow: 0 4px 16px rgba(255, 63, 164, 0.25);
+  }
+
+  .btn-carnival:hover { box-shadow: 0 4px 24px rgba(255, 63, 164, 0.4); }
+
+  .btn-reset {
+    background: rgba(255,255,255,0.08);
+    color: var(--text-dim);
+    border: 1px solid rgba(255,255,255,0.12);
+  }
+
+  .btn-reset:hover { background: rgba(255,255,255,0.14); }
+
+  /* Stats */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+
+  .stat-card {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 1rem;
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .stat-card .value {
+    font-size: 1.8rem;
+    font-weight: 800;
+  }
+
+  .stat-card .label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .stat-card.green .value { color: var(--green-glow); }
+  .stat-card.gold .value { color: var(--carnival-gold); }
+  .stat-card.pink .value { color: var(--carnival-pink); }
+  .stat-card.cyan .value { color: var(--carnival-cyan); }
+
+  /* Discovery log */
+  .log-section {
+    margin: 1.5rem 0;
+  }
+
+  .log-section h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+    color: var(--carnival-gold);
+  }
+
+  .log {
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    padding: 1rem;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .log::-webkit-scrollbar { width: 6px; }
+  .log::-webkit-scrollbar-track { background: transparent; }
+  .log::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+  .log-entry {
+    padding: 0.4rem 0;
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    animation: log-fade 0.4s ease-out;
+  }
+
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry.rare { color: var(--carnival-gold); font-weight: 600; }
+
+  @keyframes log-fade {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: #2a2245;
+    color: var(--text);
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 100;
+    max-width: 240px;
+    border: 1px solid rgba(255,215,0,0.2);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+
+  .tooltip.visible { opacity: 1; }
+
+  /* Confetti canvas */
+  #confetti {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  /* Info section */
+  .info {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: var(--bg-card);
+    border-radius: var(--radius);
+    border: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text-dim);
+  }
+
+  .info h3 {
+    color: var(--green-glow);
+    margin-bottom: 0.5rem;
+    font-size: 1rem;
+  }
+
+  .info span.smilacin { color: var(--green-glow); }
+  .info span.rara { color: var(--carnival-pink); }
+
+  footer {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-dim);
+    font-size: 0.8rem;
+  }
+
+  /* Beat flash on garden during carnival */
+  .garden.carnival-mode {
+    animation: beat-flash 0.5s ease-in-out;
+  }
+
+  @keyframes beat-flash {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+  }
+
+  /* Particle burst on rare discovery */
+  .particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  @media (max-width: 600px) {
+    .garden { grid-template-columns: repeat(4, 1fr); }
+    header { padding: 1.5rem 1rem 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="confetti"></canvas>
+
+<header>
+  <h1>Rare Roots</h1>
+  <p class="tagline">
+    Grow a botanical garden of <em>smilacin</em>-bearing plants and unlock <em>rara</em> carnival celebrations when you discover the rarest blooms.
+  </p>
+</header>
+
+<div class="app-container">
+
+  <div class="stats">
+    <div class="stat-card green">
+      <div class="value" id="stat-plants">0</div>
+      <div class="label">Plants Grown</div>
+    </div>
+    <div class="stat-card gold">
+      <div class="value" id="stat-rare">0</div>
+      <div class="label">Rare Blooms</div>
+    </div>
+    <div class="stat-card pink">
+      <div class="value" id="stat-carnival">0</div>
+      <div class="label">Carnivals</div>
+    </div>
+    <div class="stat-card cyan">
+      <div class="value" id="stat-smilacin">0</div>
+      <div class="label">Smilacin (mg)</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn-plant" id="btn-plant">Plant a Seed</button>
+    <button class="btn-carnival" id="btn-carnival" disabled>Start Rara Carnival</button>
+    <button class="btn-reset" id="btn-reset">Clear Garden</button>
+  </div>
+
+  <div class="garden" id="garden"></div>
+
+  <div class="parade-container" id="parade-container" style="display:none;">
+    <div class="parade-track" id="parade-track"></div>
+  </div>
+
+  <div class="log-section">
+    <h2>Discovery Log</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="info">
+    <h3>What is this?</h3>
+    <p>
+      <span class="smilacin">Smilacin</span> is a rare glycoside found in plants of the <em>Smilax</em> genus — greenbriers and sarsaparilla vines that weave through tropical forests.
+      <span class="rara">Rara</span> is a vibrant Haitian carnival tradition where communities parade through streets with music, dance, and color.
+    </p>
+    <p style="margin-top:0.5rem;">
+      In <strong>Rare Roots</strong>, you tend a garden of smilacin-producing plants. Each plot may yield a common vine or, rarely, a spectacular bloom.
+      Collect enough rare blooms to trigger a rara carnival parade across your garden! The rarer the plant, the more smilacin it produces, and the wilder the celebration.
+    </p>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<footer>Rare Roots — where botany meets carnival, smilacin meets rara</footer>
+
+<script>
+(function() {
+  'use strict';
+
+  // --- DATA ---
+  const PLANTS = [
+    { emoji: '🌱', name: 'Sprout', rarity: 'common', smilacin: 1, odds: 0.25 },
+    { emoji: '🌿', name: 'Greenbrier Vine', rarity: 'common', smilacin: 3, odds: 0.22 },
+    { emoji: '🍃', name: 'Sarsaparilla Leaf', rarity: 'common', smilacin: 5, odds: 0.18 },
+    { emoji: '🌾', name: 'Wild Smilax', rarity: 'uncommon', smilacin: 12, odds: 0.12 },
+    { emoji: '🪴', name: 'Potted Catbrier', rarity: 'uncommon', smilacin: 18, odds: 0.08 },
+    { emoji: '🌺', name: 'Smilax Bloom', rarity: 'rare', smilacin: 35, odds: 0.06 },
+    { emoji: '🌸', name: 'Rose Smilax', rarity: 'rare', smilacin: 50, odds: 0.04 },
+    { emoji: '💮', name: 'White Sarsaparilla', rarity: 'epic', smilacin: 80, odds: 0.025 },
+    { emoji: '🌻', name: 'Golden Greenbrier', rarity: 'epic', smilacin: 120, odds: 0.015 },
+    { emoji: '🏵️', name: 'Carnival Orchid', rarity: 'legendary', smilacin: 250, odds: 0.007 },
+    { emoji: '✨', name: 'Smilacin Star', rarity: 'mythic', smilacin: 500, odds: 0.003 },
+  ];
+
+  const RARITY_COLORS = {
+    common: '#8a8a8a',
+    uncommon: '#4eff91',
+    rare: '#4da6ff',
+    epic: '#c060ff',
+    legendary: '#ffd700',
+    mythic: '#ff3fa4'
+  };
+
+  const PARADE_EMOJIS = ['🎺', '🥁', '🎶', '💃', '🕺', '🎭', '🎪', '🌺', '🔥', '🎵', '🪘', '🎷', '🪇', '🎉', '🌸', '🏵️', '✨', '🎊'];
+
+  const GRID_COLS = window.innerWidth <= 600 ? 4 : 5;
+  const GRID_SIZE = GRID_COLS * 5;
+
+  // --- STATE ---
+  let plots = new Array(GRID_SIZE).fill(null);
+  let totalPlants = 0;
+  let totalRare = 0;
+  let totalCarnivals = 0;
+  let totalSmilacin = 0;
+  let carnivalReady = false;
+  let carnivalActive = false;
+
+  // --- DOM ---
+  const gardenEl = document.getElementById('garden');
+  const logEl = document.getElementById('log');
+  const tooltipEl = document.getElementById('tooltip');
+  const btnPlant = document.getElementById('btn-plant');
+  const btnCarnival = document.getElementById('btn-carnival');
+  const btnReset = document.getElementById('btn-reset');
+  const paradeContainer = document.getElementById('parade-container');
+  const paradeTrack = document.getElementById('parade-track');
+  const confettiCanvas = document.getElementById('confetti');
+  const ctx = confettiCanvas.getContext('2d');
+
+  // --- INIT ---
+  function init() {
+    gardenEl.innerHTML = '';
+    for (let i = 0; i < GRID_SIZE; i++) {
+      const div = document.createElement('div');
+      div.className = 'plot';
+      div.dataset.index = i;
+      div.addEventListener('click', () => plantAt(i));
+      div.addEventListener('mouseenter', (e) => showTooltip(e, i));
+      div.addEventListener('mousemove', (e) => moveTooltip(e));
+      div.addEventListener('mouseleave', hideTooltip);
+      gardenEl.appendChild(div);
+    }
+    addLog('Welcome! Click a plot or press "Plant a Seed" to begin growing.');
+    resizeConfetti();
+  }
+
+  // --- PLANTING ---
+  function pickPlant() {
+    const r = Math.random();
+    let cumulative = 0;
+    for (const p of PLANTS) {
+      cumulative += p.odds;
+      if (r <= cumulative) return { ...p };
+    }
+    return { ...PLANTS[0] };
+  }
+
+  function findEmptyPlot() {
+    const empties = [];
+    for (let i = 0; i < plots.length; i++) {
+      if (!plots[i]) empties.push(i);
+    }
+    if (empties.length === 0) return -1;
+    return empties[Math.floor(Math.random() * empties.length)];
+  }
+
+  function plantAt(index) {
+    if (plots[index]) return;
+    const plant = pickPlant();
+    plots[index] = plant;
+    totalPlants++;
+    totalSmilacin += plant.smilacin;
+
+    const isRare = ['rare', 'epic', 'legendary', 'mythic'].includes(plant.rarity);
+    if (isRare) totalRare++;
+
+    const plotEl = gardenEl.children[index];
+    plotEl.classList.add('planted');
+    if (isRare) plotEl.classList.add('rare-bloom');
+
+    const span = document.createElement('span');
+    span.className = 'plant-emoji';
+    span.textContent = plant.emoji;
+    plotEl.innerHTML = '';
+    plotEl.appendChild(span);
+
+    const rarityLabel = plant.rarity.charAt(0).toUpperCase() + plant.rarity.slice(1);
+    const logClass = isRare ? 'rare' : '';
+    addLog(`${plant.emoji} ${plant.name} (${rarityLabel}) — ${plant.smilacin}mg smilacin`, logClass);
+
+    if (isRare && ['legendary', 'mythic'].includes(plant.rarity)) {
+      burstParticles(plotEl, RARITY_COLORS[plant.rarity]);
+    }
+
+    updateStats();
+    checkCarnival();
+  }
+
+  function plantRandom() {
+    const idx = findEmptyPlot();
+    if (idx === -1) {
+      addLog('Garden is full! Clear it to start fresh.');
+      return;
+    }
+    plantAt(idx);
+  }
+
+  // --- CARNIVAL ---
+  function checkCarnival() {
+    if (totalRare >= 3 && !carnivalReady && !carnivalActive) {
+      carnivalReady = true;
+      btnCarnival.disabled = false;
+      addLog('Enough rare blooms found! A Rara Carnival can begin!', 'rare');
+    }
+  }
+
+  function startCarnival() {
+    if (!carnivalReady || carnivalActive) return;
+    carnivalActive = true;
+    carnivalReady = false;
+    totalCarnivals++;
+    totalRare = 0;
+    btnCarnival.disabled = true;
+    updateStats();
+
+    addLog('🎺 RARA CARNIVAL! The garden celebrates its rare discoveries!', 'rare');
+
+    // Flash garden
+    gardenEl.classList.add('carnival-mode');
+    setTimeout(() => gardenEl.classList.remove('carnival-mode'), 600);
+
+    // Build parade
+    paradeContainer.style.display = 'block';
+    let paradeContent = '';
+    for (let r = 0; r < 4; r++) {
+      for (const e of PARADE_EMOJIS) {
+        paradeContent += e + ' ';
+      }
+    }
+    paradeTrack.textContent = paradeContent;
+
+    // Confetti
+    launchConfetti();
+
+    // Make planted plots dance
+    const planted = gardenEl.querySelectorAll('.plot.planted');
+    planted.forEach((p, i) => {
+      setTimeout(() => {
+        p.classList.add('blooming');
+        setTimeout(() => p.classList.remove('blooming'), 3000);
+      }, i * 80);
+    });
+
+    // Bonus smilacin
+    const bonus = totalCarnivals * 50;
+    totalSmilacin += bonus;
+    addLog(`Carnival bonus: +${bonus}mg smilacin from the celebration energy!`, 'rare');
+    updateStats();
+
+    setTimeout(() => {
+      carnivalActive = false;
+      paradeContainer.style.display = 'none';
+      addLog('The carnival fades... grow more rare blooms for the next one.');
+      checkCarnival();
+    }, 8000);
+  }
+
+  // --- CONFETTI ---
+  let confettiPieces = [];
+
+  function resizeConfetti() {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+
+  function launchConfetti() {
+    confettiPieces = [];
+    const colors = ['#ff3fa4', '#ffd700', '#4eff91', '#00e5ff', '#ff6b35', '#c060ff'];
+    for (let i = 0; i < 150; i++) {
+      confettiPieces.push({
+        x: Math.random() * confettiCanvas.width,
+        y: Math.random() * confettiCanvas.height * -1,
+        w: Math.random() * 8 + 4,
+        h: Math.random() * 6 + 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        vy: Math.random() * 3 + 2,
+        vx: (Math.random() - 0.5) * 2,
+        rotation: Math.random() * 360,
+        rv: (Math.random() - 0.5) * 8,
+        life: 1
+      });
+    }
+    animateConfetti();
+  }
+
+  function animateConfetti() {
+    ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    let alive = false;
+    for (const c of confettiPieces) {
+      if (c.life <= 0) continue;
+      alive = true;
+      c.x += c.vx;
+      c.y += c.vy;
+      c.rotation += c.rv;
+      if (c.y > confettiCanvas.height) c.life -= 0.02;
+
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      ctx.rotate((c.rotation * Math.PI) / 180);
+      ctx.globalAlpha = Math.max(0, c.life);
+      ctx.fillStyle = c.color;
+      ctx.fillRect(-c.w / 2, -c.h / 2, c.w, c.h);
+      ctx.restore();
+    }
+    if (alive) requestAnimationFrame(animateConfetti);
+    else ctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+  }
+
+  // --- PARTICLES ---
+  function burstParticles(el, color) {
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (let i = 0; i < 12; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.background = color;
+      p.style.left = cx + 'px';
+      p.style.top = cy + 'px';
+      p.style.position = 'fixed';
+      document.body.appendChild(p);
+      const angle = (i / 12) * Math.PI * 2;
+      const dist = 40 + Math.random() * 40;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist;
+      p.animate([
+        { transform: 'translate(0,0) scale(1)', opacity: 1 },
+        { transform: `translate(${dx}px,${dy}px) scale(0)`, opacity: 0 }
+      ], { duration: 600, easing: 'ease-out' });
+      setTimeout(() => p.remove(), 620);
+    }
+  }
+
+  // --- UI ---
+  function updateStats() {
+    document.getElementById('stat-plants').textContent = totalPlants;
+    document.getElementById('stat-rare').textContent = totalRare;
+    document.getElementById('stat-carnival').textContent = totalCarnivals;
+    document.getElementById('stat-smilacin').textContent = totalSmilacin;
+  }
+
+  function addLog(msg, cls = '') {
+    const div = document.createElement('div');
+    div.className = 'log-entry' + (cls ? ' ' + cls : '');
+    div.textContent = msg;
+    logEl.prepend(div);
+    if (logEl.children.length > 50) logEl.lastChild.remove();
+  }
+
+  function showTooltip(e, index) {
+    const plant = plots[index];
+    if (!plant) {
+      tooltipEl.textContent = 'Empty plot — click to plant!';
+    } else {
+      const rarityLabel = plant.rarity.charAt(0).toUpperCase() + plant.rarity.slice(1);
+      tooltipEl.innerHTML = `<strong>${plant.name}</strong><br>Rarity: <span style="color:${RARITY_COLORS[plant.rarity]}">${rarityLabel}</span><br>Smilacin: ${plant.smilacin}mg`;
+    }
+    tooltipEl.classList.add('visible');
+    moveTooltip(e);
+  }
+
+  function moveTooltip(e) {
+    tooltipEl.style.left = (e.clientX + 14) + 'px';
+    tooltipEl.style.top = (e.clientY + 14) + 'px';
+  }
+
+  function hideTooltip() {
+    tooltipEl.classList.remove('visible');
+  }
+
+  function resetGarden() {
+    plots = new Array(GRID_SIZE).fill(null);
+    totalPlants = 0;
+    totalRare = 0;
+    totalSmilacin = 0;
+    carnivalReady = false;
+    carnivalActive = false;
+    btnCarnival.disabled = true;
+    paradeContainer.style.display = 'none';
+    updateStats();
+    gardenEl.querySelectorAll('.plot').forEach(p => {
+      p.className = 'plot';
+      p.innerHTML = '';
+    });
+    logEl.innerHTML = '';
+    addLog('Garden cleared. A fresh start awaits!');
+  }
+
+  // --- EVENTS ---
+  btnPlant.addEventListener('click', plantRandom);
+  btnCarnival.addEventListener('click', startCarnival);
+  btnReset.addEventListener('click', resetGarden);
+  window.addEventListener('resize', resizeConfetti);
+
+  // Keyboard shortcut
+  document.addEventListener('keydown', (e) => {
+    if (e.key === ' ' || e.key === 'p') {
+      e.preventDefault();
+      plantRandom();
+    }
+    if (e.key === 'c' && carnivalReady) startCarnival();
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>

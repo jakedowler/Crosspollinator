@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crystal Completion — Grow Your Aragonite</title>
+<style>
+  :root {
+    --bg: #0d0d1a;
+    --surface: #161625;
+    --crystal-1: #e8d5b7;
+    --crystal-2: #c9a96e;
+    --crystal-3: #f5e6cc;
+    --crystal-glow: rgba(232, 213, 183, 0.35);
+    --accent: #a08050;
+    --text: #e0d8cc;
+    --text-dim: #887a66;
+    --success: #7ecfa0;
+    --danger: #cf7e7e;
+    --radius: 10px;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+
+  header {
+    text-align: center;
+    padding: 2rem 1rem 1rem;
+    width: 100%;
+    background: linear-gradient(180deg, rgba(160,128,80,0.12) 0%, transparent 100%);
+  }
+
+  header h1 {
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--crystal-1);
+    text-shadow: 0 0 20px var(--crystal-glow);
+  }
+
+  header p.tagline {
+    margin-top: 0.4rem;
+    font-size: 0.95rem;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+
+  .game-container {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 1.5rem;
+    max-width: 960px;
+    width: 100%;
+    padding: 1.5rem;
+    flex: 1;
+  }
+
+  @media (max-width: 720px) {
+    .game-container {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .cave-panel {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid rgba(160,128,80,0.15);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cave-panel::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 60px;
+    background: linear-gradient(180deg, rgba(80,60,30,0.15), transparent);
+    pointer-events: none;
+  }
+
+  canvas#caveCanvas {
+    width: 100%;
+    max-width: 560px;
+    aspect-ratio: 4/3;
+    border-radius: 8px;
+    background: #0a0a14;
+    cursor: pointer;
+  }
+
+  .controls {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  button {
+    font-family: var(--font);
+    padding: 0.5rem 1.2rem;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--crystal-1);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    letter-spacing: 0.06em;
+    transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+  }
+
+  button:hover {
+    background: rgba(160,128,80,0.15);
+    box-shadow: 0 0 12px rgba(160,128,80,0.2);
+  }
+
+  button:active { transform: scale(0.97); }
+
+  button.primary {
+    background: rgba(160,128,80,0.25);
+    font-weight: 600;
+  }
+
+  .info-panel {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    border: 1px solid rgba(160,128,80,0.15);
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .info-panel h2 {
+    font-size: 1rem;
+    font-weight: 400;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--crystal-2);
+    border-bottom: 1px solid rgba(160,128,80,0.2);
+    padding-bottom: 0.5rem;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.88rem;
+  }
+
+  .stat-row .label { color: var(--text-dim); }
+  .stat-row .value { color: var(--crystal-1); font-weight: 600; }
+
+  .progress-bar {
+    width: 100%;
+    height: 10px;
+    background: rgba(160,128,80,0.12);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-top: 0.25rem;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--crystal-2), var(--crystal-3));
+    border-radius: 5px;
+    transition: width 0.5s ease;
+    box-shadow: 0 0 8px var(--crystal-glow);
+  }
+
+  .mineral-slots {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+  }
+
+  .mineral-slot {
+    aspect-ratio: 1;
+    border-radius: 6px;
+    border: 1px dashed rgba(160,128,80,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    position: relative;
+  }
+
+  .mineral-slot:hover {
+    border-color: var(--crystal-2);
+    background: rgba(160,128,80,0.08);
+    transform: scale(1.06);
+  }
+
+  .mineral-slot.selected {
+    border-color: var(--crystal-1);
+    background: rgba(160,128,80,0.18);
+    box-shadow: 0 0 10px var(--crystal-glow);
+  }
+
+  .mineral-slot .slot-label {
+    position: absolute;
+    bottom: 2px;
+    font-size: 0.55rem;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+
+  .message-log {
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+    scrollbar-width: thin;
+    scrollbar-color: var(--accent) transparent;
+  }
+
+  .message-log .msg {
+    padding: 0.15rem 0;
+    border-bottom: 1px solid rgba(160,128,80,0.06);
+    animation: fadeIn 0.3s ease;
+  }
+
+  .message-log .msg.good { color: var(--success); }
+  .message-log .msg.bad { color: var(--danger); }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .instructions {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+
+  .instructions strong { color: var(--crystal-1); }
+
+  footer {
+    padding: 1rem;
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+
+  .completion-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .completion-overlay.show {
+    display: flex;
+  }
+
+  .completion-card {
+    background: var(--surface);
+    border: 1px solid var(--crystal-2);
+    border-radius: var(--radius);
+    padding: 2.5rem;
+    text-align: center;
+    max-width: 400px;
+    box-shadow: 0 0 60px var(--crystal-glow);
+    animation: popIn 0.4s ease;
+  }
+
+  @keyframes popIn {
+    from { transform: scale(0.85); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .completion-card h2 {
+    font-size: 1.5rem;
+    color: var(--crystal-1);
+    margin-bottom: 0.5rem;
+  }
+
+  .completion-card p {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+    margin-bottom: 1.2rem;
+    line-height: 1.5;
+  }
+
+  .completion-card .final-score {
+    font-size: 2rem;
+    color: var(--crystal-3);
+    font-weight: 300;
+    margin: 0.5rem 0 1rem;
+    text-shadow: 0 0 15px var(--crystal-glow);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Crystal Completion</h1>
+  <p class="tagline">Half-formed aragonite crystals await — choose the right minerals to complete their growth</p>
+</header>
+
+<div class="game-container">
+  <div class="cave-panel">
+    <canvas id="caveCanvas" width="560" height="420"></canvas>
+    <div class="controls">
+      <button class="primary" id="btnDeposit" title="Apply selected mineral">Deposit Mineral</button>
+      <button id="btnSkip">Skip Crystal</button>
+      <button id="btnNewCave">New Cave</button>
+    </div>
+  </div>
+
+  <div class="info-panel">
+    <div>
+      <h2>Growth Progress</h2>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div style="margin-top:0.6rem">
+        <div class="stat-row"><span class="label">Crystals Completed</span><span class="value" id="statCompleted">0</span></div>
+        <div class="stat-row"><span class="label">Crystals Remaining</span><span class="value" id="statRemaining">0</span></div>
+        <div class="stat-row"><span class="label">Score</span><span class="value" id="statScore">0</span></div>
+        <div class="stat-row"><span class="label">Streak</span><span class="value" id="statStreak">0</span></div>
+      </div>
+    </div>
+
+    <div>
+      <h2>Mineral Palette</h2>
+      <div class="mineral-slots" id="mineralSlots"></div>
+    </div>
+
+    <div>
+      <h2>How to Play</h2>
+      <div class="instructions">
+        Each cave has <strong>half-formed</strong> aragonite crystals.
+        Select the correct mineral from the palette to <strong>complete</strong> each crystal's growth.
+        Match the crystal's missing component — color and shape hint at the answer.
+        Build streaks for bonus points!
+      </div>
+    </div>
+
+    <div>
+      <h2>Log</h2>
+      <div class="message-log" id="messageLog"></div>
+    </div>
+  </div>
+</div>
+
+<div class="completion-overlay" id="completionOverlay">
+  <div class="completion-card">
+    <h2>Cave Complete!</h2>
+    <p>Every half-crystal has been fully grown into beautiful aragonite formations.</p>
+    <div class="final-score" id="finalScore">0</div>
+    <p style="font-size:0.8rem">points earned</p>
+    <button class="primary" id="btnNextCave">Explore Next Cave</button>
+  </div>
+</div>
+
+<footer>Crystal Completion &mdash; where halfy meets arragonite</footer>
+
+<script>
+(function() {
+  const canvas = document.getElementById('caveCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Mineral types
+  const MINERALS = [
+    { id: 'calcite',    emoji: '💎', color: '#f0e0c0', label: 'Calcite' },
+    { id: 'quartz',     emoji: '🔮', color: '#d0c0f0', label: 'Quartz' },
+    { id: 'selenite',   emoji: '🤍', color: '#e8e8f0', label: 'Selenite' },
+    { id: 'pyrite',     emoji: '✨', color: '#d4c050', label: 'Pyrite' },
+    { id: 'fluorite',   emoji: '💜', color: '#a070d0', label: 'Fluorite' },
+    { id: 'gypsum',     emoji: '🪨', color: '#c8c0b0', label: 'Gypsum' },
+    { id: 'dolomite',   emoji: '🫧', color: '#b8d0c8', label: 'Dolomite' },
+    { id: 'apatite',    emoji: '💚', color: '#60b888', label: 'Apatite' },
+    { id: 'aragonite',  emoji: '🏔️', color: '#e8d0a0', label: 'Aragonite' },
+  ];
+
+  let crystals = [];
+  let currentCrystalIdx = 0;
+  let selectedMineral = null;
+  let score = 0;
+  let streak = 0;
+  let completed = 0;
+  let totalCrystals = 0;
+  let caveNumber = 0;
+  let particles = [];
+  let animFrame;
+
+  // State
+  function initCave() {
+    caveNumber++;
+    const count = 5 + Math.min(caveNumber, 5);
+    totalCrystals = count;
+    completed = 0;
+    currentCrystalIdx = 0;
+    crystals = [];
+    particles = [];
+
+    for (let i = 0; i < count; i++) {
+      // Pick a correct mineral and 2 wrong ones for the palette
+      const correctIdx = Math.floor(Math.random() * MINERALS.length);
+      const correct = MINERALS[correctIdx];
+
+      // Each crystal gets a random position, size, shape variation
+      crystals.push({
+        x: 60 + Math.random() * (W - 120),
+        y: 80 + Math.random() * (H - 140),
+        size: 25 + Math.random() * 20,
+        rotation: (Math.random() - 0.5) * 0.6,
+        correct: correct,
+        completed: false,
+        growAnim: 0,
+        wrongShake: 0,
+        halfSide: Math.random() > 0.5 ? 'left' : 'right',
+        prongs: 3 + Math.floor(Math.random() * 4),
+      });
+    }
+
+    // Avoid overlap
+    for (let i = 0; i < crystals.length; i++) {
+      for (let j = i + 1; j < crystals.length; j++) {
+        const dx = crystals[i].x - crystals[j].x;
+        const dy = crystals[i].y - crystals[j].y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist < 70) {
+          crystals[j].x += (70 - dist) * (dx < 0 ? -1 : 1);
+          crystals[j].y += (70 - dist) * (dy < 0 ? -1 : 1);
+          crystals[j].x = Math.max(50, Math.min(W-50, crystals[j].x));
+          crystals[j].y = Math.max(70, Math.min(H-50, crystals[j].y));
+        }
+      }
+    }
+
+    populateMineralSlots();
+    updateStats();
+    log('Entered cave #' + caveNumber + ' — ' + count + ' half-crystals detected.');
+    document.getElementById('completionOverlay').classList.remove('show');
+  }
+
+  function populateMineralSlots() {
+    const container = document.getElementById('mineralSlots');
+    container.innerHTML = '';
+    selectedMineral = null;
+
+    // Show a subset of minerals (always include the correct answer for current crystal)
+    const current = crystals[currentCrystalIdx];
+    if (!current || current.completed) {
+      advanceToNext();
+      return;
+    }
+
+    const choices = getChoices(current.correct);
+    choices.forEach(m => {
+      const slot = document.createElement('div');
+      slot.className = 'mineral-slot';
+      slot.dataset.id = m.id;
+      slot.innerHTML = m.emoji + '<span class="slot-label">' + m.label + '</span>';
+      slot.addEventListener('click', () => selectMineral(m, slot));
+      container.appendChild(slot);
+    });
+  }
+
+  function getChoices(correct) {
+    const set = new Set([correct.id]);
+    const choices = [correct];
+    const shuffled = [...MINERALS].sort(() => Math.random() - 0.5);
+    for (const m of shuffled) {
+      if (choices.length >= 6) break;
+      if (!set.has(m.id)) {
+        set.add(m.id);
+        choices.push(m);
+      }
+    }
+    return choices.sort(() => Math.random() - 0.5);
+  }
+
+  function selectMineral(mineral, slotEl) {
+    document.querySelectorAll('.mineral-slot').forEach(s => s.classList.remove('selected'));
+    slotEl.classList.add('selected');
+    selectedMineral = mineral;
+  }
+
+  function depositMineral() {
+    if (!selectedMineral) { log('Select a mineral first.', 'bad'); return; }
+    const crystal = crystals[currentCrystalIdx];
+    if (!crystal || crystal.completed) return;
+
+    if (selectedMineral.id === crystal.correct.id) {
+      crystal.completed = true;
+      crystal.growAnim = 1;
+      completed++;
+      streak++;
+      const pts = 10 + streak * 5;
+      score += pts;
+      log('Correct! +' + pts + ' pts (streak x' + streak + ')', 'good');
+      spawnParticles(crystal.x, crystal.y, crystal.correct.color);
+
+      if (completed >= totalCrystals) {
+        setTimeout(() => showCompletion(), 800);
+      } else {
+        setTimeout(() => advanceToNext(), 500);
+      }
+    } else {
+      streak = 0;
+      score = Math.max(0, score - 3);
+      crystal.wrongShake = 1;
+      log('Wrong mineral! The crystal rejects it. -3 pts', 'bad');
+    }
+    updateStats();
+  }
+
+  function skipCrystal() {
+    streak = 0;
+    log('Skipped — streak reset.');
+    advanceToNext();
+    updateStats();
+  }
+
+  function advanceToNext() {
+    // Find next incomplete
+    for (let i = 0; i < crystals.length; i++) {
+      const idx = (currentCrystalIdx + 1 + i) % crystals.length;
+      if (!crystals[idx].completed) {
+        currentCrystalIdx = idx;
+        populateMineralSlots();
+        return;
+      }
+    }
+  }
+
+  function showCompletion() {
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('completionOverlay').classList.add('show');
+  }
+
+  function updateStats() {
+    document.getElementById('statCompleted').textContent = completed;
+    document.getElementById('statRemaining').textContent = totalCrystals - completed;
+    document.getElementById('statScore').textContent = score;
+    document.getElementById('statStreak').textContent = streak;
+    const pct = totalCrystals > 0 ? (completed / totalCrystals * 100) : 0;
+    document.getElementById('progressFill').style.width = pct + '%';
+  }
+
+  function log(msg, cls) {
+    const el = document.getElementById('messageLog');
+    const div = document.createElement('div');
+    div.className = 'msg' + (cls ? ' ' + cls : '');
+    div.textContent = msg;
+    el.prepend(div);
+    if (el.children.length > 50) el.lastChild.remove();
+  }
+
+  function spawnParticles(x, y, color) {
+    for (let i = 0; i < 18; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1 + Math.random() * 3;
+      particles.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        life: 1,
+        color,
+        size: 2 + Math.random() * 3,
+      });
+    }
+  }
+
+  // Drawing
+  function drawCave() {
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(0, 0, W, H);
+
+    // Cave ceiling stalactites (decorative)
+    drawCaveCeiling();
+
+    // Cave floor
+    drawCaveFloor();
+
+    // Draw crystals
+    crystals.forEach((c, i) => {
+      drawCrystal(c, i === currentCrystalIdx);
+    });
+
+    // Particles
+    particles.forEach(p => {
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Update particles
+    particles = particles.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.03;
+      p.life -= 0.018;
+      return p.life > 0;
+    });
+
+    // Update crystal anims
+    crystals.forEach(c => {
+      if (c.growAnim > 0) c.growAnim = Math.max(0, c.growAnim - 0.02);
+      if (c.wrongShake > 0) c.wrongShake = Math.max(0, c.wrongShake - 0.04);
+    });
+
+    animFrame = requestAnimationFrame(drawCave);
+  }
+
+  function drawCaveCeiling() {
+    ctx.fillStyle = '#12101e';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    for (let x = 0; x <= W; x += 20) {
+      const h = 15 + Math.sin(x * 0.04 + caveNumber) * 12 + Math.sin(x * 0.09) * 8;
+      ctx.lineTo(x, h);
+    }
+    ctx.lineTo(W, 0);
+    ctx.fill();
+
+    // Stalactite hints
+    for (let i = 0; i < 8; i++) {
+      const sx = 40 + ((i * 67 + caveNumber * 31) % (W - 80));
+      const sh = 20 + ((i * 13 + caveNumber * 7) % 40);
+      ctx.fillStyle = 'rgba(200,180,140,0.08)';
+      ctx.beginPath();
+      ctx.moveTo(sx - 6, 0);
+      ctx.lineTo(sx + 6, 0);
+      ctx.lineTo(sx, sh);
+      ctx.fill();
+    }
+  }
+
+  function drawCaveFloor() {
+    ctx.fillStyle = '#0e0c18';
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x <= W; x += 20) {
+      const h = H - 15 - Math.sin(x * 0.03 + caveNumber * 2) * 10 - Math.sin(x * 0.07) * 5;
+      ctx.lineTo(x, h);
+    }
+    ctx.lineTo(W, H);
+    ctx.fill();
+  }
+
+  function drawCrystal(c, isCurrent) {
+    ctx.save();
+
+    let shakeX = 0;
+    if (c.wrongShake > 0) {
+      shakeX = Math.sin(c.wrongShake * 30) * 6 * c.wrongShake;
+    }
+
+    ctx.translate(c.x + shakeX, c.y);
+    ctx.rotate(c.rotation);
+
+    const s = c.size;
+    const glow = isCurrent && !c.completed;
+    const growScale = c.completed ? 1 + c.growAnim * 0.3 : 1;
+
+    ctx.scale(growScale, growScale);
+
+    if (glow) {
+      ctx.shadowColor = c.correct.color;
+      ctx.shadowBlur = 15 + Math.sin(Date.now() * 0.004) * 5;
+    }
+
+    // Draw crystal shape — a cluster of prongs
+    const prongs = c.prongs;
+    for (let p = 0; p < prongs; p++) {
+      const angle = -Math.PI / 2 + (p - (prongs - 1) / 2) * 0.35;
+      const len = s * (0.8 + Math.sin(p * 1.5) * 0.3);
+      const tipX = Math.cos(angle) * len;
+      const tipY = Math.sin(angle) * len;
+      const baseW = 4 + p % 3 * 2;
+
+      if (c.completed) {
+        // Full crystal
+        ctx.fillStyle = c.correct.color;
+        ctx.globalAlpha = 0.85;
+        ctx.beginPath();
+        ctx.moveTo(-baseW, 0);
+        ctx.lineTo(tipX, tipY);
+        ctx.lineTo(baseW, 0);
+        ctx.fill();
+
+        // Highlight edge
+        ctx.strokeStyle = '#fff';
+        ctx.globalAlpha = 0.2;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-baseW, 0);
+        ctx.lineTo(tipX, tipY);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+      } else {
+        // Half crystal: draw one side solid, other side as dotted outline
+        if (c.halfSide === 'left') {
+          // Left half solid
+          ctx.fillStyle = c.correct.color;
+          ctx.globalAlpha = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(tipX, tipY);
+          ctx.lineTo(-baseW, 0);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          // Right half outline
+          ctx.strokeStyle = c.correct.color;
+          ctx.globalAlpha = 0.25;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([3, 4]);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(tipX, tipY);
+          ctx.lineTo(baseW, 0);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+        } else {
+          // Right half solid
+          ctx.fillStyle = c.correct.color;
+          ctx.globalAlpha = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(tipX, tipY);
+          ctx.lineTo(baseW, 0);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          // Left half outline
+          ctx.strokeStyle = c.correct.color;
+          ctx.globalAlpha = 0.25;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([3, 4]);
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(tipX, tipY);
+          ctx.lineTo(-baseW, 0);
+          ctx.closePath();
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
+
+    ctx.shadowBlur = 0;
+
+    // Label
+    if (isCurrent && !c.completed) {
+      ctx.fillStyle = '#fff';
+      ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.005) * 0.2;
+      ctx.font = '11px ' + 'system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('▼', 0, -s - 8);
+      ctx.globalAlpha = 1;
+    }
+
+    // Completed checkmark
+    if (c.completed && c.growAnim < 0.3) {
+      ctx.fillStyle = '#7ecfa0';
+      ctx.globalAlpha = 0.8;
+      ctx.font = '16px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('✓', 0, s + 18);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.restore();
+  }
+
+  // Canvas click — select crystal
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = W / rect.width;
+    const scaleY = H / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+
+    for (let i = 0; i < crystals.length; i++) {
+      const c = crystals[i];
+      if (c.completed) continue;
+      const dx = mx - c.x;
+      const dy = my - c.y;
+      if (Math.sqrt(dx*dx + dy*dy) < c.size + 15) {
+        currentCrystalIdx = i;
+        populateMineralSlots();
+        return;
+      }
+    }
+  });
+
+  // Buttons
+  document.getElementById('btnDeposit').addEventListener('click', depositMineral);
+  document.getElementById('btnSkip').addEventListener('click', skipCrystal);
+  document.getElementById('btnNewCave').addEventListener('click', () => { initCave(); });
+  document.getElementById('btnNextCave').addEventListener('click', () => { initCave(); });
+
+  // Keyboard
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); depositMineral(); }
+    if (e.key === 's' || e.key === 'S') skipCrystal();
+    const num = parseInt(e.key);
+    if (num >= 1 && num <= 6) {
+      const slots = document.querySelectorAll('.mineral-slot');
+      if (slots[num-1]) slots[num-1].click();
+    }
+  });
+
+  // Start
+  initCave();
+  drawCave();
+})();
+</script>
+</body>
+</html>
