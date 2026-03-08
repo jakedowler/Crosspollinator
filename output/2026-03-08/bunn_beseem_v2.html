@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bun Propriety — Does This Bun Beseem the Occasion?</title>
+    <style>
+        :root {
+            --warm: #f5e6d3;
+            --crust: #8b6914;
+            --golden: #daa520;
+            --cream: #fff8f0;
+            --text: #3d2b1f;
+            --accept: #4a7c59;
+            --reject: #a63d40;
+            --card-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: var(--warm);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            height: 100dvh;
+        }
+
+        header {
+            text-align: center;
+            padding: 0.6rem 1rem;
+            flex-shrink: 0;
+        }
+
+        header h1 {
+            font-size: 1.4rem;
+            color: var(--crust);
+            letter-spacing: -0.5px;
+        }
+
+        header span {
+            font-style: italic;
+            color: #9a8470;
+            font-size: 0.85rem;
+        }
+
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.5rem 1rem;
+            max-width: 520px;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            justify-content: center;
+        }
+
+        .scoreboard {
+            display: flex;
+            gap: 2rem;
+            font-size: 0.9rem;
+            background: var(--cream);
+            padding: 0.4rem 1.2rem;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            flex-shrink: 0;
+        }
+
+        .scoreboard b { color: var(--crust); }
+
+        .progress-bar {
+            width: 100%;
+            height: 5px;
+            background: #e0d5c8;
+            border-radius: 3px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--golden), var(--crust));
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+
+        .scenario-card {
+            background: var(--cream);
+            border-radius: 18px;
+            padding: 1.2rem 1.5rem;
+            box-shadow: var(--card-shadow);
+            text-align: center;
+            width: 100%;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+            flex-shrink: 1;
+            min-height: 0;
+        }
+
+        .scenario-card.exit-left {
+            transform: translateX(-120%) rotate(-8deg);
+            opacity: 0;
+        }
+
+        .scenario-card.exit-right {
+            transform: translateX(120%) rotate(8deg);
+            opacity: 0;
+        }
+
+        .scenario-card.enter {
+            transform: translateY(20px);
+            opacity: 0;
+        }
+
+        .occasion-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #9a8470;
+            margin-bottom: 0.3rem;
+        }
+
+        .occasion-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: var(--crust);
+            margin-bottom: 0.6rem;
+        }
+
+        .bun-display {
+            font-size: 4rem;
+            margin: 0.2rem 0;
+            user-select: none;
+            line-height: 1.1;
+        }
+
+        .bun-name {
+            font-size: 1.15rem;
+            font-weight: bold;
+            margin: 0.3rem 0 0.15rem;
+            color: var(--text);
+        }
+
+        .bun-desc {
+            font-size: 0.88rem;
+            color: #7a6652;
+            line-height: 1.3;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 0.8rem;
+            width: 100%;
+            flex-shrink: 0;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.85rem;
+            border: none;
+            border-radius: 14px;
+            font-size: 1.05rem;
+            font-family: 'Georgia', serif;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .btn:active { transform: scale(0.96); }
+
+        .btn-unseemly {
+            background: var(--reject);
+            color: white;
+        }
+
+        .btn-beseeming {
+            background: var(--accept);
+            color: white;
+        }
+
+        .feedback-area {
+            min-height: 3.2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 0 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .feedback-verdict {
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 0.15rem;
+        }
+
+        .feedback-verdict.correct { color: var(--accept); }
+        .feedback-verdict.wrong { color: var(--reject); }
+
+        .feedback-reason {
+            font-size: 0.85rem;
+            font-style: italic;
+            color: #7a6652;
+            line-height: 1.3;
+        }
+
+        .streak-indicator {
+            font-size: 0.85rem;
+            color: var(--golden);
+            min-height: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        /* Final screen */
+        .final-screen {
+            background: var(--cream);
+            border-radius: 20px;
+            padding: 2rem 1.5rem;
+            box-shadow: var(--card-shadow);
+            text-align: center;
+            width: 90%;
+            max-width: 420px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .final-screen h2 {
+            font-size: 1.6rem;
+            color: var(--crust);
+            margin-bottom: 0.3rem;
+        }
+
+        .final-screen .grade {
+            font-size: 3rem;
+            margin: 0.6rem 0;
+        }
+
+        .final-screen .score-text {
+            font-size: 1.1rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .final-screen .title-earned {
+            font-size: 0.95rem;
+            color: var(--golden);
+            font-weight: bold;
+            margin-bottom: 1.2rem;
+        }
+
+        .btn-restart {
+            background: var(--crust);
+            color: white;
+            padding: 0.8rem 2.2rem;
+            border: none;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-family: 'Georgia', serif;
+            cursor: pointer;
+            font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @media (max-height: 640px) {
+            header { padding: 0.3rem 1rem; }
+            header h1 { font-size: 1.2rem; }
+            .bun-display { font-size: 3rem; }
+            .scenario-card { padding: 0.8rem 1rem; }
+            .occasion-name { font-size: 1rem; margin-bottom: 0.3rem; }
+            .bun-name { font-size: 1rem; }
+            .bun-desc { font-size: 0.8rem; }
+            .btn { padding: 0.7rem; font-size: 0.95rem; }
+        }
+
+        @media (max-width: 380px) {
+            header h1 { font-size: 1.1rem; }
+            .bun-display { font-size: 3rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Bun Propriety</h1>
+        <span>Does this bun beseem the occasion?</span>
+    </header>
+
+    <div class="game-area" id="gameArea">
+        <div class="scoreboard">
+            <div>Round <b id="roundNum">1</b>/10</div>
+            <div>Score <b id="scoreNum">0</b></div>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+
+        <div class="scenario-card" id="scenarioCard">
+            <div class="occasion-label">The Occasion</div>
+            <div class="occasion-name" id="occasionName"></div>
+            <div class="bun-display" id="bunEmoji"></div>
+            <div class="bun-name" id="bunName"></div>
+            <div class="bun-desc" id="bunDesc"></div>
+        </div>
+
+        <div class="buttons" id="buttons">
+            <button class="btn btn-unseemly" id="btnUnseemly">Unseemly!</button>
+            <button class="btn btn-beseeming" id="btnBeseeming">Beseeming!</button>
+        </div>
+
+        <div class="streak-indicator" id="streak"></div>
+        <div class="feedback-area" id="feedbackArea">
+            <div class="feedback-verdict" id="feedbackVerdict"></div>
+            <div class="feedback-reason" id="feedbackReason"></div>
+        </div>
+    </div>
+
+    <div class="final-screen" id="finalScreen" style="display:none">
+        <h2>Court Adjourned!</h2>
+        <div class="grade" id="gradeEmoji"></div>
+        <div class="score-text" id="finalScore"></div>
+        <div class="title-earned" id="titleEarned"></div>
+        <button class="btn-restart" id="btnRestart">Judge Again</button>
+    </div>
+
+    <script>
+        // ========================================================
+        // BUN DATA — each bun has explicit tags for matching
+        // ========================================================
+        const BUNS = [
+            {
+                name: "Hot Cross Bun", emoji: "\u2716\uFE0F\uD83C\uDF5E",
+                desc: "Spiced, sweet, marked with a cross. A springtime classic.",
+                tags: ["sweet", "festive", "traditional", "spring"],
+                vibe: "warm"
+            },
+            {
+                name: "Brioche", emoji: "\uD83C\uDF5E",
+                desc: "Buttery, rich French bread with a golden crown.",
+                tags: ["elegant", "french", "rich", "versatile"],
+                vibe: "fancy"
+            },
+            {
+                name: "Sticky Bun", emoji: "\uD83C\uDF6F\uD83C\uDF5E",
+                desc: "Dripping with caramel glaze and pecans. Gloriously messy.",
+                tags: ["messy", "sweet", "indulgent", "casual"],
+                vibe: "chaotic"
+            },
+            {
+                name: "Pretzel Bun", emoji: "\uD83E\uDD68",
+                desc: "Dark, chewy, salted. A Bavarian pub staple.",
+                tags: ["hearty", "savory", "pub", "casual"],
+                vibe: "rugged"
+            },
+            {
+                name: "Cinnamon Roll", emoji: "\uD83C\uDF00",
+                desc: "Swirled with cinnamon sugar and cream cheese frosting.",
+                tags: ["sweet", "messy", "indulgent", "breakfast"],
+                vibe: "chaotic"
+            },
+            {
+                name: "Dinner Roll", emoji: "\uD83E\uDD56",
+                desc: "Plain, soft, modest. The dependable wallflower of bread.",
+                tags: ["plain", "versatile", "traditional", "safe"],
+                vibe: "neutral"
+            },
+            {
+                name: "Challah Roll", emoji: "\u2728\uD83C\uDF5E",
+                desc: "Braided, egg-enriched, slightly sweet. Sabbath-worthy.",
+                tags: ["elegant", "festive", "traditional", "sacred"],
+                vibe: "warm"
+            },
+            {
+                name: "Hamburger Bun", emoji: "\uD83C\uDF54",
+                desc: "Squishy sesame-topped vessel for ground beef.",
+                tags: ["casual", "hearty", "pub", "american"],
+                vibe: "rugged"
+            },
+            {
+                name: "Bao Bun", emoji: "\uD83E\uDD5F",
+                desc: "Pillowy steamed cloud. Filled with mystery and pork.",
+                tags: ["delicate", "asian", "savory", "versatile"],
+                vibe: "gentle"
+            },
+            {
+                name: "Scone", emoji: "\uD83C\uDF75\uD83E\uDDC1",
+                desc: "Crumbly, buttery, best with clotted cream. Very proper.",
+                tags: ["elegant", "british", "sweet", "tea"],
+                vibe: "fancy"
+            },
+            {
+                name: "Cornbread Muffin", emoji: "\uD83C\uDF3D\uD83E\uDDC1",
+                desc: "Rustic, golden, slightly gritty. Southern hospitality.",
+                tags: ["rustic", "hearty", "savory", "american"],
+                vibe: "rugged"
+            },
+            {
+                name: "Pain au Chocolat", emoji: "\uD83C\uDF6B\uD83E\uDD50",
+                desc: "Flaky pastry hiding a molten chocolate heart.",
+                tags: ["elegant", "french", "sweet", "indulgent"],
+                vibe: "fancy"
+            },
+            {
+                name: "Kaiser Roll", emoji: "\uD83D\uDC51\uD83C\uDF5E",
+                desc: "Crown-shaped, crusty, authoritative. The emperor of rolls.",
+                tags: ["formal", "savory", "traditional", "commanding"],
+                vibe: "fancy"
+            },
+            {
+                name: "Donut", emoji: "\uD83C\uDF69",
+                desc: "Fried, glazed, hole in the middle. A sugar ring of joy.",
+                tags: ["sweet", "casual", "indulgent", "fun"],
+                vibe: "chaotic"
+            },
+            {
+                name: "Milk Bread Roll", emoji: "\uD83E\uDD5B\uD83C\uDF5E",
+                desc: "Impossibly soft Japanese cloud bread. Tears like cotton.",
+                tags: ["delicate", "sweet", "asian", "gentle"],
+                vibe: "gentle"
+            },
+            {
+                name: "Croissant", emoji: "\uD83E\uDD50",
+                desc: "729 layers of buttery, flaky perfection. Ooh la la.",
+                tags: ["elegant", "french", "breakfast", "versatile"],
+                vibe: "fancy"
+            },
+            {
+                name: "Sourdough Boule", emoji: "\uD83C\uDF5E\u2728",
+                desc: "Tangy, crusty, artisanal. Took 3 days and a starter named Greg.",
+                tags: ["artisan", "savory", "traditional", "rustic"],
+                vibe: "warm"
+            },
+            {
+                name: "Mantou", emoji: "\u2601\uFE0F\uD83C\uDF5E",
+                desc: "Plain steamed bun, pillowy and pure. Zen simplicity.",
+                tags: ["plain", "delicate", "asian", "gentle"],
+                vibe: "gentle"
+            },
+            {
+                name: "Conchas", emoji: "\uD83D\uDC1A\uD83C\uDF5E",
+                desc: "Shell-patterned Mexican sweet bread. A bakery jewel.",
+                tags: ["sweet", "festive", "fun", "traditional"],
+                vibe: "warm"
+            },
+            {
+                name: "Pumpernickel Roll", emoji: "\uD83D\uDFEB",
+                desc: "Dense, dark, earthy. Takes itself very seriously.",
+                tags: ["formal", "savory", "hearty", "commanding"],
+                vibe: "fancy"
+            },
+        ];
+
+        // ========================================================
+        // OCCASION DATA — each has explicit lists of what fits / what clashes
+        // ========================================================
+        const OCCASIONS = [
+            {
+                name: "A State Dinner at Buckingham Palace",
+                welcomes: ["elegant", "formal", "british", "commanding", "traditional"],
+                rejects: ["messy", "casual", "fun", "pub", "american"],
+                reason_yes: "Refined and dignified, as the palace demands.",
+                reason_no: "The Queen would not be amused."
+            },
+            {
+                name: "Sunday Brunch with Friends",
+                welcomes: ["sweet", "breakfast", "indulgent", "versatile", "fun"],
+                rejects: ["formal", "commanding", "sacred"],
+                reason_yes: "Perfect for a lazy, delicious morning.",
+                reason_no: "A bit too serious for mimosas and gossip."
+            },
+            {
+                name: "A Child's Birthday Party",
+                welcomes: ["sweet", "fun", "indulgent", "casual"],
+                rejects: ["formal", "commanding", "savory", "sacred"],
+                reason_yes: "Kids and sugar: a natural pairing!",
+                reason_no: "The children demand frosting, not formality."
+            },
+            {
+                name: "Business Lunch with the CEO",
+                welcomes: ["elegant", "formal", "versatile", "commanding", "savory"],
+                rejects: ["messy", "casual", "fun", "indulgent"],
+                reason_yes: "Professional and polished. Promotion incoming.",
+                reason_no: "You can't close a deal with crumbs on your tie."
+            },
+            {
+                name: "Funeral Reception",
+                welcomes: ["plain", "traditional", "safe", "savory", "formal"],
+                rejects: ["fun", "festive", "indulgent", "sweet", "messy"],
+                reason_yes: "Respectful and understated. Well chosen.",
+                reason_no: "This is not the time for whimsy."
+            },
+            {
+                name: "Backyard BBQ",
+                welcomes: ["casual", "hearty", "pub", "american", "savory", "rustic"],
+                rejects: ["elegant", "formal", "delicate", "french", "commanding"],
+                reason_yes: "Grill smoke and good times. This bun belongs.",
+                reason_no: "This bun is overdressed for hot dogs."
+            },
+            {
+                name: "High Tea at The Ritz",
+                welcomes: ["elegant", "british", "sweet", "tea", "delicate", "french"],
+                rejects: ["casual", "hearty", "pub", "messy", "american"],
+                reason_yes: "Pinkies up! This bun passes the tea test.",
+                reason_no: "The Ritz has standards, darling."
+            },
+            {
+                name: "College Dorm Room Hangout",
+                welcomes: ["casual", "sweet", "fun", "indulgent", "messy", "american"],
+                rejects: ["formal", "elegant", "commanding", "sacred"],
+                reason_yes: "Cheap, cheerful, and carby. Perfect dorm fuel.",
+                reason_no: "Nobody at 2 AM wants something this fancy."
+            },
+            {
+                name: "Christmas Eve Dinner",
+                welcomes: ["festive", "traditional", "elegant", "sweet", "rich"],
+                rejects: ["casual", "pub", "plain", "american"],
+                reason_yes: "Warm, festive, and full of holiday spirit.",
+                reason_no: "Christmas deserves more sparkle than this."
+            },
+            {
+                name: "Romantic Candlelit Dinner",
+                welcomes: ["elegant", "french", "delicate", "rich", "artisan"],
+                rejects: ["messy", "casual", "pub", "fun", "american"],
+                reason_yes: "Soft lighting, soft bread. Romance approved.",
+                reason_no: "Nothing kills the mood like a messy bun situation."
+            },
+            {
+                name: "A Monastery's Silent Breakfast",
+                welcomes: ["plain", "safe", "gentle", "delicate", "traditional"],
+                rejects: ["indulgent", "fun", "messy", "festive", "sweet"],
+                reason_yes: "Simple and humble. The monks nod silently.",
+                reason_no: "The monks raise an eyebrow. Too worldly."
+            },
+            {
+                name: "County Fair Food Tent",
+                welcomes: ["fun", "sweet", "casual", "indulgent", "messy", "american"],
+                rejects: ["formal", "elegant", "commanding", "delicate"],
+                reason_yes: "Deep-fried and fun. The fair spirit lives on!",
+                reason_no: "This bun thinks it's too good for the fair."
+            },
+            {
+                name: "Japanese Tea Ceremony",
+                welcomes: ["delicate", "asian", "gentle", "plain", "traditional"],
+                rejects: ["messy", "indulgent", "casual", "american", "pub", "hearty"],
+                reason_yes: "Graceful and harmonious. Wabi-sabi approved.",
+                reason_no: "The tea master winces. Too loud for this space."
+            },
+            {
+                name: "Tailgate Before the Big Game",
+                welcomes: ["casual", "hearty", "pub", "american", "savory", "fun"],
+                rejects: ["elegant", "formal", "delicate", "french", "commanding"],
+                reason_yes: "Foam finger in one hand, bun in the other!",
+                reason_no: "This bun doesn't know the rules of football."
+            },
+            {
+                name: "Elegant Garden Wedding",
+                welcomes: ["elegant", "delicate", "french", "sweet", "festive"],
+                rejects: ["messy", "casual", "pub", "hearty", "american"],
+                reason_yes: "Beautiful, tasteful, and photo-ready.",
+                reason_no: "The wedding planner faints on sight."
+            },
+            {
+                name: "Late-Night Diner at 2 AM",
+                welcomes: ["casual", "indulgent", "sweet", "messy", "fun", "american"],
+                rejects: ["formal", "elegant", "commanding", "sacred", "delicate"],
+                reason_yes: "Greasy, comforting, and exactly right for 2 AM.",
+                reason_no: "Sir, this is a Waffle House."
+            },
+            {
+                name: "Passover Seder",
+                welcomes: ["traditional", "sacred", "plain", "safe"],
+                rejects: ["casual", "fun", "indulgent", "messy", "pub"],
+                reason_yes: "Tradition honored. L'chaim!",
+                reason_no: "This doesn't honor the solemnity of the table."
+            },
+            {
+                name: "Parisian Sidewalk Cafe",
+                welcomes: ["french", "elegant", "breakfast", "artisan", "sweet"],
+                rejects: ["hearty", "pub", "american", "casual", "messy"],
+                reason_yes: "Tres magnifique! The cafe approves.",
+                reason_no: "The Parisians judge you silently but firmly."
+            },
+            {
+                name: "Company Potluck",
+                welcomes: ["versatile", "safe", "traditional", "hearty", "savory", "fun"],
+                rejects: ["formal", "commanding", "sacred"],
+                reason_yes: "A crowd-pleaser! Karen from HR approves.",
+                reason_no: "The potluck table has enough drama already."
+            },
+            {
+                name: "A Toddler's First Solid Meal",
+                welcomes: ["gentle", "plain", "safe", "delicate", "sweet"],
+                rejects: ["hearty", "commanding", "formal", "savory", "messy"],
+                reason_yes: "Soft, safe, and baby-approved!",
+                reason_no: "Too intense for tiny taste buds."
+            },
+            {
+                name: "A Viking Feast",
+                welcomes: ["hearty", "rustic", "savory", "traditional", "pub"],
+                rejects: ["delicate", "elegant", "french", "gentle", "sweet"],
+                reason_yes: "Sturdy bread for sturdy warriors. Skol!",
+                reason_no: "The Vikings toss this puny morsel overboard."
+            },
+            {
+                name: "Art Gallery Opening",
+                welcomes: ["elegant", "artisan", "french", "delicate", "versatile"],
+                rejects: ["messy", "casual", "hearty", "pub", "american"],
+                reason_yes: "As curated as the art on the walls.",
+                reason_no: "This bun clashes with the aesthetic."
+            },
+            {
+                name: "Picnic in the Park",
+                welcomes: ["casual", "versatile", "fun", "sweet", "safe", "rustic"],
+                rejects: ["formal", "commanding", "sacred"],
+                reason_yes: "Sunshine and carbs: the perfect pairing.",
+                reason_no: "This bun doesn't do grass stains."
+            },
+            {
+                name: "Dim Sum Brunch",
+                welcomes: ["asian", "delicate", "gentle", "savory", "versatile"],
+                rejects: ["american", "pub", "formal", "commanding"],
+                reason_yes: "Right at home on the bamboo steamer cart.",
+                reason_no: "This bun missed the bamboo steamer memo."
+            },
+        ];
+
+        // ========================================================
+        // MATCHING LOGIC — uses tag overlap, not numbers
+        // ========================================================
+        function doesBeseem(bun, occasion) {
+            const bunTags = new Set(bun.tags);
+            const bunVibe = bun.vibe;
+
+            // Count how many of the bun's tags the occasion welcomes
+            let welcomed = 0;
+            for (const tag of bun.tags) {
+                if (occasion.welcomes.includes(tag)) welcomed++;
+            }
+
+            // Count how many of the bun's tags the occasion rejects
+            let rejected = 0;
+            for (const tag of bun.tags) {
+                if (occasion.rejects.includes(tag)) rejected++;
+            }
+
+            // If more tags rejected than welcomed, it's unseemly
+            if (rejected > welcomed) return false;
+
+            // If at least 2 tags are welcomed and none rejected, it beseems
+            if (welcomed >= 2 && rejected === 0) return true;
+
+            // If any tags are welcomed and none rejected, it beseems
+            if (welcomed >= 1 && rejected === 0) return true;
+
+            // If equal, lean toward beseeming only if at least 2 welcomed
+            if (welcomed === rejected && welcomed >= 2) return true;
+
+            // Otherwise unseemly
+            return false;
+        }
+
+        function getExplanation(bun, occasion, correct, playerSaidBeseem) {
+            const actuallyBeseems = doesBeseem(bun, occasion);
+
+            // Build a short "why" from tags
+            const matchedTags = bun.tags.filter(t => occasion.welcomes.includes(t));
+            const clashedTags = bun.tags.filter(t => occasion.rejects.includes(t));
+
+            let reason = "";
+            if (actuallyBeseems) {
+                reason = occasion.reason_yes;
+                if (matchedTags.length > 0) {
+                    reason += " (Fits: " + matchedTags.join(", ") + ")";
+                }
+            } else {
+                reason = occasion.reason_no;
+                if (clashedTags.length > 0) {
+                    reason += " (Clashes: " + clashedTags.join(", ") + ")";
+                }
+            }
+
+            return reason;
+        }
+
+        // ========================================================
+        // GAME STATE
+        // ========================================================
+        let rounds = [];
+        let currentRound = 0;
+        let score = 0;
+        let streakCount = 0;
+        let canAnswer = true;
+
+        function shuffle(arr) {
+            const a = [...arr];
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function pick(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function generateRounds() {
+            rounds = [];
+            const shuffledOccasions = shuffle(OCCASIONS).slice(0, 10);
+            const shuffledBuns = shuffle(BUNS);
+            for (let i = 0; i < 10; i++) {
+                const occasion = shuffledOccasions[i];
+                const bun = shuffledBuns[i % shuffledBuns.length];
+                const beseems = doesBeseem(bun, occasion);
+                rounds.push({ bun, occasion, beseems });
+            }
+
+            // Ensure a mix: at least 3 beseeming and 3 unseemly
+            let yesCount = rounds.filter(r => r.beseems).length;
+            let attempts = 0;
+            while ((yesCount < 3 || yesCount > 7) && attempts < 50) {
+                attempts++;
+                const idx = Math.floor(Math.random() * 10);
+                const occasion = rounds[idx].occasion;
+                const newBun = pick(BUNS);
+                const beseems = doesBeseem(newBun, occasion);
+                const newYes = yesCount + (beseems ? 1 : 0) - (rounds[idx].beseems ? 1 : 0);
+                if (newYes >= 3 && newYes <= 7) {
+                    rounds[idx] = { bun: newBun, occasion, beseems };
+                    yesCount = newYes;
+                }
+            }
+        }
+
+        function showRound() {
+            const card = document.getElementById('scenarioCard');
+            card.classList.remove('exit-left', 'exit-right');
+            card.classList.add('enter');
+
+            const r = rounds[currentRound];
+            document.getElementById('roundNum').textContent = currentRound + 1;
+            document.getElementById('progressFill').style.width = `${(currentRound / 10) * 100}%`;
+            document.getElementById('occasionName').textContent = r.occasion.name;
+            document.getElementById('bunEmoji').textContent = r.bun.emoji;
+            document.getElementById('bunName').textContent = r.bun.name;
+            document.getElementById('bunDesc').textContent = r.bun.desc;
+            document.getElementById('feedbackVerdict').textContent = '';
+            document.getElementById('feedbackVerdict').className = 'feedback-verdict';
+            document.getElementById('feedbackReason').textContent = '';
+            canAnswer = true;
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    card.classList.remove('enter');
+                });
+            });
+        }
+
+        function answer(playerSaidBeseem) {
+            if (!canAnswer) return;
+            canAnswer = false;
+
+            const r = rounds[currentRound];
+            const correct = (playerSaidBeseem === r.beseems);
+
+            const card = document.getElementById('scenarioCard');
+            const verdict = document.getElementById('feedbackVerdict');
+            const reason = document.getElementById('feedbackReason');
+
+            if (correct) {
+                score++;
+                streakCount++;
+                document.getElementById('scoreNum').textContent = score;
+                verdict.className = 'feedback-verdict correct';
+                verdict.textContent = correct && playerSaidBeseem
+                    ? "Correct! It beseems!"
+                    : "Correct! Unseemly indeed!";
+            } else {
+                streakCount = 0;
+                verdict.className = 'feedback-verdict wrong';
+                verdict.textContent = !playerSaidBeseem
+                    ? "Wrong! It actually beseems."
+                    : "Wrong! That was unseemly.";
+            }
+
+            reason.textContent = getExplanation(r.bun, r.occasion, correct, playerSaidBeseem);
+
+            document.getElementById('streak').textContent = streakCount >= 2
+                ? "\u2B50 Streak: " + streakCount
+                : '';
+
+            card.classList.add(playerSaidBeseem ? 'exit-right' : 'exit-left');
+
+            setTimeout(() => {
+                currentRound++;
+                if (currentRound >= 10) {
+                    showFinal();
+                } else {
+                    showRound();
+                }
+            }, 2200);
+        }
+
+        function showFinal() {
+            document.getElementById('gameArea').style.display = 'none';
+            const final = document.getElementById('finalScreen');
+            final.style.display = 'block';
+
+            let emoji, title;
+            if (score <= 3) { emoji = "\uD83D\uDE2C"; title = "Bun Barbarian"; }
+            else if (score <= 5) { emoji = "\uD83E\uDD14"; title = "Apprentice of Bread Etiquette"; }
+            else if (score <= 7) { emoji = "\uD83E\uDDD0"; title = "Bun Bourgeois"; }
+            else if (score <= 9) { emoji = "\uD83C\uDFA9"; title = "Grand Arbiter of Bun Propriety"; }
+            else { emoji = "\uD83D\uDC51"; title = "Supreme Chancellor of Beseeming Buns"; }
+
+            document.getElementById('gradeEmoji').textContent = emoji;
+            document.getElementById('finalScore').textContent = score + " out of 10 correct";
+            document.getElementById('titleEarned').textContent = "Title earned: " + title;
+        }
+
+        function startGame() {
+            currentRound = 0;
+            score = 0;
+            streakCount = 0;
+            document.getElementById('scoreNum').textContent = '0';
+            document.getElementById('streak').textContent = '';
+            document.getElementById('finalScreen').style.display = 'none';
+            document.getElementById('gameArea').style.display = 'flex';
+            generateRounds();
+            showRound();
+        }
+
+        // Event listeners (not inline onclick)
+        document.getElementById('btnUnseemly').addEventListener('click', () => answer(false));
+        document.getElementById('btnBeseeming').addEventListener('click', () => answer(true));
+        document.getElementById('btnRestart').addEventListener('click', startGame);
+
+        startGame();
+    </script>
+</body>
+</html>

@@ -10,6 +10,15 @@ APPS = [
   },
   {
     "date": "2026-03-08",
+    "word_a": "bunn",
+    "word_b": "beseem",
+    "name": "Bun Propriety \u2014 Does This Bun Beseem the Occasion?",
+    "desc": "",
+    "path": "output/2026-03-08/bunn_beseem_v2.html",
+    "version": 2
+  },
+  {
+    "date": "2026-03-08",
     "word_a": "chimpanzee",
     "word_b": "ketchup",
     "name": "Ketchup Kingdom",
@@ -67,7 +76,7 @@ APPS = [
     "word_a": "tubing",
     "word_b": "microphone",
     "name": "Tube Tones",
-    "desc": "${match}% match \u2014 +${pts} pts",
+    "desc": "${match}% match &mdash; +${pts} pts",
     "path": "output/2026-03-08/tubing_microphone.html",
     "version": 1
   }
