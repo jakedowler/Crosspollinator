@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Llama Crossing v2</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation;}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;}
+
+:root{
+  --sand:#E8DCC8;--water:#4A90B8;--water-deep:#2C6E91;--wood:#8B5E3C;
+  --wool:#F5F0E6;--accent:#D4763A;--green:#6B8E4E;--sky:#C8DDE8;
+  --text:#3E2F1C;--gold:#D4A24E;--storm:#3d5a80;--calm:#87CEEB;
+  --night:#1a1a2e;--dusk:#e76f51;--dawn:#f4a261;
+}
+
+#app{width:100%;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;position:relative;transition:background 1s;}
+
+header{width:100%;padding:4px 10px;display:flex;justify-content:space-between;align-items:center;z-index:10;background:rgba(0,0,0,0.15);}
+header h1{font-size:clamp(14px,3.5vw,20px);color:#fff;font-weight:800;letter-spacing:0.5px;text-shadow:0 1px 3px rgba(0,0,0,0.5);}
+header h1 span{color:var(--dawn);}
+#weather-display{font-size:clamp(10px,2.2vw,13px);color:#fff;opacity:0.9;text-align:right;}
+
+#hud{display:flex;gap:clamp(6px,2vw,14px);padding:2px 10px 3px;z-index:10;align-items:center;flex-wrap:wrap;background:rgba(0,0,0,0.1);}
+.hud-item{display:flex;align-items:center;gap:3px;font-size:clamp(11px,2.5vw,14px);font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,0.5);}
+.hud-label{font-weight:400;opacity:0.7;font-size:clamp(9px,2vw,11px);}
+.bar-bg{width:clamp(40px,10vw,60px);height:8px;background:rgba(0,0,0,0.3);border-radius:4px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;transition:width 0.3s;}
+.bar-stamina .bar-fill{background:linear-gradient(90deg,#e74c3c,#2ecc71);}
+.bar-hp .bar-fill{background:#e74c3c;}
+
+#river-area{flex:1;width:100%;position:relative;overflow:hidden;touch-action:none;}
+
+/* Lanes */
+.lane-marker{position:absolute;width:100%;border-top:1px dashed rgba(255,255,255,0.15);z-index:1;pointer-events:none;}
+
+#boat{position:absolute;width:clamp(70px,18vw,110px);height:clamp(44px,11vw,70px);transition:left 0.18s ease-out, top 0.25s ease-out;z-index:5;}
+#boat-body{width:100%;height:55%;background:var(--wood);border-radius:0 0 50% 50%;position:absolute;bottom:0;box-shadow:0 4px 8px rgba(0,0,0,0.3);}
+#boat-plank{width:70%;height:3px;background:#A0703C;position:absolute;bottom:30%;left:15%;border-radius:2px;}
+.oar{position:absolute;width:5px;height:clamp(24px,6vw,40px);background:#6B4226;border-radius:3px;bottom:35%;transition:transform 0.3s;}
+.oar.left{left:-3px;transform-origin:top center;transform:rotate(-20deg);}
+.oar.right{right:-3px;transform-origin:top center;transform:rotate(20deg);}
+
+.llama-on-boat{position:absolute;top:-clamp(20px,5vw,32px);font-size:clamp(18px,5vw,32px);transition:all 0.3s;}
+
+#river-surface{position:absolute;top:0;left:0;width:100%;height:100%;}
+.wave{position:absolute;width:clamp(50px,14vw,100px);height:clamp(6px,1.5vw,12px);border-radius:50%;border:2px solid rgba(255,255,255,0.2);border-top:none;animation:drift linear infinite;}
+@keyframes drift{0%{transform:translateX(0)}100%{transform:translateX(-200px);opacity:0;}}
+
+.obstacle{position:absolute;font-size:clamp(22px,5vw,36px);z-index:4;}
+.cargo-item{position:absolute;font-size:clamp(18px,4.5vw,30px);z-index:3;cursor:pointer;}
+.cargo-item.collected{animation:collect 0.4s ease forwards;}
+@keyframes collect{0%{transform:scale(1);opacity:1}100%{transform:scale(0) translateY(-30px);opacity:0;}}
+
+.score-popup{position:absolute;font-size:clamp(13px,3.5vw,20px);font-weight:900;color:var(--gold);pointer-events:none;z-index:20;text-shadow:0 1px 3px rgba(0,0,0,0.5);animation:popUp 0.8s ease forwards;}
+.hit-popup{position:absolute;font-size:clamp(15px,4vw,24px);font-weight:900;color:#e74c3c;pointer-events:none;z-index:20;text-shadow:0 1px 3px rgba(0,0,0,0.5);animation:popUp 0.8s ease forwards;}
+@keyframes popUp{0%{transform:translateY(0);opacity:1}100%{transform:translateY(-40px);opacity:0;}}
+
+#bank-left,#bank-right{position:absolute;top:0;height:100%;width:clamp(28px,7vw,45px);z-index:2;}
+#bank-left{left:0;background:linear-gradient(90deg,var(--sand) 40%,transparent);}
+#bank-right{right:0;background:linear-gradient(270deg,var(--sand) 40%,transparent);}
+.bank-grass{position:absolute;font-size:clamp(11px,2.5vw,16px);}
+
+#llama-queue{position:absolute;left:3px;display:flex;flex-direction:column;gap:1px;z-index:6;top:50%;transform:translateY(-50%);}
+.queue-llama{font-size:clamp(14px,3.5vw,22px);opacity:0.5;transition:all 0.3s;cursor:pointer;position:relative;}
+.queue-llama.next{opacity:1;transform:scale(1.1);}
+.queue-llama .trait-badge{position:absolute;right:-16px;top:-4px;font-size:8px;background:rgba(0,0,0,0.6);color:#fff;padding:1px 3px;border-radius:3px;white-space:nowrap;}
+
+#dest-pen{position:absolute;right:3px;top:50%;transform:translateY(-50%);z-index:6;display:flex;flex-direction:column;gap:1px;align-items:center;}
+.pen-llama{font-size:clamp(14px,3.5vw,22px);animation:penPop 0.4s ease;}
+@keyframes penPop{0%{transform:scale(0)}60%{transform:scale(1.2)}100%{transform:scale(1)}}
+
+#controls{display:flex;gap:clamp(4px,1.5vw,10px);padding:5px 8px 7px;z-index:10;align-items:center;justify-content:center;background:rgba(0,0,0,0.15);flex-wrap:nowrap;}
+.ctrl-btn{height:clamp(40px,10vw,56px);border-radius:12px;border:2px solid;background:var(--wool);font-size:clamp(14px,3.5vw,22px);font-weight:700;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.15s;-webkit-user-select:none;flex-shrink:0;}
+.ctrl-btn:active{transform:scale(0.95);filter:brightness(1.1);}
+.ctrl-btn.arrow{width:clamp(48px,13vw,70px);border-color:var(--accent);}
+.ctrl-btn.action{min-width:clamp(50px,14vw,80px);padding:0 8px;border-color:var(--green);font-size:clamp(10px,2.5vw,14px);font-weight:800;letter-spacing:0.3px;}
+.ctrl-btn.lane{width:clamp(36px,9vw,52px);border-color:var(--water);font-size:clamp(10px,2.5vw,14px);}
+.ctrl-btn:disabled{opacity:0.4;pointer-events:none;}
+
+/* Llama picker modal */
+#llama-picker{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:50;flex-direction:column;align-items:center;justify-content:center;}
+#llama-picker.show{display:flex;}
+#picker-box{background:var(--wool);border-radius:16px;padding:clamp(14px,3vw,24px);max-width:92%;max-height:70vh;overflow-y:auto;}
+#picker-box h3{font-size:clamp(16px,4vw,22px);color:var(--accent);margin-bottom:8px;text-align:center;}
+.llama-option{display:flex;align-items:center;gap:10px;padding:10px;border:2px solid #ddd;border-radius:10px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;}
+.llama-option:active,.llama-option:hover{border-color:var(--accent);background:#fef3e8;}
+.llama-option .ll-emoji{font-size:clamp(24px,6vw,36px);}
+.llama-option .ll-info{flex:1;}
+.llama-option .ll-name{font-weight:700;font-size:clamp(13px,3vw,16px);color:var(--text);}
+.llama-option .ll-desc{font-size:clamp(10px,2.2vw,12px);color:#666;line-height:1.3;}
+.llama-option .ll-trait{font-size:clamp(9px,2vw,11px);color:var(--accent);font-weight:600;}
+.llama-option.disabled{opacity:0.35;pointer-events:none;}
+
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:100;flex-direction:column;align-items:center;justify-content:center;}
+#overlay.show{display:flex;}
+#overlay-box{background:var(--wool);border-radius:20px;padding:clamp(16px,4vw,30px);text-align:center;max-width:90%;box-shadow:0 8px 30px rgba(0,0,0,0.3);}
+#overlay-box h2{font-size:clamp(20px,5vw,30px);color:var(--accent);margin-bottom:6px;}
+#overlay-box p{font-size:clamp(12px,2.8vw,16px);color:var(--text);margin-bottom:10px;line-height:1.4;}
+#overlay-box .stat{font-size:clamp(10px,2.3vw,13px);color:var(--text);opacity:0.7;margin-bottom:3px;}
+.overlay-btn{padding:10px 28px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:clamp(14px,3.2vw,18px);font-weight:700;cursor:pointer;margin-top:6px;}
+
+#splash{display:flex;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;flex-direction:column;align-items:center;justify-content:center;}
+#splash-box{background:var(--wool);border-radius:20px;padding:clamp(16px,4vw,30px);text-align:center;max-width:90%;}
+#splash-box h2{font-size:clamp(22px,5.5vw,32px);color:var(--accent);margin-bottom:4px;}
+#splash-box .emoji-row{font-size:clamp(24px,7vw,42px);margin-bottom:8px;}
+#splash-box p{font-size:clamp(11px,2.6vw,14px);color:var(--text);margin-bottom:10px;line-height:1.5;}
+#splash-box .tip{font-size:clamp(10px,2.2vw,12px);color:#666;font-style:italic;margin-bottom:8px;}
+
+/* Weather effects */
+.rain-drop{position:absolute;width:2px;height:clamp(10px,3vw,20px);background:rgba(200,220,255,0.5);z-index:1;animation:rain linear infinite;pointer-events:none;}
+@keyframes rain{0%{transform:translateY(-20px)}100%{transform:translateY(100vh)}}
+.fog-layer{position:absolute;width:200%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent,rgba(255,255,255,0.1),transparent);z-index:1;pointer-events:none;animation:fogDrift 8s linear infinite;}
+@keyframes fogDrift{0%{transform:translateX(-50%)}100%{transform:translateX(0)}}
+
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+.bobbing{animation:bob 2s ease-in-out infinite;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Llama <span>Crossing</span></h1>
+    <div id="weather-display">Clear skies</div>
+  </header>
+  <div id="hud">
+    <div class="hud-item">&#x1F999;<span id="hud-llamas">0/8</span></div>
+    <div class="hud-item">&#x1F4B0;<span id="hud-gold">0</span></div>
+    <div class="hud-item">&#x2764;&#xFE0F;<div class="bar-bg bar-hp"><div class="bar-fill" id="hp-bar" style="width:100%;background:#e74c3c;"></div></div></div>
+    <div class="hud-item">&#x26A1;<div class="bar-bg bar-stamina"><div class="bar-fill" id="stam-bar" style="width:100%;background:#2ecc71;"></div></div></div>
+    <div class="hud-item">&#x2696;&#xFE0F;<span id="hud-weight">0</span><span class="hud-label">/kg</span></div>
+    <div class="hud-item" id="hud-trip-counter">Trip <span id="hud-trip">1</span></div>
+  </div>
+  <div id="river-area">
+    <div id="bank-left"></div>
+    <div id="bank-right"></div>
+    <div id="river-surface"></div>
+    <div class="lane-marker" style="top:33%"></div>
+    <div class="lane-marker" style="top:66%"></div>
+    <div id="llama-queue"></div>
+    <div id="dest-pen"></div>
+    <div id="boat"></div>
+  </div>
+  <div id="controls">
+    <button class="ctrl-btn arrow" id="btn-row-left">&#x2B05;</button>
+    <button class="ctrl-btn lane" id="btn-lane-up">&#x25B2;</button>
+    <button class="ctrl-btn lane" id="btn-lane-down">&#x25BC;</button>
+    <button class="ctrl-btn action" id="btn-load">LOAD</button>
+    <button class="ctrl-btn arrow" id="btn-row-right">&#x27A1;</button>
+  </div>
+</div>
+
+<div id="llama-picker">
+  <div id="picker-box">
+    <h3>Choose Llamas to Board</h3>
+    <div id="picker-list"></div>
+  </div>
+</div>
+
+<div id="splash">
+  <div id="splash-box">
+    <h2>Llama Crossing</h2>
+    <div class="emoji-row">&#x1F999; &#x1F6F6; &#x1F30A;</div>
+    <p>Ferry 8 unique llamas across the river!<br>
+    Each llama has a personality that changes the ride.<br>
+    Manage stamina, dodge hazards, pick your lane, and watch the weather.</p>
+    <div class="tip">Arrows to row. Up/Down to change lanes. LOAD at banks to pick llamas.</div>
+    <button class="overlay-btn" onclick="startGame()">Start Rowing!</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="overlay-box">
+    <h2 id="ol-title">Well Done!</h2>
+    <p id="ol-msg"></p>
+    <div class="stat" id="ol-stat1"></div>
+    <div class="stat" id="ol-stat2"></div>
+    <div class="stat" id="ol-stat3"></div>
+    <button class="overlay-btn" onclick="restartGame()">Row Again</button>
+  </div>
+</div>
+
+<script>
+// === LLAMA TYPES ===
+const LLAMA_TYPES = [
+  { id:'stoic',   name:'Stoic Stan',     emoji:'\u{1F999}', desc:'Calm and heavy. Stabilizes the boat.',       trait:'Steady: -30% drift', weight:45, traitFn:'steady' },
+  { id:'nervous', name:'Nervous Nellie',  emoji:'\u{1F999}', desc:'Light but panicky. Rocks the boat in storms.', trait:'Skittish: +drift in storms', weight:25, traitFn:'skittish' },
+  { id:'singer',  name:'Singing Sally',   emoji:'\u{1F999}', desc:'Her humming scares away some obstacles.',    trait:'Siren: obstacles veer away', weight:35, traitFn:'siren' },
+  { id:'hefty',   name:'Hefty Hank',      emoji:'\u{1F999}', desc:'Very heavy. Slows you down but worth more.', trait:'Heavy: +gold, -speed', weight:60, traitFn:'heavy' },
+  { id:'lucky',   name:'Lucky Luna',      emoji:'\u{1F999}', desc:'Attracts floating treasure.',               trait:'Lucky: more cargo spawns', weight:30, traitFn:'lucky' },
+  { id:'brave',   name:'Brave Bruno',     emoji:'\u{1F999}', desc:'Charges obstacles, sometimes destroying them.', trait:'Brave: can smash rocks', weight:40, traitFn:'brave' },
+  { id:'healer',  name:'Healing Hazel',   emoji:'\u{1F999}', desc:'Slowly restores boat HP during the crossing.', trait:'Healer: +HP regen', weight:35, traitFn:'healer' },
+  { id:'swift',   name:'Swift Sami',      emoji:'\u{1F999}', desc:'Light and fast. Boosts rowing speed.',       trait:'Swift: +25% row power', weight:20, traitFn:'swift' },
+];
+
+// === WEATHER SYSTEM ===
+const WEATHERS = [
+  { id:'clear',  name:'Clear Skies',  icon:'\u2600\uFE0F',  currentMod:0,   visiMod:1,   spawnMod:1,   driftMod:0, skyGrad:'linear-gradient(180deg,#87CEEB 0%,#87CEEB 15%,#4A90B8 15%,#2C6E91 80%,#E8DCC8 80%)' },
+  { id:'rain',   name:'Rainstorm',    icon:'\u{1F327}\uFE0F', currentMod:0.5, visiMod:0.7, spawnMod:1.4, driftMod:0.3, skyGrad:'linear-gradient(180deg,#5a6e7f 0%,#5a6e7f 15%,#3d5a80 15%,#264653 80%,#b0a090 80%)' },
+  { id:'fog',    name:'Dense Fog',    icon:'\u{1F32B}\uFE0F', currentMod:0.2, visiMod:0.4, spawnMod:0.8, driftMod:0.1, skyGrad:'linear-gradient(180deg,#bcc5ce 0%,#bcc5ce 15%,#7a8a9a 15%,#5a6a7a 80%,#c0b8a8 80%)' },
+  { id:'wind',   name:'Strong Winds', icon:'\u{1F4A8}',      currentMod:0.8, visiMod:1,   spawnMod:1.2, driftMod:0.6, skyGrad:'linear-gradient(180deg,#a8c8e8 0%,#a8c8e8 15%,#5090b0 15%,#306880 80%,#d8cbb8 80%)' },
+  { id:'calm',   name:'Dead Calm',    icon:'\u{1F30A}',      currentMod:-0.3, visiMod:1,  spawnMod:0.6, driftMod:-0.2, skyGrad:'linear-gradient(180deg,#b8e0f0 0%,#b8e0f0 15%,#5aA0c8 15%,#3a80a8 80%,#e8dcc8 80%)' },
+];
+
+const TOTAL_LLAMAS = 8;
+const BOAT_CAPACITY = 3;
+const MAX_WEIGHT = 110;
+const MAX_HP = 5;
+const MAX_STAMINA = 100;
+const LANES = 3;
+const WEATHER_CHANGE_TIME = 18000; // ms
+
+let gs = {}; // game state
+let riverArea, boatEl, queueEl, penEl;
+let riverW, riverH, boatW, boatH;
+let animFrame, lastTime = 0;
+let touchActive = { left: false, right: false };
+
+function initDimensions() {
+  riverArea = document.getElementById('river-area');
+  boatEl = document.getElementById('boat');
+  queueEl = document.getElementById('llama-queue');
+  penEl = document.getElementById('dest-pen');
+  riverW = riverArea.clientWidth;
+  riverH = riverArea.clientHeight;
+  boatW = boatEl.clientWidth;
+  boatH = boatEl.clientHeight;
+}
+
+function resetState() {
+  if (gs.obstacles) gs.obstacles.forEach(o => o.el && o.el.remove());
+  if (gs.cargoItems) gs.cargoItems.forEach(c => c.el && c.el.parentNode && c.el.remove());
+  // Clear weather effects
+  document.querySelectorAll('.rain-drop,.fog-layer').forEach(e => e.remove());
+
+  // Shuffle llamas for variety
+  const shuffled = [...LLAMA_TYPES].sort(() => Math.random() - 0.5);
+
+  gs = {
+    running: false,
+    boatX: 0.08,
+    lane: 1, // 0=top, 1=mid, 2=bottom
+    llamasOnBoard: [], // llama type objects
+    llamasWaiting: shuffled.slice(0, TOTAL_LLAMAS),
+    llamasDelivered: [],
+    gold: 0,
+    hp: MAX_HP,
+    stamina: MAX_STAMINA,
+    obstacles: [],
+    cargoItems: [],
+    lastObstacle: 0,
+    lastCargo: 0,
+    rowCooldown: 0,
+    boatVelX: 0,
+    driftY: 0,
+    weather: WEATHERS[0],
+    weatherTimer: 0,
+    weatherIndex: 0,
+    tripNum: 1,
+    totalTrips: 0,
+    totalDmgTaken: 0,
+    cargoCollected: 0,
+    gameTime: 0,
+    staminaRegenDelay: 0,
+    currentPush: 0,
+  };
+}
+
+function totalWeight() {
+  return gs.llamasOnBoard.reduce((s, l) => s + l.weight, 0);
+}
+
+function hasTraitOnBoard(traitId) {
+  return gs.llamasOnBoard.some(l => l.traitFn === traitId);
+}
+
+function createBoatInner() {
+  boatEl.innerHTML = `
+    <div class="oar left" id="oar-l"></div>
+    <div class="oar right" id="oar-r"></div>
+    <div id="boat-body"><div id="boat-plank"></div></div>
+  `;
+  updateBoatLlamas();
+}
+
+function updateBoatLlamas() {
+  boatEl.querySelectorAll('.llama-on-boat').forEach(e => e.remove());
+  gs.llamasOnBoard.forEach((l, i) => {
+    const el = document.createElement('div');
+    el.className = 'llama-on-boat';
+    el.textContent = l.emoji;
+    el.style.left = (15 + i * 25) + '%';
+    // Color tint based on type
+    const hues = {stoic:'grayscale(20%)',nervous:'hue-rotate(30deg)',singer:'hue-rotate(280deg)',hefty:'saturate(0.5)',lucky:'hue-rotate(80deg)',brave:'hue-rotate(0deg) saturate(1.5)',healer:'hue-rotate(120deg)',swift:'hue-rotate(200deg)'};
+    el.style.filter = hues[l.id] || '';
+    boatEl.appendChild(el);
+  });
+}
+
+function updateQueue() {
+  queueEl.innerHTML = '';
+  gs.llamasWaiting.forEach((l, i) => {
+    const d = document.createElement('div');
+    d.className = 'queue-llama' + (i < BOAT_CAPACITY ? ' next' : '');
+    d.textContent = l.emoji;
+    // Color tint
+    const hues = {stoic:'grayscale(20%)',nervous:'hue-rotate(30deg)',singer:'hue-rotate(280deg)',hefty:'saturate(0.5)',lucky:'hue-rotate(80deg)',brave:'hue-rotate(0deg) saturate(1.5)',healer:'hue-rotate(120deg)',swift:'hue-rotate(200deg)'};
+    d.style.filter = hues[l.id] || '';
+    const badge = document.createElement('span');
+    badge.className = 'trait-badge';
+    badge.textContent = l.name.split(' ')[0];
+    d.appendChild(badge);
+    queueEl.appendChild(d);
+  });
+}
+
+function updatePen() {
+  penEl.innerHTML = '';
+  gs.llamasDelivered.forEach(l => {
+    const d = document.createElement('div');
+    d.className = 'pen-llama';
+    d.textContent = l.emoji;
+    const hues = {stoic:'grayscale(20%)',nervous:'hue-rotate(30deg)',singer:'hue-rotate(280deg)',hefty:'saturate(0.5)',lucky:'hue-rotate(80deg)',brave:'hue-rotate(0deg) saturate(1.5)',healer:'hue-rotate(120deg)',swift:'hue-rotate(200deg)'};
+    d.style.filter = hues[l.id] || '';
+    penEl.appendChild(d);
+  });
+}
+
+function updateHUD() {
+  document.getElementById('hud-llamas').textContent = gs.llamasDelivered.length + '/' + TOTAL_LLAMAS;
+  document.getElementById('hud-gold').textContent = gs.gold;
+  document.getElementById('hud-weight').textContent = totalWeight();
+  document.getElementById('hud-trip').textContent = gs.tripNum;
+
+  const hpPct = (gs.hp / MAX_HP) * 100;
+  document.getElementById('hp-bar').style.width = hpPct + '%';
+  const stamPct = (gs.stamina / MAX_STAMINA) * 100;
+  const stamBar = document.getElementById('stam-bar');
+  stamBar.style.width = stamPct + '%';
+  stamBar.style.background = stamPct < 25 ? '#e74c3c' : stamPct < 50 ? '#f39c12' : '#2ecc71';
+}
+
+function positionBoat() {
+  const x = gs.boatX * (riverW - boatW);
+  const laneY = ((gs.lane + 0.5) / LANES) * riverH - boatH / 2;
+  const yOff = gs.driftY;
+  boatEl.style.left = x + 'px';
+  boatEl.style.top = (laneY + yOff) + 'px';
+}
+
+function setWeather(w) {
+  gs.weather = w;
+  document.getElementById('weather-display').textContent = w.icon + ' ' + w.name;
+  document.getElementById('app').style.background = w.skyGrad;
+
+  // Clear old effects
+  document.querySelectorAll('.rain-drop,.fog-layer').forEach(e => e.remove());
+
+  if (w.id === 'rain') {
+    for (let i = 0; i < 30; i++) {
+      const drop = document.createElement('div');
+      drop.className = 'rain-drop';
+      drop.style.left = (Math.random() * 100) + '%';
+      drop.style.animationDuration = (0.4 + Math.random() * 0.3) + 's';
+      drop.style.animationDelay = (Math.random() * 0.5) + 's';
+      riverArea.appendChild(drop);
+    }
+  }
+  if (w.id === 'fog') {
+    const fog = document.createElement('div');
+    fog.className = 'fog-layer';
+    riverArea.appendChild(fog);
+  }
+}
+
+function cycleWeather() {
+  gs.weatherIndex = (gs.weatherIndex + 1) % WEATHERS.length;
+  // Skip to a random weather for variety
+  gs.weatherIndex = Math.floor(Math.random() * WEATHERS.length);
+  setWeather(WEATHERS[gs.weatherIndex]);
+}
+
+function spawnWaves() {
+  const surface = document.getElementById('river-surface');
+  surface.innerHTML = '';
+  for (let i = 0; i < 8; i++) {
+    const w = document.createElement('div');
+    w.className = 'wave';
+    w.style.top = (Math.random() * 90) + '%';
+    w.style.left = (Math.random() * 120) + '%';
+    w.style.animationDuration = (3 + Math.random() * 4) + 's';
+    w.style.animationDelay = (Math.random() * 3) + 's';
+    surface.appendChild(w);
+  }
+}
+
+function spawnBankGrass() {
+  const bankL = document.getElementById('bank-left');
+  const bankR = document.getElementById('bank-right');
+  bankL.querySelectorAll('.bank-grass').forEach(e => e.remove());
+  bankR.querySelectorAll('.bank-grass').forEach(e => e.remove());
+  const plants = ['\u{1F33F}', '\u{1F331}', '\u{1F33E}', '\u{1F343}'];
+  for (let i = 0; i < 5; i++) {
+    [bankL, bankR].forEach(bank => {
+      const g = document.createElement('div');
+      g.className = 'bank-grass';
+      g.textContent = plants[Math.floor(Math.random() * plants.length)];
+      g.style.top = (10 + Math.random() * 80) + '%';
+      g.style.left = bank === bankL ? (Math.random() * 60) + '%' : '';
+      g.style.right = bank === bankR ? (Math.random() * 60) + '%' : '';
+      bank.appendChild(g);
+    });
+  }
+}
+
+function spawnObstacle() {
+  const hazards = [
+    { emoji:'\u{1FAA8}', name:'rock', dmg:1, gold:0, smashable:true },
+    { emoji:'\u{1FAB5}', name:'log', dmg:1, gold:0, smashable:true },
+    { emoji:'\u{1F40A}', name:'croc', dmg:2, gold:0, smashable:false },
+    { emoji:'\u{1F30A}', name:'wave', dmg:0, gold:0, smashable:false },
+  ];
+  // Crocs are rare
+  const weights = [3, 3, 1, 2];
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * totalW;
+  let t = hazards[0];
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) { t = hazards[i]; break; }
+  }
+
+  const lane = Math.floor(Math.random() * LANES);
+  const side = Math.random() < 0.5 ? 'top' : 'bottom';
+  const laneCenter = (lane + 0.5) / LANES;
+  const x = 0.15 + Math.random() * 0.7;
+
+  const ob = {
+    x, y: side === 'top' ? -0.1 : 1.1,
+    targetLaneY: laneCenter,
+    lane,
+    vy: side === 'top' ? (0.6 + Math.random() * 0.5) : -(0.6 + Math.random() * 0.5),
+    vx: (Math.random() - 0.5) * 0.2 + gs.weather.currentMod * 0.15,
+    ...t, el: null, hit: false
+  };
+
+  // Siren trait: obstacles veer away
+  if (hasTraitOnBoard('siren') && Math.random() < 0.35) {
+    ob.vx += (gs.boatX < 0.5 ? 0.4 : -0.4);
+  }
+
+  const el = document.createElement('div');
+  el.className = 'obstacle';
+  el.textContent = t.emoji;
+  riverArea.appendChild(el);
+  ob.el = el;
+  gs.obstacles.push(ob);
+}
+
+function spawnCargo() {
+  const items = [
+    { emoji:'\u{1F4E6}', name:'package', gold:10 },
+    { emoji:'\u{1F9F6}', name:'wool', gold:15 },
+    { emoji:'\u{1F3FA}', name:'pottery', gold:20 },
+    { emoji:'\u{1F48E}', name:'gem', gold:40 },
+  ];
+  // Gems are rare, Lucky trait increases spawn
+  const weights = hasTraitOnBoard('lucky') ? [2, 2, 2, 2] : [4, 3, 2, 0.5];
+  const totalW = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * totalW;
+  let item = items[0];
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i];
+    if (r <= 0) { item = items[i]; break; }
+  }
+
+  const lane = Math.floor(Math.random() * LANES);
+  const x = 0.2 + Math.random() * 0.6;
+  const y = (lane + 0.3 + Math.random() * 0.4) / LANES;
+  const c = { x, y, lane, ...item, el: null, collected: false, life: 6 };
+
+  const el = document.createElement('div');
+  el.className = 'cargo-item bobbing';
+  el.textContent = item.emoji;
+  el.style.left = (x * riverW) + 'px';
+  el.style.top = (y * riverH) + 'px';
+  el.addEventListener('pointerdown', (e) => { e.preventDefault(); collectCargo(c); });
+  riverArea.appendChild(el);
+  c.el = el;
+  gs.cargoItems.push(c);
+}
+
+function showPopup(x, y, text, cls) {
+  const pop = document.createElement('div');
+  pop.className = cls || 'score-popup';
+  pop.textContent = text;
+  pop.style.left = x + 'px';
+  pop.style.top = y + 'px';
+  riverArea.appendChild(pop);
+  setTimeout(() => pop.remove(), 800);
+}
+
+function collectCargo(c) {
+  if (c.collected) return;
+  const bx = gs.boatX;
+  const dist = Math.abs(c.x - bx);
+  const laneDist = Math.abs(c.lane - gs.lane);
+  if (dist < 0.22 && laneDist <= 0) {
+    c.collected = true;
+    c.el.classList.add('collected');
+    gs.gold += c.gold;
+    gs.cargoCollected++;
+    showPopup(c.x * riverW, c.y * riverH - 20, '+' + c.gold + 'g ' + c.name);
+    updateHUD();
+    setTimeout(() => { if (c.el.parentNode) c.el.remove(); }, 500);
+  }
+}
+
+function rowBoat(dir) {
+  if (!gs.running) return;
+  if (gs.rowCooldown > 0) return;
+  if (gs.stamina <= 0) return; // Can't row without stamina
+
+  // Stamina cost: heavier = more stamina per row
+  const weightPenalty = 1 + totalWeight() / 150;
+  const staminaCost = 3 * weightPenalty;
+  gs.stamina = Math.max(0, gs.stamina - staminaCost);
+  gs.staminaRegenDelay = 0.8; // delay before regen starts
+
+  // Row force: weight slows, swift boosts
+  let force = 0.055;
+  if (hasTraitOnBoard('swift')) force *= 1.25;
+  force /= (1 + totalWeight() / 200);
+  // Wind affects rowing
+  force += gs.weather.currentMod * 0.01 * dir;
+
+  gs.boatVelX += dir * force;
+  gs.rowCooldown = 0.12;
+
+  // Oar animation
+  const oarL = document.getElementById('oar-l');
+  const oarR = document.getElementById('oar-r');
+  if (oarL && oarR) {
+    const cls = dir < 0 ? 'rowing-left' : 'rowing-right';
+    oarL.style.transform = dir < 0 ? 'rotate(25deg)' : 'rotate(-25deg)';
+    oarR.style.transform = dir < 0 ? 'rotate(25deg)' : 'rotate(-25deg)';
+    setTimeout(() => {
+      oarL.style.transform = dir < 0 ? 'rotate(-20deg)' : 'rotate(-20deg)';
+      oarR.style.transform = dir < 0 ? 'rotate(20deg)' : 'rotate(20deg)';
+    }, 200);
+  }
+}
+
+function changeLane(dir) {
+  if (!gs.running) return;
+  const newLane = gs.lane + dir;
+  if (newLane < 0 || newLane >= LANES) return;
+  gs.lane = newLane;
+  // Small stamina cost for lane change
+  gs.stamina = Math.max(0, gs.stamina - 2);
+  positionBoat();
+}
+
+function openLlamaPicker() {
+  const picker = document.getElementById('llama-picker');
+  const list = document.getElementById('picker-list');
+  list.innerHTML = '';
+
+  if (gs.llamasWaiting.length === 0) return;
+
+  gs.llamasWaiting.forEach((l, i) => {
+    const opt = document.createElement('div');
+    opt.className = 'llama-option';
+
+    // Check weight limit
+    const wouldExceed = totalWeight() + l.weight > MAX_WEIGHT;
+    const boatFull = gs.llamasOnBoard.length >= BOAT_CAPACITY;
+    if (wouldExceed || boatFull) opt.classList.add('disabled');
+
+    opt.innerHTML = `
+      <div class="ll-emoji" style="filter:${getHueFilter(l.id)}">${l.emoji}</div>
+      <div class="ll-info">
+        <div class="ll-name">${l.name} (${l.weight}kg)</div>
+        <div class="ll-desc">${l.desc}</div>
+        <div class="ll-trait">${l.trait}</div>
+      </div>
+    `;
+    opt.addEventListener('click', () => {
+      if (wouldExceed || boatFull) return;
+      loadLlama(i);
+      // Refresh picker
+      if (gs.llamasOnBoard.length < BOAT_CAPACITY && gs.llamasWaiting.length > 0) {
+        openLlamaPicker();
+      } else {
+        closePicker();
+      }
+    });
+    list.appendChild(opt);
+  });
+
+  // Add "Done" button
+  const done = document.createElement('div');
+  done.className = 'llama-option';
+  done.style.justifyContent = 'center';
+  done.style.borderColor = 'var(--accent)';
+  done.innerHTML = `<div class="ll-name" style="text-align:center;">Done Loading &#x2705;</div>`;
+  done.addEventListener('click', closePicker);
+  list.appendChild(done);
+
+  picker.classList.add('show');
+}
+
+function closePicker() {
+  document.getElementById('llama-picker').classList.remove('show');
+}
+
+function getHueFilter(id) {
+  const hues = {stoic:'grayscale(20%)',nervous:'hue-rotate(30deg)',singer:'hue-rotate(280deg)',hefty:'saturate(0.5)',lucky:'hue-rotate(80deg)',brave:'hue-rotate(0deg) saturate(1.5)',healer:'hue-rotate(120deg)',swift:'hue-rotate(200deg)'};
+  return hues[id] || '';
+}
+
+function loadLlama(waitingIndex) {
+  const llama = gs.llamasWaiting.splice(waitingIndex, 1)[0];
+  gs.llamasOnBoard.push(llama);
+  gs.gold += 5; // loading bonus
+  showPopup(50, riverH / 2, '+' + llama.name.split(' ')[0]);
+  updateBoatLlamas();
+  updateQueue();
+  updateHUD();
+}
+
+function tryLoad() {
+  if (!gs.running) return;
+  const bx = gs.boatX;
+
+  if (bx < 0.12) {
+    // At left bank — open llama picker
+    if (gs.llamasWaiting.length > 0 && gs.llamasOnBoard.length < BOAT_CAPACITY) {
+      openLlamaPicker();
+    }
+  } else if (bx > 0.88) {
+    // At right bank — unload llamas
+    if (gs.llamasOnBoard.length > 0) {
+      const delivered = gs.llamasOnBoard.length;
+      // Gold bonus based on llama types
+      let tripGold = 0;
+      gs.llamasOnBoard.forEach(l => {
+        tripGold += 20;
+        if (l.traitFn === 'heavy') tripGold += 15; // Heavy llamas worth more
+      });
+      gs.gold += tripGold;
+      gs.llamasDelivered.push(...gs.llamasOnBoard);
+      gs.llamasOnBoard = [];
+      gs.tripNum++;
+      gs.totalTrips++;
+      updateBoatLlamas();
+      updatePen();
+      updateHUD();
+      showPopup(riverW - 80, riverH / 2, '+' + tripGold + 'g!');
+
+      if (gs.llamasDelivered.length >= TOTAL_LLAMAS) {
+        winGame();
+        return;
+      }
+    }
+  }
+}
+
+function checkCollisions() {
+  const bx = gs.boatX;
+  const boatLane = gs.lane;
+
+  for (let i = gs.obstacles.length - 1; i >= 0; i--) {
+    const ob = gs.obstacles[i];
+    if (ob.hit) continue;
+
+    const dx = Math.abs(ob.x - bx);
+    const obLaneY = ob.y;
+    const boatY = (boatLane + 0.5) / LANES;
+    const dy = Math.abs(obLaneY - boatY);
+
+    if (dx < 0.08 && dy < (0.5 / LANES)) {
+      if (ob.dmg === 0) continue; // waves don't hurt
+
+      // Brave trait: smash rocks/logs
+      if (hasTraitOnBoard('brave') && ob.smashable && Math.random() < 0.5) {
+        ob.hit = true;
+        ob.el.style.transform = 'scale(0)';
+        ob.el.style.transition = 'transform 0.3s';
+        showPopup(ob.x * riverW, obLaneY * riverH - 20, 'SMASHED!', 'score-popup');
+        gs.gold += 5;
+        updateHUD();
+        continue;
+      }
+
+      ob.hit = true;
+      gs.hp -= ob.dmg;
+      gs.totalDmgTaken += ob.dmg;
+      gs.gold = Math.max(0, gs.gold - 5);
+
+      boatEl.style.filter = 'brightness(2)';
+      setTimeout(() => { boatEl.style.filter = ''; }, 200);
+
+      showPopup(ob.x * riverW, obLaneY * riverH - 20, '-' + ob.dmg + ' HP!', 'hit-popup');
+
+      // Nervous llama panics: extra drift
+      if (hasTraitOnBoard('skittish') && gs.weather.id !== 'clear' && gs.weather.id !== 'calm') {
+        gs.boatVelX += (Math.random() - 0.5) * 0.1;
+      }
+
+      updateHUD();
+      if (gs.hp <= 0) {
+        loseGame();
+        return;
+      }
+    }
+  }
+}
+
+function update(dt) {
+  if (!gs.running) return;
+  gs.gameTime += dt;
+
+  // Cooldowns
+  if (gs.rowCooldown > 0) gs.rowCooldown -= dt;
+
+  // Continuous rowing
+  if (touchActive.left) rowBoat(-1);
+  if (touchActive.right) rowBoat(1);
+
+  // Stamina regen
+  if (gs.staminaRegenDelay > 0) {
+    gs.staminaRegenDelay -= dt;
+  } else {
+    const regenRate = 12; // per second
+    gs.stamina = Math.min(MAX_STAMINA, gs.stamina + regenRate * dt);
+  }
+
+  // Healer trait: regen HP slowly
+  if (hasTraitOnBoard('healer') && gs.hp < MAX_HP) {
+    if (Math.random() < dt * 0.08) { // ~1 HP every 12 seconds
+      gs.hp = Math.min(MAX_HP, gs.hp + 1);
+      showPopup(gs.boatX * riverW, ((gs.lane + 0.5) / LANES) * riverH - 30, '+1 HP', 'score-popup');
+    }
+  }
+
+  // Steady trait reduces drift
+  const steadyMod = hasTraitOnBoard('steady') ? 0.7 : 1;
+  // Drift from weather
+  const weatherDrift = gs.weather.driftMod * steadyMod;
+  const driftPush = Math.sin(gs.gameTime * 1.5) * weatherDrift * 0.02;
+  gs.boatVelX += driftPush;
+
+  // Current push (river pushes boat downstream visually as bobbing)
+  gs.driftY = Math.sin(gs.gameTime * 1.2) * (3 + weatherDrift * 4);
+
+  // Nervous trait: extra bob in bad weather
+  if (hasTraitOnBoard('skittish') && (gs.weather.id === 'rain' || gs.weather.id === 'wind')) {
+    gs.driftY += Math.sin(gs.gameTime * 4) * 3;
+  }
+
+  // Apply velocity
+  gs.boatX += gs.boatVelX * dt * 7;
+  gs.boatVelX *= 0.91;
+  gs.boatX = Math.max(0.02, Math.min(0.98, gs.boatX));
+
+  positionBoat();
+
+  // Weather cycling
+  gs.weatherTimer += dt * 1000;
+  if (gs.weatherTimer > WEATHER_CHANGE_TIME) {
+    gs.weatherTimer = 0;
+    cycleWeather();
+  }
+
+  // Spawn obstacles
+  const now = Date.now();
+  const obInterval = 1800 / gs.weather.spawnMod;
+  if (now - gs.lastObstacle > obInterval) {
+    spawnObstacle();
+    gs.lastObstacle = now;
+  }
+
+  // Spawn cargo
+  const cargoInterval = hasTraitOnBoard('lucky') ? 2500 : 3800;
+  if (now - gs.lastCargo > cargoInterval) {
+    spawnCargo();
+    gs.lastCargo = now;
+  }
+
+  // Move obstacles
+  for (let i = gs.obstacles.length - 1; i >= 0; i--) {
+    const ob = gs.obstacles[i];
+    ob.y += ob.vy * dt * 0.25;
+    ob.x += ob.vx * dt * 0.2;
+    ob.x = Math.max(0.05, Math.min(0.95, ob.x));
+    ob.el.style.left = (ob.x * riverW) + 'px';
+    ob.el.style.top = (ob.y * riverH) + 'px';
+
+    // Fog: reduce visibility
+    if (gs.weather.id === 'fog') {
+      const distFromBoat = Math.abs(ob.x - gs.boatX) + Math.abs(ob.y - (gs.lane + 0.5) / LANES);
+      ob.el.style.opacity = Math.max(0.1, 1 - distFromBoat * 1.5);
+    } else {
+      ob.el.style.opacity = '1';
+    }
+
+    if (ob.y < -0.15 || ob.y > 1.15) {
+      ob.el.remove();
+      gs.obstacles.splice(i, 1);
+    }
+  }
+
+  // Update cargo
+  for (let i = gs.cargoItems.length - 1; i >= 0; i--) {
+    const c = gs.cargoItems[i];
+    if (c.collected) { gs.cargoItems.splice(i, 1); continue; }
+    c.life -= dt;
+    // Drift cargo with current
+    c.x += gs.weather.currentMod * dt * 0.03;
+    c.el.style.left = (c.x * riverW) + 'px';
+    if (c.life <= 0 || c.x < 0 || c.x > 1) {
+      c.el.remove();
+      gs.cargoItems.splice(i, 1);
+      continue;
+    }
+    if (c.life < 1.5) c.el.style.opacity = String(c.life / 1.5);
+
+    // Fog visibility
+    if (gs.weather.id === 'fog') {
+      const distFromBoat = Math.abs(c.x - gs.boatX) + Math.abs(c.y - (gs.lane + 0.5) / LANES);
+      c.el.style.opacity = String(Math.max(0.1, Math.min(parseFloat(c.el.style.opacity) || 1, 1 - distFromBoat * 1.5)));
+    }
+  }
+
+  checkCollisions();
+
+  // Update button labels
+  const loadBtn = document.getElementById('btn-load');
+  if (gs.boatX < 0.12 && gs.llamasWaiting.length > 0 && gs.llamasOnBoard.length < BOAT_CAPACITY) {
+    loadBtn.textContent = 'LOAD';
+    loadBtn.style.borderColor = 'var(--green)';
+    loadBtn.disabled = false;
+  } else if (gs.boatX > 0.88 && gs.llamasOnBoard.length > 0) {
+    loadBtn.textContent = 'DOCK';
+    loadBtn.style.borderColor = 'var(--gold)';
+    loadBtn.disabled = false;
+  } else {
+    loadBtn.textContent = '\u{1F999}';
+    loadBtn.style.borderColor = 'var(--wood)';
+    loadBtn.disabled = true;
+  }
+
+  // Lane buttons disable at edges
+  document.getElementById('btn-lane-up').disabled = gs.lane <= 0;
+  document.getElementById('btn-lane-down').disabled = gs.lane >= LANES - 1;
+
+  // Stamina affects row buttons
+  const canRow = gs.stamina > 3;
+  document.getElementById('btn-row-left').disabled = !canRow;
+  document.getElementById('btn-row-right').disabled = !canRow;
+
+  updateHUD();
+}
+
+function gameLoop(timestamp) {
+  if (!lastTime) lastTime = timestamp;
+  const dt = Math.min(0.1, (timestamp - lastTime) / 1000);
+  lastTime = timestamp;
+  update(dt);
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function winGame() {
+  gs.running = false;
+  // Bonus gold for remaining HP and good time
+  const hpBonus = gs.hp * 10;
+  const timeBonus = Math.max(0, Math.floor(200 - gs.gameTime * 2));
+  gs.gold += hpBonus + timeBonus;
+  updateHUD();
+
+  document.getElementById('ol-title').textContent = 'Herd Delivered! \u{2728}';
+  document.getElementById('ol-msg').textContent =
+    'All ' + TOTAL_LLAMAS + ' llamas safely across! The herd grazes on greener pastures.';
+  document.getElementById('ol-stat1').textContent =
+    'Gold earned: ' + gs.gold + ' (HP bonus: +' + hpBonus + ', Time bonus: +' + timeBonus + ')';
+  document.getElementById('ol-stat2').textContent =
+    'Trips: ' + gs.totalTrips + ' | Cargo: ' + gs.cargoCollected + ' | Damage taken: ' + gs.totalDmgTaken;
+  document.getElementById('ol-stat3').textContent =
+    'Time: ' + Math.floor(gs.gameTime) + 's';
+  document.getElementById('overlay').classList.add('show');
+}
+
+function loseGame() {
+  gs.running = false;
+  document.getElementById('ol-title').textContent = 'Capsized! \u{1F30A}';
+  document.getElementById('ol-msg').textContent =
+    'Your rowboat sank! ' + gs.llamasDelivered.length + ' of ' + TOTAL_LLAMAS + ' llamas made it across.';
+  document.getElementById('ol-stat1').textContent =
+    'Gold: ' + gs.gold + ' | Trips: ' + gs.totalTrips;
+  document.getElementById('ol-stat2').textContent =
+    'Cargo collected: ' + gs.cargoCollected;
+  document.getElementById('ol-stat3').textContent =
+    'Survived: ' + Math.floor(gs.gameTime) + 's';
+  document.getElementById('overlay').classList.add('show');
+}
+
+function startGame() {
+  document.getElementById('splash').style.display = 'none';
+  resetState();
+  gs.running = true;
+  gs.lastObstacle = Date.now();
+  gs.lastCargo = Date.now();
+  initDimensions();
+  createBoatInner();
+  spawnWaves();
+  spawnBankGrass();
+  setWeather(WEATHERS[0]);
+  positionBoat();
+  updateQueue();
+  updatePen();
+  updateHUD();
+  lastTime = 0;
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+function restartGame() {
+  document.getElementById('overlay').classList.remove('show');
+  if (animFrame) cancelAnimationFrame(animFrame);
+  resetState();
+  gs.running = true;
+  gs.lastObstacle = Date.now();
+  gs.lastCargo = Date.now();
+  initDimensions();
+  createBoatInner();
+  spawnWaves();
+  spawnBankGrass();
+  setWeather(WEATHERS[0]);
+  positionBoat();
+  updateQueue();
+  updatePen();
+  updateHUD();
+  lastTime = 0;
+  animFrame = requestAnimationFrame(gameLoop);
+}
+
+// === CONTROLS ===
+document.getElementById('btn-row-left').addEventListener('pointerdown', (e) => { e.preventDefault(); touchActive.left = true; rowBoat(-1); });
+document.getElementById('btn-row-left').addEventListener('pointerup', () => { touchActive.left = false; });
+document.getElementById('btn-row-left').addEventListener('pointerleave', () => { touchActive.left = false; });
+
+document.getElementById('btn-row-right').addEventListener('pointerdown', (e) => { e.preventDefault(); touchActive.right = true; rowBoat(1); });
+document.getElementById('btn-row-right').addEventListener('pointerup', () => { touchActive.right = false; });
+document.getElementById('btn-row-right').addEventListener('pointerleave', () => { touchActive.right = false; });
+
+document.getElementById('btn-load').addEventListener('pointerdown', (e) => { e.preventDefault(); tryLoad(); });
+document.getElementById('btn-lane-up').addEventListener('pointerdown', (e) => { e.preventDefault(); changeLane(-1); });
+document.getElementById('btn-lane-down').addEventListener('pointerdown', (e) => { e.preventDefault(); changeLane(1); });
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (!gs.running) return;
+  if (e.key === 'ArrowLeft' || e.key === 'a') { touchActive.left = true; rowBoat(-1); }
+  if (e.key === 'ArrowRight' || e.key === 'd') { touchActive.right = true; rowBoat(1); }
+  if (e.key === 'ArrowUp' || e.key === 'w') { e.preventDefault(); changeLane(-1); }
+  if (e.key === 'ArrowDown' || e.key === 's') { e.preventDefault(); changeLane(1); }
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); tryLoad(); }
+});
+document.addEventListener('keyup', (e) => {
+  if (e.key === 'ArrowLeft' || e.key === 'a') touchActive.left = false;
+  if (e.key === 'ArrowRight' || e.key === 'd') touchActive.right = false;
+});
+
+// Resize
+window.addEventListener('resize', () => { initDimensions(); positionBoat(); });
+</script>
+</body>
+</html>

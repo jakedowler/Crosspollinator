@@ -55,6 +55,15 @@ APPS = [
   },
   {
     "date": "2026-03-08",
+    "word_a": "llama",
+    "word_b": "rowboat",
+    "name": "Llama Crossing v2",
+    "desc": "Ferry 8 unique llamas across the river!\n    Each llama has a personality that changes the ride.\n    Manage stamina, dodge hazards, pick your lane, and watch the weather.",
+    "path": "output/2026-03-08/llama_rowboat_v2.html",
+    "version": 2
+  },
+  {
+    "date": "2026-03-08",
     "word_a": "radio",
     "word_b": "tale",
     "name": "Frequency",
