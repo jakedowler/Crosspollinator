@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Tube Tones</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation;}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#FFF5E6;}
+
+:root{
+  --coral:#FF6B6B;--teal:#4ECDC4;--gold:#FFE66D;--purple:#A06CD5;
+  --sky:#74B9FF;--pink:#FD79A8;--cream:#FFF5E6;--dark:#2D3436;
+  --tube-outer:#4ECDC4;--tube-inner:#2D9B94;--mic-body:#A06CD5;
+  --mic-grille:#C89BDE;--wave:#FF6B6B;--success:#00B894;
+}
+
+#app{width:100%;height:100vh;height:100dvh;display:flex;flex-direction:column;align-items:center;overflow:hidden;background:linear-gradient(135deg,#FFF5E6 0%,#E8F8F5 50%,#F3E5F5 100%);}
+
+header{width:100%;padding:6px 12px;display:flex;justify-content:space-between;align-items:center;z-index:10;}
+header h1{font-size:clamp(15px,3.6vw,22px);color:var(--dark);font-weight:800;}
+header h1 .t1{color:var(--teal);}
+header h1 .t2{color:var(--purple);}
+#hint{font-size:clamp(9px,2vw,12px);color:var(--dark);opacity:0.6;text-align:right;max-width:55%;}
+
+#hud{display:flex;gap:clamp(12px,4vw,24px);padding:2px 12px 6px;z-index:10;align-items:center;}
+.hud-item{display:flex;align-items:center;gap:4px;font-size:clamp(12px,2.8vw,15px);font-weight:700;color:var(--dark);}
+.hud-label{font-weight:400;opacity:0.6;font-size:clamp(10px,2.2vw,12px);}
+
+#stage{flex:1;width:100%;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(6px,1.5vh,14px);padding:0 clamp(8px,2vw,20px);}
+
+#mic-area{display:flex;flex-direction:column;align-items:center;gap:4px;}
+#mic-icon{font-size:clamp(28px,7vw,48px);filter:drop-shadow(0 2px 6px rgba(160,108,213,0.4));transition:transform 0.2s;}
+#mic-icon.listening{animation:micPulse 0.5s ease infinite alternate;}
+@keyframes micPulse{0%{transform:scale(1)}100%{transform:scale(1.1);filter:drop-shadow(0 2px 12px rgba(160,108,213,0.7));}}
+
+#target-wave{width:90%;max-width:400px;height:clamp(44px,8vh,70px);background:rgba(255,255,255,0.7);border-radius:12px;border:2px solid var(--purple);position:relative;overflow:hidden;}
+#target-label{position:absolute;top:2px;left:8px;font-size:clamp(8px,1.8vw,11px);color:var(--purple);font-weight:600;opacity:0.8;z-index:2;}
+#target-canvas{width:100%;height:100%;}
+
+#player-wave{width:90%;max-width:400px;height:clamp(44px,8vh,70px);background:rgba(255,255,255,0.7);border-radius:12px;border:2px solid var(--teal);position:relative;overflow:hidden;}
+#player-label{position:absolute;top:2px;left:8px;font-size:clamp(8px,1.8vw,11px);color:var(--teal);font-weight:600;opacity:0.8;z-index:2;}
+#player-canvas{width:100%;height:100%;}
+
+#match-meter{width:90%;max-width:400px;height:clamp(14px,2.5vh,22px);background:rgba(255,255,255,0.6);border-radius:20px;border:2px solid #ddd;overflow:hidden;position:relative;}
+#match-fill{height:100%;width:0%;border-radius:20px;transition:width 0.3s ease,background 0.3s;background:linear-gradient(90deg,var(--coral),var(--gold),var(--success));}
+#match-text{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(8px,1.8vw,11px);font-weight:700;color:var(--dark);}
+
+#tubes-container{width:90%;max-width:400px;display:flex;justify-content:center;gap:clamp(6px,2vw,14px);padding:clamp(4px,1vh,10px) 0;}
+
+.tube-col{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.tube-wrapper{width:clamp(36px,10vw,56px);height:clamp(100px,22vh,180px);background:rgba(255,255,255,0.4);border-radius:10px;border:2px dashed rgba(78,205,196,0.3);position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;}
+.tube-fill{width:100%;background:linear-gradient(180deg,var(--tube-outer),var(--tube-inner));border-radius:0 0 8px 8px;position:relative;transition:height 0.05s;min-height:10%;}
+.tube-fill::before{content:'';position:absolute;top:0;left:15%;width:70%;height:3px;background:rgba(255,255,255,0.5);border-radius:2px;}
+.tube-fill::after{content:'';position:absolute;left:0;right:0;top:4px;bottom:4px;background:repeating-linear-gradient(0deg,transparent,transparent 6px,rgba(255,255,255,0.15) 6px,rgba(255,255,255,0.15) 8px);}
+.tube-note{font-size:clamp(10px,2.4vw,14px);font-weight:700;color:var(--teal);text-align:center;}
+.tube-handle{width:clamp(28px,8vw,44px);height:clamp(20px,4vh,28px);background:var(--gold);border-radius:8px;border:2px solid #E5C84D;display:flex;align-items:center;justify-content:center;font-size:clamp(9px,2vw,12px);font-weight:700;color:var(--dark);cursor:grab;transition:background 0.2s;}
+.tube-handle:active{background:#FFD93D;cursor:grabbing;}
+
+#submit-btn{padding:clamp(8px,2vh,14px) clamp(24px,6vw,40px);background:var(--purple);color:#fff;border:none;border-radius:16px;font-size:clamp(14px,3.5vw,20px);font-weight:800;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 15px rgba(160,108,213,0.4);}
+#submit-btn:active{transform:scale(0.95);background:#8B5CF6;}
+
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;flex-direction:column;align-items:center;justify-content:center;}
+#overlay.show{display:flex;}
+#overlay-box{background:var(--cream);border-radius:20px;padding:clamp(20px,5vw,36px);text-align:center;max-width:88%;box-shadow:0 8px 30px rgba(0,0,0,0.3);}
+#overlay-box h2{font-size:clamp(20px,5vw,32px);margin-bottom:8px;color:var(--dark);}
+#overlay-box p{font-size:clamp(12px,3vw,16px);color:var(--dark);opacity:0.8;margin-bottom:4px;}
+#overlay-box .score-line{font-size:clamp(16px,4vw,24px);font-weight:800;margin:10px 0;}
+#play-btn{margin-top:14px;padding:clamp(10px,2.5vh,16px) clamp(28px,7vw,48px);background:var(--teal);color:#fff;border:none;border-radius:16px;font-size:clamp(14px,3.5vw,20px);font-weight:800;cursor:pointer;transition:all 0.2s;box-shadow:0 4px 15px rgba(78,205,196,0.4);}
+#play-btn:active{transform:scale(0.95);}
+
+.stars{font-size:clamp(24px,6vw,40px);margin:6px 0;}
+
+@keyframes slideUp{0%{transform:translateY(30px);opacity:0}100%{transform:translateY(0);opacity:1}}
+.animate-in{animation:slideUp 0.4s ease;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1><span class="t1">Tube</span> <span class="t2">Tones</span></h1>
+    <span id="hint">Drag tubes to match the sound wave</span>
+  </header>
+  <div id="hud">
+    <div class="hud-item"><span class="hud-label">Round</span> <span id="round-num">1</span>/5</div>
+    <div class="hud-item"><span class="hud-label">Score</span> <span id="score">0</span></div>
+    <div class="hud-item"><span class="hud-label">Best</span> <span id="best">0</span></div>
+  </div>
+  <div id="stage">
+    <div id="mic-area">
+      <div id="mic-icon">🎙️</div>
+    </div>
+    <div id="target-wave"><span id="target-label">TARGET</span><canvas id="target-canvas"></canvas></div>
+    <div id="player-wave"><span id="player-label">YOUR MIX</span><canvas id="player-canvas"></canvas></div>
+    <div id="match-meter"><div id="match-fill"></div><div id="match-text">0% match</div></div>
+    <div id="tubes-container"></div>
+    <button id="submit-btn">Lock In 🔒</button>
+  </div>
+</div>
+<div id="overlay"><div id="overlay-box"></div></div>
+
+<script>
+(function(){
+'use strict';
+
+const NUM_TUBES = 5;
+const NUM_ROUNDS = 5;
+const NOTE_NAMES = ['C','D','E','F','G','A','B'];
+
+let round = 0;
+let score = 0;
+let best = +(localStorage.getItem('tubetones-best')||0);
+let targetFreqs = [];
+let tubeHeights = [];
+let dragging = -1;
+let dragStartY = 0;
+let dragStartH = 0;
+let animFrame = 0;
+
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+
+$('#best').textContent = best;
+
+function randInt(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+
+// Each tube height 0.1 to 1.0 maps to a frequency component
+function heightToFreq(h){return 0.5 + h * 3.5;}
+function heightToNote(h){
+  const idx = Math.round(h * (NOTE_NAMES.length-1));
+  return NOTE_NAMES[clamp(idx,0,NOTE_NAMES.length-1)];
+}
+
+function generateTarget(){
+  targetFreqs = [];
+  for(let i=0;i<NUM_TUBES;i++){
+    targetFreqs.push(0.1 + Math.random()*0.9);
+  }
+  // Sort for a nicer looking wave
+  targetFreqs.sort(()=>Math.random()-0.5);
+}
+
+function buildWave(heights, canvas){
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width = canvas.clientWidth * 2;
+  const H = canvas.height = canvas.clientHeight * 2;
+  ctx.clearRect(0,0,W,H);
+
+  const isTarget = canvas.id === 'target-canvas';
+  const baseColor = isTarget ? [160,108,213] : [78,205,196];
+
+  ctx.lineWidth = 2.5;
+
+  // Draw composite wave from tube heights
+  const mid = H/2;
+  const amp = H*0.35;
+
+  ctx.beginPath();
+  for(let x=0;x<W;x++){
+    let y = 0;
+    for(let i=0;i<heights.length;i++){
+      const freq = heightToFreq(heights[i]);
+      const phase = i * 1.2;
+      y += Math.sin((x/W)*Math.PI*2*freq + phase + animFrame*0.02) / heights.length;
+    }
+    const py = mid + y * amp;
+    if(x===0) ctx.moveTo(x,py);
+    else ctx.lineTo(x,py);
+  }
+  ctx.strokeStyle = `rgba(${baseColor.join(',')},0.8)`;
+  ctx.stroke();
+
+  // Fill under wave
+  ctx.lineTo(W,H);
+  ctx.lineTo(0,H);
+  ctx.closePath();
+  ctx.fillStyle = `rgba(${baseColor.join(',')},0.12)`;
+  ctx.fill();
+}
+
+function calcMatch(){
+  // Compare tube heights to target freqs
+  // Use sorted comparison — player needs right heights but order matters
+  let totalDiff = 0;
+  for(let i=0;i<NUM_TUBES;i++){
+    const diff = Math.abs(tubeHeights[i] - targetFreqs[i]);
+    totalDiff += diff;
+  }
+  const maxDiff = NUM_TUBES; // max possible diff
+  const match = Math.max(0, 1 - totalDiff / (maxDiff * 0.5));
+  return Math.round(clamp(match,0,1)*100);
+}
+
+function updateUI(){
+  const match = calcMatch();
+  $('#match-fill').style.width = match+'%';
+  $('#match-text').textContent = match+'% match';
+
+  // Color the fill based on match quality
+  if(match >= 85) $('#match-fill').style.background = 'var(--success)';
+  else if(match >= 50) $('#match-fill').style.background = 'linear-gradient(90deg,var(--gold),var(--success))';
+  else $('#match-fill').style.background = 'linear-gradient(90deg,var(--coral),var(--gold))';
+
+  // Mic pulse when close
+  if(match >= 70) $('#mic-icon').classList.add('listening');
+  else $('#mic-icon').classList.remove('listening');
+
+  // Update tube notes
+  document.querySelectorAll('.tube-note').forEach((el,i)=>{
+    el.textContent = heightToNote(tubeHeights[i]);
+  });
+}
+
+function renderTubes(){
+  const container = $('#tubes-container');
+  container.innerHTML = '';
+  for(let i=0;i<NUM_TUBES;i++){
+    const col = document.createElement('div');
+    col.className = 'tube-col';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'tube-wrapper';
+
+    const fill = document.createElement('div');
+    fill.className = 'tube-fill';
+    fill.style.height = (tubeHeights[i]*100)+'%';
+    fill.dataset.idx = i;
+
+    wrapper.appendChild(fill);
+
+    const note = document.createElement('div');
+    note.className = 'tube-note';
+    note.textContent = heightToNote(tubeHeights[i]);
+
+    const handle = document.createElement('div');
+    handle.className = 'tube-handle';
+    handle.textContent = '↕';
+    handle.dataset.idx = i;
+
+    col.appendChild(wrapper);
+    col.appendChild(note);
+    col.appendChild(handle);
+    container.appendChild(col);
+
+    // Drag on wrapper
+    const startDrag = (e) => {
+      e.preventDefault();
+      dragging = i;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      dragStartY = clientY;
+      dragStartH = tubeHeights[i];
+    };
+    wrapper.addEventListener('mousedown', startDrag);
+    wrapper.addEventListener('touchstart', startDrag, {passive:false});
+    handle.addEventListener('mousedown', startDrag);
+    handle.addEventListener('touchstart', startDrag, {passive:false});
+  }
+}
+
+function onMove(e){
+  if(dragging<0) return;
+  e.preventDefault();
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  const wrappers = document.querySelectorAll('.tube-wrapper');
+  const wrapperH = wrappers[0].clientHeight;
+  const delta = (dragStartY - clientY) / wrapperH;
+  tubeHeights[dragging] = clamp(dragStartH + delta, 0.05, 1.0);
+
+  // Update fill visually
+  const fills = document.querySelectorAll('.tube-fill');
+  fills[dragging].style.height = (tubeHeights[dragging]*100)+'%';
+
+  updateUI();
+}
+
+function onEnd(){
+  dragging = -1;
+}
+
+document.addEventListener('mousemove', onMove);
+document.addEventListener('touchmove', onMove, {passive:false});
+document.addEventListener('mouseup', onEnd);
+document.addEventListener('touchend', onEnd);
+
+function animate(){
+  animFrame++;
+  buildWave(targetFreqs, $('#target-canvas'));
+  buildWave(tubeHeights, $('#player-canvas'));
+  requestAnimationFrame(animate);
+}
+
+function startRound(){
+  round++;
+  $('#round-num').textContent = round;
+  generateTarget();
+
+  // Initialize tubes to random starting positions (not matching)
+  tubeHeights = [];
+  for(let i=0;i<NUM_TUBES;i++){
+    let h;
+    do { h = 0.1 + Math.random()*0.8; }
+    while(Math.abs(h - targetFreqs[i]) < 0.15);
+    tubeHeights.push(h);
+  }
+
+  renderTubes();
+  updateUI();
+}
+
+function roundScore(match){
+  if(match >= 95) return 100;
+  if(match >= 85) return 75;
+  if(match >= 70) return 50;
+  if(match >= 50) return 25;
+  return 10;
+}
+
+function starsFor(match){
+  if(match >= 95) return '⭐⭐⭐';
+  if(match >= 80) return '⭐⭐';
+  if(match >= 60) return '⭐';
+  return '—';
+}
+
+$('#submit-btn').addEventListener('click', ()=>{
+  const match = calcMatch();
+  const pts = roundScore(match);
+  score += pts;
+  $('#score').textContent = score;
+
+  if(round >= NUM_ROUNDS){
+    // Game over
+    if(score > best){
+      best = score;
+      localStorage.setItem('tubetones-best', best);
+      $('#best').textContent = best;
+    }
+    showOverlay('game-over', match, pts);
+  } else {
+    showOverlay('round-end', match, pts);
+  }
+});
+
+function showOverlay(type, match, pts){
+  const box = $('#overlay-box');
+  if(type === 'round-end'){
+    box.innerHTML = `
+      <h2>Round ${round} Complete!</h2>
+      <div class="stars">${starsFor(match)}</div>
+      <p>${match}% match — <strong>+${pts} pts</strong></p>
+      <p class="score-line">Score: ${score}</p>
+      <button id="play-btn" onclick="this.closest('#overlay').classList.remove('show');window._nextRound();">Next Round →</button>
+    `;
+  } else {
+    const totalStars = score >= 400 ? '⭐⭐⭐' : score >= 250 ? '⭐⭐' : score >= 100 ? '⭐' : '';
+    box.innerHTML = `
+      <h2>🎙️ Session Complete!</h2>
+      <div class="stars">${totalStars}</div>
+      <p class="score-line">Final Score: ${score} / 500</p>
+      <p>Best: ${best}</p>
+      <button id="play-btn" onclick="this.closest('#overlay').classList.remove('show');window._restart();">Play Again</button>
+    `;
+  }
+  $('#overlay').classList.add('show');
+}
+
+window._nextRound = ()=> startRound();
+window._restart = ()=>{
+  round = 0;
+  score = 0;
+  $('#score').textContent = 0;
+  startRound();
+};
+
+// Show intro
+function showIntro(){
+  const box = $('#overlay-box');
+  box.innerHTML = `
+    <h2><span style="color:var(--teal)">Tube</span> <span style="color:var(--purple)">Tones</span></h2>
+    <p style="font-size:clamp(11px,2.8vw,15px);margin:10px 0;">The microphone hears a mystery sound wave.<br>
+    Adjust the <strong style="color:var(--teal)">resonance tubes</strong> to recreate it!</p>
+    <p style="font-size:clamp(10px,2.4vw,13px);opacity:0.7;">Drag each tube up or down to change its pitch.<br>Match the purple target wave with your teal wave.</p>
+    <p style="margin-top:8px;font-size:clamp(10px,2.4vw,13px);opacity:0.7;">5 rounds — get the highest score!</p>
+    <button id="play-btn">Start Listening 🎙️</button>
+  `;
+  $('#overlay').classList.add('show');
+  $('#play-btn').addEventListener('click', ()=>{
+    $('#overlay').classList.remove('show');
+    startRound();
+  });
+}
+
+animate();
+showIntro();
+
+})();
+</script>
+</body>
+</html>

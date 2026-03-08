@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Track Tuner</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation;}
+html,body{width:100%;height:100%;overflow:hidden;font-family:'Segoe UI',system-ui,sans-serif;background:#E0F0FF;}
+
+:root{
+  --sky-top:#87CEEB;--sky-bot:#E0F0FF;--track:#FF6B35;--track-stroke:#C44D1A;
+  --safe:#4ECB71;--warn:#FFD93D;--danger:#FF4757;--steel:#B8C5D6;
+  --bg:#F0F4FF;--text:#2D3142;--accent:#FF6B35;--gold:#FFB830;
+  --panel:#FFFFFF;--hilite:#FFF3E0;
+}
+
+#app{width:100%;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden;background:linear-gradient(180deg,var(--sky-top) 0%,var(--sky-bot) 60%,#C8E6C9 60%,#A5D6A7 100%);}
+
+header{display:flex;justify-content:space-between;align-items:center;padding:4px 12px;background:rgba(255,255,255,0.85);backdrop-filter:blur(4px);z-index:10;flex-shrink:0;}
+header h1{font-size:clamp(14px,3.5vw,20px);color:var(--text);font-weight:800;}
+header h1 span{color:var(--accent);}
+#hint{font-size:clamp(9px,2vw,12px);color:var(--text);opacity:0.6;text-align:right;max-width:55%;}
+
+#hud{display:flex;justify-content:center;gap:clamp(12px,4vw,24px);padding:4px 8px;flex-shrink:0;background:rgba(255,255,255,0.7);backdrop-filter:blur(4px);}
+.hud-item{display:flex;flex-direction:column;align-items:center;}
+.hud-label{font-size:clamp(8px,1.8vw,10px);color:var(--text);opacity:0.6;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;}
+.hud-val{font-size:clamp(14px,3.5vw,20px);font-weight:800;color:var(--text);}
+.hud-val.good{color:var(--safe);}
+.hud-val.bad{color:var(--danger);}
+
+#track-area{flex:1;position:relative;overflow:hidden;touch-action:none;min-height:0;}
+
+canvas{width:100%;height:100%;display:block;}
+
+#g-meter{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:clamp(24px,5vw,36px);height:60%;background:rgba(255,255,255,0.9);border-radius:12px;border:2px solid #ddd;overflow:hidden;display:flex;flex-direction:column;z-index:5;}
+.g-zone{flex:1;display:flex;align-items:center;justify-content:center;font-size:clamp(7px,1.5vw,9px);font-weight:700;color:rgba(0,0,0,0.5);}
+.g-zone.danger-high{background:var(--danger);opacity:0.6;}
+.g-zone.warn-high{background:var(--warn);opacity:0.6;}
+.g-zone.safe{background:var(--safe);opacity:0.6;}
+.g-zone.warn-low{background:var(--warn);opacity:0.6;}
+.g-zone.danger-low{background:var(--danger);opacity:0.6;}
+#g-needle{position:absolute;left:0;right:0;height:3px;background:#222;border-radius:2px;transition:top 0.15s ease;z-index:6;}
+
+#controls-bar{display:flex;justify-content:center;gap:clamp(8px,3vw,16px);padding:6px 8px;flex-shrink:0;background:rgba(255,255,255,0.85);backdrop-filter:blur(4px);}
+.ctrl-btn{height:clamp(36px,9vw,48px);padding:0 clamp(12px,4vw,20px);border-radius:12px;border:2px solid var(--accent);background:white;font-size:clamp(12px,3vw,16px);font-weight:700;color:var(--text);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all 0.15s;}
+.ctrl-btn:active{background:var(--accent);color:white;transform:scale(0.95);}
+.ctrl-btn.launch{border-color:var(--safe);background:var(--safe);color:white;}
+.ctrl-btn.launch:active{background:#3aa85c;}
+.ctrl-btn.reset{border-color:#aaa;color:#888;}
+
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;flex-direction:column;align-items:center;justify-content:center;}
+#overlay.show{display:flex;}
+#overlay-box{background:white;border-radius:20px;padding:clamp(20px,5vw,32px);text-align:center;max-width:85%;box-shadow:0 8px 30px rgba(0,0,0,0.3);}
+#overlay-box h2{font-size:clamp(18px,5vw,28px);color:var(--text);margin-bottom:8px;}
+#overlay-box p{font-size:clamp(12px,3vw,16px);color:#666;margin-bottom:4px;line-height:1.4;}
+#overlay-box .stars{font-size:clamp(24px,7vw,40px);margin:8px 0;}
+.overlay-btn{margin-top:12px;padding:10px 24px;border-radius:12px;border:none;background:var(--accent);color:white;font-size:clamp(14px,3.5vw,18px);font-weight:700;cursor:pointer;}
+.overlay-btn:active{transform:scale(0.95);}
+
+.support{position:absolute;bottom:0;width:4px;background:var(--steel);border-radius:2px 2px 0 0;opacity:0.5;}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Track <span>Tuner</span> 🎢</h1>
+    <div id="hint">Drag the orange handles to shape the track, then launch!</div>
+  </header>
+  <div id="hud">
+    <div class="hud-item"><span class="hud-label">Level</span><span class="hud-val" id="level-num">1</span></div>
+    <div class="hud-item"><span class="hud-label">Thrill</span><span class="hud-val" id="thrill-val">0%</span></div>
+    <div class="hud-item"><span class="hud-label">Safety</span><span class="hud-val" id="safety-val">100%</span></div>
+    <div class="hud-item"><span class="hud-label">Score</span><span class="hud-val" id="score-val">0</span></div>
+  </div>
+  <div id="track-area">
+    <canvas id="canvas"></canvas>
+    <div id="g-meter">
+      <div class="g-zone danger-high">5g</div>
+      <div class="g-zone warn-high">3g</div>
+      <div class="g-zone safe">1g</div>
+      <div class="g-zone warn-low">0g</div>
+      <div class="g-zone danger-low">-2g</div>
+      <div id="g-needle" style="top:50%"></div>
+    </div>
+  </div>
+  <div id="controls-bar">
+    <button class="ctrl-btn reset" id="btn-reset">↺ Reset</button>
+    <button class="ctrl-btn launch" id="btn-launch">▶ Launch!</button>
+  </div>
+</div>
+
+<div id="overlay">
+  <div id="overlay-box">
+    <h2 id="ov-title">Track Tuner</h2>
+    <div class="stars" id="ov-stars"></div>
+    <p id="ov-msg">Shape the rollercoaster track so riders get thrills without danger!</p>
+    <p id="ov-sub"></p>
+    <button class="overlay-btn" id="ov-btn">Start</button>
+  </div>
+</div>
+
+<script>
+(function(){
+const $ = id => document.getElementById(id);
+const canvas = $('canvas');
+const ctx = canvas.getContext('2d');
+const trackArea = $('track-area');
+
+// Game state
+let W, H, dpr;
+let controlPoints = [];
+let dragging = -1;
+let coasterPos = 0; // 0..1 along track
+let coasterRunning = false;
+let coasterSpeed = 0;
+let score = 0;
+let level = 1;
+let currentG = 1;
+let thrillScore = 0;
+let safetyScore = 100;
+let gSamples = [];
+let animFrame = null;
+let launched = false;
+const HANDLE_R = 18;
+const NUM_POINTS = 7;
+const GRAVITY = 0.0004;
+const MIN_Y = 0.1;
+const MAX_Y = 0.92;
+
+// Levels define fixed endpoints and constraints
+const levels = [
+  { name:"Gentle Hills", points:7, fixFirst:true, fixLast:true, startY:0.3, endY:0.3, target:{minThrill:40,minSafety:70} },
+  { name:"The Loop Dive", points:8, fixFirst:true, fixLast:true, startY:0.15, endY:0.5, target:{minThrill:55,minSafety:60} },
+  { name:"Mountain Run", points:9, fixFirst:true, fixLast:true, startY:0.2, endY:0.25, target:{minThrill:65,minSafety:55} },
+  { name:"Canyon Drop", points:8, fixFirst:true, fixLast:true, startY:0.15, endY:0.4, target:{minThrill:70,minSafety:50} },
+  { name:"The Masterpiece", points:10, fixFirst:true, fixLast:true, startY:0.2, endY:0.2, target:{minThrill:80,minSafety:50} },
+];
+
+function resize(){
+  dpr = window.devicePixelRatio || 1;
+  W = trackArea.clientWidth;
+  H = trackArea.clientHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function initLevel(lvl){
+  const l = levels[Math.min(lvl-1, levels.length-1)];
+  const n = l.points;
+  controlPoints = [];
+  for(let i=0; i<n; i++){
+    const t = i/(n-1);
+    const x = 0.08 + t * 0.78;
+    let y;
+    if(i===0) y = l.startY;
+    else if(i===n-1) y = l.endY;
+    else {
+      // Interesting starting shape
+      y = 0.4 + 0.15 * Math.sin(i * 1.8) + (Math.random()-0.5)*0.1;
+    }
+    controlPoints.push({
+      x, y: Math.max(MIN_Y, Math.min(MAX_Y, y)),
+      fixed: (i===0 && l.fixFirst) || (i===n-1 && l.fixLast)
+    });
+  }
+  coasterPos = 0;
+  coasterSpeed = 0;
+  coasterRunning = false;
+  launched = false;
+  currentG = 1;
+  thrillScore = 0;
+  safetyScore = 100;
+  gSamples = [];
+  $('level-num').textContent = lvl;
+  $('thrill-val').textContent = '0%';
+  $('safety-val').textContent = '100%';
+  $('safety-val').className = 'hud-val good';
+  $('btn-launch').textContent = '▶ Launch!';
+  $('btn-launch').disabled = false;
+  $('hint').textContent = 'Drag the orange handles to shape the track, then launch!';
+  updateGMeter(1);
+}
+
+// Catmull-Rom spline interpolation
+function catmullRom(p0,p1,p2,p3,t){
+  const t2=t*t, t3=t2*t;
+  return 0.5*(
+    (2*p1) +
+    (-p0+p2)*t +
+    (2*p0-5*p1+4*p2-p3)*t2 +
+    (-p0+3*p1-3*p2+p3)*t3
+  );
+}
+
+function getTrackPoint(frac){
+  const pts = controlPoints;
+  const n = pts.length;
+  const scaled = frac * (n-1);
+  const i = Math.floor(scaled);
+  const t = scaled - i;
+  const i0 = Math.max(0, i-1);
+  const i1 = Math.min(n-1, i);
+  const i2 = Math.min(n-1, i+1);
+  const i3 = Math.min(n-1, i+2);
+  return {
+    x: catmullRom(pts[i0].x, pts[i1].x, pts[i2].x, pts[i3].x, t) * W,
+    y: catmullRom(pts[i0].y, pts[i1].y, pts[i2].y, pts[i3].y, t) * H
+  };
+}
+
+function getTrackDerivative(frac){
+  const d = 0.002;
+  const a = getTrackPoint(Math.max(0, frac-d));
+  const b = getTrackPoint(Math.min(1, frac+d));
+  return { dx: b.x-a.x, dy: b.y-a.y };
+}
+
+function getTrackCurvature(frac){
+  const d = 0.003;
+  const a = getTrackPoint(Math.max(0, frac-d));
+  const m = getTrackPoint(frac);
+  const b = getTrackPoint(Math.min(1, frac+d));
+  // Second derivative approximation
+  const d2x = (b.x - 2*m.x + a.x);
+  const d2y = (b.y - 2*m.y + a.y);
+  const dx = (b.x-a.x)/2;
+  const dy = (b.y-a.y)/2;
+  const speed2 = dx*dx + dy*dy;
+  if(speed2 < 0.01) return 0;
+  // Curvature = (dx*d2y - dy*d2x) / (speed^1.5)
+  return (dx*d2y - dy*d2x) / Math.pow(speed2, 1.5);
+}
+
+function computeGForce(frac, speed){
+  const curv = getTrackCurvature(frac);
+  const deriv = getTrackDerivative(frac);
+  const len = Math.sqrt(deriv.dx*deriv.dx + deriv.dy*deriv.dy);
+  const slopeAngle = len > 0 ? Math.atan2(deriv.dy, deriv.dx) : 0;
+  // Normal g from gravity component perpendicular to track
+  const normalG = Math.cos(slopeAngle);
+  // Centripetal g from curvature (positive curvature = turning upward)
+  const centG = -curv * speed * speed * 0.05;
+  return normalG + centG;
+}
+
+function drawSky(){
+  // Clouds
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  const time = Date.now()*0.00003;
+  for(let i=0;i<5;i++){
+    const cx = ((i*217 + time*50*(i+1)) % (W+100)) - 50;
+    const cy = H*0.05 + i*H*0.06;
+    const r = 15 + i*8;
+    ctx.beginPath();
+    ctx.ellipse(cx,cy,r*2,r,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx-r,cy+4,r*1.3,r*0.8,0,0,Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(cx+r*0.8,cy+2,r*1.5,r*0.7,0,0,Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function drawTrack(){
+  const steps = 200;
+
+  // Draw supports
+  ctx.strokeStyle = 'rgba(184,197,214,0.4)';
+  ctx.lineWidth = 2;
+  for(let i=0;i<=20;i++){
+    const f = i/20;
+    const pt = getTrackPoint(f);
+    ctx.beginPath();
+    ctx.moveTo(pt.x, pt.y);
+    ctx.lineTo(pt.x, H);
+    ctx.stroke();
+  }
+
+  // Draw cross-ties
+  ctx.strokeStyle = 'rgba(184,197,214,0.3)';
+  ctx.lineWidth = 1;
+  for(let i=0;i<steps;i+=4){
+    const f = i/steps;
+    const pt = getTrackPoint(f);
+    const deriv = getTrackDerivative(f);
+    const len = Math.sqrt(deriv.dx*deriv.dx+deriv.dy*deriv.dy);
+    if(len<0.1) continue;
+    const nx = -deriv.dy/len * 8;
+    const ny = deriv.dx/len * 8;
+    ctx.beginPath();
+    ctx.moveTo(pt.x+nx, pt.y+ny);
+    ctx.lineTo(pt.x-nx, pt.y-ny);
+    ctx.stroke();
+  }
+
+  // G-force heatmap on track
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  for(let i=0;i<steps-1;i++){
+    const f1 = i/steps;
+    const f2 = (i+1)/steps;
+    const p1 = getTrackPoint(f1);
+    const p2 = getTrackPoint(f2);
+    const g = computeGForce(f1, 3);
+    const absG = Math.abs(g);
+    let color;
+    if(absG < 0.5) color = '#FFD93D'; // low-g: warn
+    else if(absG < 1.8) color = '#4ECB71'; // sweet spot
+    else if(absG < 3) color = '#FFD93D'; // high warn
+    else color = '#FF4757'; // danger
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  }
+
+  // Main track rails
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = var_accent;
+  ctx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const f = i/steps;
+    const pt = getTrackPoint(f);
+    const deriv = getTrackDerivative(f);
+    const len = Math.sqrt(deriv.dx*deriv.dx+deriv.dy*deriv.dy);
+    const nx = len>0 ? -deriv.dy/len*5 : 0;
+    const ny = len>0 ? deriv.dx/len*5 : 0;
+    if(i===0) ctx.moveTo(pt.x+nx, pt.y+ny);
+    else ctx.lineTo(pt.x+nx, pt.y+ny);
+  }
+  ctx.stroke();
+
+  ctx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const f = i/steps;
+    const pt = getTrackPoint(f);
+    const deriv = getTrackDerivative(f);
+    const len = Math.sqrt(deriv.dx*deriv.dx+deriv.dy*deriv.dy);
+    const nx = len>0 ? -deriv.dy/len*5 : 0;
+    const ny = len>0 ? deriv.dx/len*5 : 0;
+    if(i===0) ctx.moveTo(pt.x-nx, pt.y-ny);
+    else ctx.lineTo(pt.x-nx, pt.y-ny);
+  }
+  ctx.stroke();
+}
+
+const var_accent = '#FF6B35';
+
+function drawHandles(){
+  if(coasterRunning) return;
+  controlPoints.forEach((pt, i) => {
+    const px = pt.x * W;
+    const py = pt.y * H;
+
+    ctx.beginPath();
+    ctx.arc(px, py, HANDLE_R, 0, Math.PI*2);
+    if(pt.fixed){
+      ctx.fillStyle = 'rgba(180,180,180,0.7)';
+      ctx.strokeStyle = '#999';
+    } else {
+      ctx.fillStyle = dragging===i ? '#FF8F60' : 'rgba(255,107,53,0.85)';
+      ctx.strokeStyle = '#C44D1A';
+    }
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Arrow hint
+    if(!pt.fixed){
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${12}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('↕', px, py);
+    }
+  });
+}
+
+function drawCoaster(){
+  if(!launched) return;
+  const pt = getTrackPoint(coasterPos);
+  const deriv = getTrackDerivative(coasterPos);
+  const angle = Math.atan2(deriv.dy, deriv.dx);
+
+  ctx.save();
+  ctx.translate(pt.x, pt.y);
+  ctx.rotate(angle);
+
+  // Cart body
+  ctx.fillStyle = '#FF6B35';
+  ctx.strokeStyle = '#C44D1A';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  // Rounded rect fallback
+  const rx=-14,ry=-18,rw=28,rh=14,rr=4;
+  ctx.moveTo(rx+rr,ry);
+  ctx.lineTo(rx+rw-rr,ry);ctx.quadraticCurveTo(rx+rw,ry,rx+rw,ry+rr);
+  ctx.lineTo(rx+rw,ry+rh-rr);ctx.quadraticCurveTo(rx+rw,ry+rh,rx+rw-rr,ry+rh);
+  ctx.lineTo(rx+rr,ry+rh);ctx.quadraticCurveTo(rx,ry+rh,rx,ry+rh-rr);
+  ctx.lineTo(rx,ry+rr);ctx.quadraticCurveTo(rx,ry,rx+rr,ry);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Wheels
+  ctx.fillStyle = '#555';
+  ctx.beginPath();
+  ctx.arc(-8, 0, 4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(8, 0, 4, 0, Math.PI*2);
+  ctx.fill();
+
+  // Rider
+  ctx.fillStyle = '#FFD93D';
+  ctx.beginPath();
+  ctx.arc(0, -24, 7, 0, Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#E6B800';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Arms based on g-force (fun detail!)
+  ctx.strokeStyle = '#FFD93D';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  const armAngle = currentG < 0.3 ? -0.8 : currentG > 2.5 ? 0.6 : 0;
+  // Left arm
+  ctx.beginPath();
+  ctx.moveTo(-5, -20);
+  ctx.lineTo(-12, -26 + armAngle*10);
+  ctx.stroke();
+  // Right arm
+  ctx.beginPath();
+  ctx.moveTo(5, -20);
+  ctx.lineTo(12, -26 + armAngle*10);
+  ctx.stroke();
+
+  // Expression
+  ctx.fillStyle = '#333';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if(currentG > 3.5) ctx.fillText('😱', 0, -24);
+  else if(currentG < 0) ctx.fillText('🤩', 0, -24);
+
+  ctx.restore();
+
+  // G-force indicator near cart
+  const gColor = Math.abs(currentG-1) < 1 ? '#4ECB71' : Math.abs(currentG-1) < 2 ? '#FFD93D' : '#FF4757';
+  ctx.fillStyle = gColor;
+  ctx.font = `bold 11px sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText(currentG.toFixed(1)+'g', pt.x+20, pt.y-20);
+}
+
+function updateGMeter(g){
+  // Map g to position: -2g = bottom (100%), 5g = top (0%)
+  const pct = 100 - ((g + 2) / 7) * 100;
+  $('g-needle').style.top = Math.max(0, Math.min(100, pct)) + '%';
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  drawSky();
+  drawTrack();
+  drawHandles();
+  drawCoaster();
+}
+
+// Physics simulation
+let lastTime = 0;
+function simulate(timestamp){
+  if(!lastTime) lastTime = timestamp;
+  const dt = Math.min(timestamp - lastTime, 32);
+  lastTime = timestamp;
+
+  if(coasterRunning && launched){
+    const deriv = getTrackDerivative(coasterPos);
+    const len = Math.sqrt(deriv.dx*deriv.dx + deriv.dy*deriv.dy);
+
+    // Gravity component along track (dy/ds * g)
+    const slopeAngle = len > 0 ? Math.atan2(deriv.dy, deriv.dx) : 0;
+    const gravAccel = Math.sin(slopeAngle) * GRAVITY;
+
+    coasterSpeed += gravAccel * dt;
+    // Friction
+    coasterSpeed *= (1 - 0.0003 * dt);
+    // Minimum speed to keep moving
+    if(coasterSpeed < 0.0001 && coasterPos < 0.95) coasterSpeed = 0.0001;
+
+    // Move along track
+    const pixelSpeed = coasterSpeed * dt;
+    const ds = len > 0 ? pixelSpeed / (len * 0.5) : 0;
+    coasterPos += ds;
+
+    // Compute g-force
+    currentG = computeGForce(coasterPos, coasterSpeed * 1000);
+    updateGMeter(currentG);
+
+    // Sample g for scoring
+    gSamples.push(currentG);
+
+    // Update scores
+    computeScores();
+
+    if(coasterPos >= 1){
+      coasterPos = 1;
+      coasterRunning = false;
+      finishRun();
+    }
+  }
+
+  draw();
+  animFrame = requestAnimationFrame(simulate);
+}
+
+function computeScores(){
+  if(gSamples.length === 0) return;
+  let thrillPts = 0;
+  let safetyPts = 0;
+  const n = gSamples.length;
+
+  for(const g of gSamples){
+    // Thrill: deviation from 1g is exciting
+    const dev = Math.abs(g - 1);
+    if(dev > 0.5) thrillPts += Math.min(dev, 3) / 3;
+
+    // Safety: extreme g is dangerous
+    if(g > 4 || g < -1) safetyPts++;
+    else if(g > 3 || g < -0.5) safetyPts += 0.5;
+  }
+
+  thrillScore = Math.min(100, Math.round((thrillPts / n) * 100));
+  safetyScore = Math.max(0, Math.round(100 - (safetyPts / n) * 100));
+
+  $('thrill-val').textContent = thrillScore + '%';
+  $('safety-val').textContent = safetyScore + '%';
+  $('safety-val').className = 'hud-val ' + (safetyScore >= 60 ? 'good' : 'bad');
+}
+
+function finishRun(){
+  const lvl = levels[Math.min(level-1, levels.length-1)];
+  const thrillOk = thrillScore >= lvl.target.minThrill;
+  const safetyOk = safetyScore >= lvl.target.minSafety;
+
+  let stars = 0;
+  if(thrillOk && safetyOk) stars = 3;
+  else if(thrillOk || safetyOk) stars = safetyOk ? 2 : 1;
+
+  const roundScore = Math.round(thrillScore * safetyScore / 100) * 10;
+  score += roundScore;
+  $('score-val').textContent = score;
+
+  const starStr = '⭐'.repeat(stars) + '☆'.repeat(3-stars);
+
+  let msg = '';
+  if(stars === 3) msg = 'Perfect ride! Thrilling AND safe!';
+  else if(stars === 2) msg = safetyOk ? 'Safe but could be more exciting!' : 'Thrilling but too dangerous!';
+  else if(stars === 1) msg = 'Needs work — adjust the track and try again!';
+  else msg = 'The riders are not happy. Reshape that track!';
+
+  $('ov-title').textContent = stars >= 2 ? '🎢 Great Ride!' : '🎢 Try Again!';
+  $('ov-stars').textContent = starStr;
+  $('ov-msg').textContent = msg;
+  $('ov-sub').textContent = `Thrill: ${thrillScore}% | Safety: ${safetyScore}% | +${roundScore} pts`;
+
+  if(stars >= 2 && level < levels.length){
+    $('ov-btn').textContent = 'Next Level →';
+    $('ov-btn').onclick = () => {
+      level++;
+      initLevel(level);
+      hideOverlay();
+    };
+  } else if(stars >= 2 && level >= levels.length){
+    $('ov-btn').textContent = 'Play Again';
+    $('ov-title').textContent = '🏆 Master Track Tuner!';
+    $('ov-msg').textContent = `You've mastered all ${levels.length} tracks!`;
+    $('ov-btn').onclick = () => {
+      level = 1; score = 0;
+      $('score-val').textContent = '0';
+      initLevel(1);
+      hideOverlay();
+    };
+  } else {
+    $('ov-btn').textContent = 'Retry';
+    $('ov-btn').onclick = () => {
+      initLevel(level);
+      hideOverlay();
+    };
+  }
+
+  setTimeout(showOverlay, 400);
+}
+
+function showOverlay(){ $('overlay').classList.add('show'); }
+function hideOverlay(){ $('overlay').classList.remove('show'); }
+
+// Touch/mouse handling for dragging control points
+function getEventPos(e){
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches ? e.touches[0] : e;
+  return {
+    x: (touch.clientX - rect.left) / W,
+    y: (touch.clientY - rect.top) / H
+  };
+}
+
+function findHandle(pos){
+  const threshold = HANDLE_R * 1.5 / W;
+  let closest = -1, closestD = Infinity;
+  controlPoints.forEach((pt, i) => {
+    if(pt.fixed) return;
+    const dx = pt.x - pos.x;
+    const dy = pt.y - pos.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if(d < threshold && d < closestD){
+      closestD = d;
+      closest = i;
+    }
+  });
+  return closest;
+}
+
+function onDown(e){
+  if(coasterRunning) return;
+  e.preventDefault();
+  const pos = getEventPos(e);
+  dragging = findHandle(pos);
+}
+
+function onMove(e){
+  if(dragging < 0) return;
+  e.preventDefault();
+  const pos = getEventPos(e);
+  controlPoints[dragging].y = Math.max(MIN_Y, Math.min(MAX_Y, pos.y));
+  // Don't allow x movement for cleaner gameplay
+}
+
+function onUp(){
+  dragging = -1;
+}
+
+canvas.addEventListener('mousedown', onDown);
+canvas.addEventListener('mousemove', onMove);
+canvas.addEventListener('mouseup', onUp);
+canvas.addEventListener('mouseleave', onUp);
+canvas.addEventListener('touchstart', onDown, {passive:false});
+canvas.addEventListener('touchmove', onMove, {passive:false});
+canvas.addEventListener('touchend', onUp);
+canvas.addEventListener('touchcancel', onUp);
+
+// Launch button
+$('btn-launch').addEventListener('click', () => {
+  if(coasterRunning) return;
+  coasterPos = 0;
+  coasterSpeed = 0.003; // Initial push
+  coasterRunning = true;
+  launched = true;
+  gSamples = [];
+  $('btn-launch').textContent = '🎢 Running...';
+  $('btn-launch').disabled = true;
+  $('hint').textContent = 'Watch the g-forces! Green = safe, red = danger.';
+});
+
+// Reset button
+$('btn-reset').addEventListener('click', () => {
+  if(coasterRunning) return;
+  initLevel(level);
+});
+
+// Initial setup
+$('ov-btn').onclick = () => {
+  initLevel(1);
+  hideOverlay();
+};
+
+function init(){
+  resize();
+  showOverlay();
+  animFrame = requestAnimationFrame(simulate);
+}
+
+window.addEventListener('resize', () => {
+  resize();
+  draw();
+});
+
+init();
+})();
+</script>
+</body>
+</html>
