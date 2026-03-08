@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Use the Anthropic API to generate a single-file HTML web app from two random words."""
+"""Use Claude Code CLI to generate a single-file HTML web app from two random words."""
 
+import subprocess
+import sys
 from datetime import timezone, datetime
 from pathlib import Path
-
-import anthropic
 
 from pick_topics import pick
 
@@ -12,9 +12,7 @@ OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 
 
 def generate(word_a: str, word_b: str) -> str:
-    """Call Claude to produce a self-contained HTML app inspired by two random words."""
-    client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY env var
-
+    """Call Claude Code CLI to produce a self-contained HTML app."""
     prompt = f"""You are the Crosspollinator — a wildly creative app designer.
 
 Today's two random words pulled straight from the dictionary:
@@ -32,16 +30,20 @@ Requirements:
 2. The app must be interactive and actually work when opened in a browser.
 3. Use modern CSS (flexbox/grid, variables, transitions) to make it look polished.
 4. Include a header that names the app and a short tagline explaining the concept.
-5. The entire response must be ONLY the HTML — no markdown fences, no commentary.
-"""
+5. The entire response must be ONLY the HTML — no markdown fences, no commentary."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=16000,
-        messages=[{"role": "user", "content": prompt}],
+    result = subprocess.run(
+        ["claude", "-p", prompt, "--output-format", "text"],
+        capture_output=True,
+        text=True,
+        timeout=300,
     )
 
-    return message.content[0].text
+    if result.returncode != 0:
+        print(f"Claude CLI failed:\n{result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    return result.stdout
 
 
 def save(html: str, word_a: str, word_b: str) -> Path:

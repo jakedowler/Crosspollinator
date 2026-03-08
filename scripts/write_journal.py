@@ -1,19 +1,16 @@
 #!/usr/bin/env python3
-"""Write a journal entry reflecting on today's generated app."""
+"""Write a journal entry reflecting on today's generated app using Claude Code CLI."""
 
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-
-import anthropic
 
 JOURNAL_DIR = Path(__file__).resolve().parent.parent / "journal"
 
 
 def write_entry(word_a: str, word_b: str, html: str) -> Path:
-    """Ask Claude to write a short, fun journal entry about today's creation."""
-    client = anthropic.Anthropic()
-
+    """Ask Claude Code CLI to write a short, fun journal entry about today's creation."""
     prompt = f"""You are the Crosspollinator's daily journal keeper.
 
 Today's two random dictionary words were **{word_a}** and **{word_b}**.
@@ -31,16 +28,20 @@ Write a short, engaging journal entry (200-400 words) in markdown that covers:
 - A playful sign-off
 
 Use a casual, enthusiastic tone. Start with a ## heading that includes today's
-date, the two words, and the app name. Output ONLY the markdown, no fences.
-"""
+date, the two words, and the app name. Output ONLY the markdown, no fences."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
-        messages=[{"role": "user", "content": prompt}],
+    result = subprocess.run(
+        ["claude", "-p", prompt, "--output-format", "text"],
+        capture_output=True,
+        text=True,
+        timeout=120,
     )
 
-    entry = message.content[0].text
+    if result.returncode != 0:
+        print(f"Claude CLI failed:\n{result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    entry = result.stdout
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     path = JOURNAL_DIR / f"{today}.md"
