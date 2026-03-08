@@ -1,12 +1,20 @@
 #!/usr/bin/env python3
 """Write a journal entry reflecting on today's generated app using Claude Code CLI."""
 
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 JOURNAL_DIR = Path(__file__).resolve().parent.parent / "journal"
+
+
+def _clean_env() -> dict[str, str]:
+    """Return env dict without CLAUDECODE so we can spawn a child session."""
+    env = os.environ.copy()
+    env.pop("CLAUDECODE", None)
+    return env
 
 
 def write_entry(word_a: str, word_b: str, html: str) -> Path:
@@ -35,6 +43,7 @@ date, the two words, and the app name. Output ONLY the markdown, no fences."""
         capture_output=True,
         text=True,
         timeout=120,
+        env=_clean_env(),
     )
 
     if result.returncode != 0:

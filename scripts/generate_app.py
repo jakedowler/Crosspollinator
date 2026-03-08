@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Use Claude Code CLI to generate a single-file HTML web app from two random words."""
 
+import os
 import subprocess
 import sys
 from datetime import timezone, datetime
@@ -9,6 +10,13 @@ from pathlib import Path
 from pick_topics import pick
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
+
+
+def _clean_env() -> dict[str, str]:
+    """Return env dict without CLAUDECODE so we can spawn a child session."""
+    env = os.environ.copy()
+    env.pop("CLAUDECODE", None)
+    return env
 
 
 def generate(word_a: str, word_b: str) -> str:
@@ -37,6 +45,7 @@ Requirements:
         capture_output=True,
         text=True,
         timeout=300,
+        env=_clean_env(),
     )
 
     if result.returncode != 0:
