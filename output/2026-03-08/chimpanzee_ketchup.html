@@ -61,6 +61,19 @@ h1 span.grn { color:#2ECC71; }
 #win-box h2 { font-size:clamp(22px,5vw,32px); color:#2ECC71; margin-bottom:10px; }
 #win-box p { font-size:clamp(14px,3vw,18px); color:#6D4C2F; margin-bottom:16px; }
 #btn-restart { padding:12px 32px; border-radius:14px; border:none; background:#E74C3C; color:#fff; font-size:18px; font-weight:700; cursor:pointer; }
+
+@keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+.shake { animation: shake 0.4s ease; }
+
+@keyframes pop { 0%{transform:scale(1)} 50%{transform:scale(1.15)} 100%{transform:scale(1)} }
+.pop { animation: pop 0.3s ease; }
+
+#legend { display:flex; gap:clamp(6px,2vw,12px); justify-content:center; margin-bottom:4px; font-size:clamp(10px,2.2vw,12px); color:#6D4C2F; font-weight:600; }
+.legend-item { display:flex; align-items:center; gap:3px; }
+.legend-swatch { width:14px; height:14px; border-radius:4px; border:2px solid #95A5A6; }
+.legend-swatch.lc { background:#E74C3C; border-color:#C0392B; }
+.legend-swatch.lp { background:#F1C40F; border-color:#D4AC0D; }
+.legend-swatch.la { background:#BDC3C7; border-color:#95A5A6; }
 </style>
 </head>
 <body>
@@ -76,6 +89,11 @@ h1 span.grn { color:#2ECC71; }
       <div id="pour-meter"><div id="pour-fill"></div></div>
       <div id="pour-label">Pour Mastery: 0%</div>
     </div>
+  </div>
+  <div id="legend">
+    <div class="legend-item"><div class="legend-swatch lc"></div>Correct spot</div>
+    <div class="legend-item"><div class="legend-swatch lp"></div>Wrong spot</div>
+    <div class="legend-item"><div class="legend-swatch la"></div>Not in recipe</div>
   </div>
   <div id="grid-wrap"></div>
   <div id="palette"></div>
@@ -252,12 +270,17 @@ function submitGuess() {
     totalScore += score;
     updatePour();
     document.getElementById('msg').textContent = 'Recipe cracked! +' + score + ' points!';
+    document.getElementById('chimp').classList.add('pop');
+    setTimeout(() => document.getElementById('chimp').classList.remove('pop'), 400);
     setTimeout(() => advanceEra(), 1400);
   } else if (row >= 5) {
     document.getElementById('msg').textContent = 'Out of guesses! The recipe was: ' + recipe.join(', ');
     setTimeout(() => advanceEra(), 2200);
   } else {
     document.getElementById('msg').textContent = (5 - row) + ' guesses left. Study the colors!';
+    const gridWrap = document.getElementById('grid-wrap');
+    gridWrap.classList.add('shake');
+    setTimeout(() => gridWrap.classList.remove('shake'), 500);
   }
 }
 
