@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Magpie Helmet Heist</title>
+<style>
+  :root {
+    --sky: #87CEEB;
+    --sky-deep: #5BA3D9;
+    --gold: #FFD700;
+    --gold-dark: #E6AC00;
+    --magpie-black: #1a1a2e;
+    --magpie-white: #f0f0f0;
+    --helmet-silver: #C0C0C0;
+    --helmet-dark: #808080;
+    --grass: #7EC850;
+    --grass-dark: #5CA03A;
+    --pink: #FF6B9D;
+    --orange: #FF9F43;
+    --purple: #A78BFA;
+    --ui-bg: rgba(255,255,255,0.92);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    height: 100vh;
+    max-height: 100dvh;
+    overflow: hidden;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(180deg, var(--sky) 0%, var(--sky-deep) 60%, var(--grass) 85%, var(--grass-dark) 100%);
+    user-select: none;
+    cursor: crosshair;
+  }
+
+  #header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 44px;
+    background: var(--ui-bg);
+    backdrop-filter: blur(10px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    z-index: 100;
+    border-bottom: 2px solid rgba(0,0,0,0.08);
+  }
+
+  #header h1 {
+    font-size: 18px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--magpie-black), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  #header .tagline {
+    font-size: 11px;
+    color: #888;
+    font-style: italic;
+  }
+
+  #stats {
+    display: flex;
+    gap: 16px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .stat .label { color: #999; font-weight: 400; font-size: 11px; }
+  .stat.score { color: var(--gold-dark); }
+  .stat.time { color: var(--pink); }
+  .stat.missed { color: #e74c3c; }
+
+  #game-area {
+    position: fixed;
+    top: 44px; left: 0; right: 0; bottom: 0;
+  }
+
+  .helmet {
+    position: absolute;
+    width: 56px;
+    height: 48px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    animation: bob 2s ease-in-out infinite;
+  }
+
+  .helmet:hover { transform: scale(1.15); }
+
+  .helmet svg { width: 100%; height: 100%; }
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+
+  @keyframes helmetAppear {
+    0% { opacity: 0; transform: scale(0.3) rotate(-20deg); }
+    60% { transform: scale(1.1) rotate(5deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+
+  .helmet.appear { animation: helmetAppear 0.35s ease-out forwards, bob 2s ease-in-out 0.35s infinite; }
+
+  @keyframes snatch {
+    0% { transform: scale(1); opacity: 1; }
+    30% { transform: scale(1.3) rotate(15deg); opacity: 1; }
+    100% { transform: scale(0) rotate(90deg) translateY(-80px); opacity: 0; }
+  }
+
+  .helmet.snatched { animation: snatch 0.4s ease-in forwards; pointer-events: none; }
+
+  .sparkle {
+    position: absolute;
+    pointer-events: none;
+    font-size: 22px;
+    animation: sparklePop 0.6s ease-out forwards;
+  }
+
+  @keyframes sparklePop {
+    0% { opacity: 1; transform: scale(0.5) translateY(0); }
+    100% { opacity: 0; transform: scale(1.2) translateY(-40px); }
+  }
+
+  .score-pop {
+    position: absolute;
+    pointer-events: none;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--gold-dark);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    animation: scorePop 0.7s ease-out forwards;
+  }
+
+  @keyframes scorePop {
+    0% { opacity: 1; transform: translateY(0) scale(0.8); }
+    50% { transform: translateY(-25px) scale(1.2); }
+    100% { opacity: 0; transform: translateY(-50px) scale(0.9); }
+  }
+
+  .magpie {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80px;
+    pointer-events: none;
+    z-index: 50;
+  }
+
+  .magpie svg { width: 100%; height: auto; }
+
+  @keyframes magpieHappy {
+    0%, 100% { transform: translateX(-50%) rotate(0deg); }
+    25% { transform: translateX(-50%) rotate(-8deg); }
+    75% { transform: translateX(-50%) rotate(8deg); }
+  }
+
+  .magpie.happy { animation: magpieHappy 0.4s ease-in-out; }
+
+  #start-screen, #end-screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(12px);
+    z-index: 200;
+    gap: 16px;
+  }
+
+  #start-screen h2, #end-screen h2 {
+    font-size: 36px;
+    font-weight: 900;
+    background: linear-gradient(135deg, var(--magpie-black), var(--purple), var(--pink));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  #start-screen p, #end-screen p {
+    font-size: 16px;
+    color: #666;
+    text-align: center;
+    max-width: 340px;
+    line-height: 1.5;
+  }
+
+  .btn {
+    padding: 14px 40px;
+    font-size: 18px;
+    font-weight: 700;
+    border: none;
+    border-radius: 50px;
+    background: linear-gradient(135deg, var(--purple), var(--pink));
+    color: white;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 15px rgba(167,139,250,0.4);
+  }
+
+  .btn:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(167,139,250,0.5); }
+  .btn:active { transform: scale(0.97); }
+
+  .final-score {
+    font-size: 64px;
+    font-weight: 900;
+    color: var(--gold-dark);
+    text-shadow: 0 2px 8px rgba(255,215,0,0.3);
+  }
+
+  .cloud {
+    position: absolute;
+    background: rgba(255,255,255,0.7);
+    border-radius: 50px;
+    height: 30px;
+    animation: drift linear infinite;
+  }
+
+  @keyframes drift {
+    0% { transform: translateX(100vw); }
+    100% { transform: translateX(-200px); }
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <div>
+    <h1>Magpie Helmet Heist</h1>
+    <span class="tagline">Tap shiny helmets before they vanish! Feed the magpie!</span>
+  </div>
+  <div id="stats">
+    <div class="stat score"><span class="label">Score</span> <span id="score">0</span></div>
+    <div class="stat time"><span class="label">Time</span> <span id="timer">30</span></div>
+    <div class="stat missed"><span class="label">Missed</span> <span id="missed">0</span></div>
+  </div>
+</div>
+
+<div id="game-area"></div>
+
+<div class="magpie" id="magpie">
+  <svg viewBox="0 0 80 70" fill="none">
+    <ellipse cx="40" cy="45" rx="22" ry="18" fill="#1a1a2e"/>
+    <ellipse cx="40" cy="45" rx="15" ry="12" fill="#f0f0f0"/>
+    <circle cx="40" cy="30" r="14" fill="#1a1a2e"/>
+    <circle cx="35" cy="28" r="3" fill="white"/>
+    <circle cx="35" cy="28" r="1.5" fill="#1a1a2e"/>
+    <circle cx="45" cy="28" r="3" fill="white"/>
+    <circle cx="45" cy="28" r="1.5" fill="#1a1a2e"/>
+    <polygon points="40,33 36,37 44,37" fill="#FF9F43"/>
+    <path d="M18 45 Q5 35 10 55 Q15 58 20 50" fill="#1a1a2e"/>
+    <path d="M62 45 Q75 35 70 55 Q65 58 60 50" fill="#1a1a2e"/>
+    <path d="M30 60 Q40 75 50 60" fill="#1a1a2e"/>
+    <ellipse cx="40" cy="45" rx="8" ry="5" fill="#A78BFA" opacity="0.3"/>
+  </svg>
+</div>
+
+<div id="start-screen">
+  <h2>Magpie Helmet Heist</h2>
+  <p>Shiny helmets keep appearing! Tap them before they disappear so your magpie can add them to its collection!</p>
+  <button class="btn" onclick="startGame()">Play!</button>
+</div>
+
+<div id="end-screen" style="display:none;">
+  <h2>Time's Up!</h2>
+  <div class="final-score" id="final-score">0</div>
+  <p>helmets snatched!</p>
+  <p id="end-msg"></p>
+  <button class="btn" onclick="startGame()">Play Again</button>
+</div>
+
+<script>
+const gameArea = document.getElementById('game-area');
+const scoreEl = document.getElementById('score');
+const timerEl = document.getElementById('timer');
+const missedEl = document.getElementById('missed');
+const startScreen = document.getElementById('start-screen');
+const endScreen = document.getElementById('end-screen');
+const finalScoreEl = document.getElementById('final-score');
+const endMsg = document.getElementById('end-msg');
+const magpie = document.getElementById('magpie');
+
+let score = 0, missed = 0, timeLeft = 30, gameInterval, spawnInterval, gameActive = false;
+
+const helmetColors = [
+  { main: '#C0C0C0', shadow: '#808080', stripe: '#FFD700' },
+  { main: '#FFD700', shadow: '#CC9900', stripe: '#FF6B9D' },
+  { main: '#FF6B9D', shadow: '#CC3366', stripe: '#FFD700' },
+  { main: '#A78BFA', shadow: '#7C5FC4', stripe: '#FFD700' },
+  { main: '#5BA3D9', shadow: '#3A7AB8', stripe: '#FF9F43' },
+  { main: '#FF9F43', shadow: '#CC7A22', stripe: '#A78BFA' },
+  { main: '#7EC850', shadow: '#5CA03A', stripe: '#FFD700' },
+];
+
+function createHelmetSVG(colors) {
+  return `<svg viewBox="0 0 56 48" fill="none">
+    <ellipse cx="28" cy="40" rx="22" ry="8" fill="${colors.shadow}" opacity="0.3"/>
+    <path d="M8 32 Q8 10 28 6 Q48 10 48 32 L48 36 Q48 40 44 40 L12 40 Q8 40 8 36Z" fill="${colors.main}"/>
+    <path d="M8 32 Q8 10 28 6 Q48 10 48 32" fill="${colors.main}" stroke="${colors.shadow}" stroke-width="1.5"/>
+    <rect x="6" y="32" width="44" height="6" rx="3" fill="${colors.shadow}"/>
+    <path d="M20 8 Q28 4 36 8" stroke="${colors.stripe}" stroke-width="4" stroke-linecap="round" fill="none"/>
+    <ellipse cx="18" cy="20" rx="4" ry="6" fill="white" opacity="0.25"/>
+    <circle cx="38" cy="14" r="3" fill="white" opacity="0.35"/>
+  </svg>`;
+}
+
+function spawnHelmet() {
+  if (!gameActive) return;
+
+  const colors = helmetColors[Math.floor(Math.random() * helmetColors.length)];
+  const el = document.createElement('div');
+  el.className = 'helmet appear';
+  el.innerHTML = createHelmetSVG(colors);
+
+  const areaRect = gameArea.getBoundingClientRect();
+  const x = 30 + Math.random() * (areaRect.width - 90);
+  const y = 20 + Math.random() * (areaRect.height - 100);
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+
+  const lifetime = 1800 + Math.random() * 2200;
+
+  el.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (el.dataset.clicked) return;
+    el.dataset.clicked = '1';
+    score++;
+    scoreEl.textContent = score;
+    el.className = 'helmet snatched';
+
+    showSparkles(e.clientX, e.clientY - 44);
+    showScorePop(e.clientX, e.clientY - 44);
+
+    magpie.classList.remove('happy');
+    void magpie.offsetWidth;
+    magpie.classList.add('happy');
+
+    setTimeout(() => el.remove(), 450);
+    clearTimeout(el._timeout);
+  });
+
+  el._timeout = setTimeout(() => {
+    if (!el.dataset.clicked && gameActive) {
+      missed++;
+      missedEl.textContent = missed;
+      el.style.opacity = '0';
+      el.style.transition = 'opacity 0.3s';
+      setTimeout(() => el.remove(), 300);
+    }
+  }, lifetime);
+
+  gameArea.appendChild(el);
+}
+
+function showSparkles(x, y) {
+  const sparkles = ['+', '*', '!'];
+  for (let i = 0; i < 3; i++) {
+    const s = document.createElement('div');
+    s.className = 'sparkle';
+    s.textContent = sparkles[i];
+    s.style.left = (x + (Math.random() - 0.5) * 50) + 'px';
+    s.style.top = (y + (Math.random() - 0.5) * 30) + 'px';
+    s.style.color = ['#FFD700', '#FF6B9D', '#A78BFA'][i];
+    gameArea.appendChild(s);
+    setTimeout(() => s.remove(), 600);
+  }
+}
+
+function showScorePop(x, y) {
+  const p = document.createElement('div');
+  p.className = 'score-pop';
+  p.textContent = '+1';
+  p.style.left = x + 'px';
+  p.style.top = y + 'px';
+  gameArea.appendChild(p);
+  setTimeout(() => p.remove(), 700);
+}
+
+function addClouds() {
+  for (let i = 0; i < 4; i++) {
+    const c = document.createElement('div');
+    c.className = 'cloud';
+    c.style.top = (10 + Math.random() * 25) + '%';
+    c.style.width = (80 + Math.random() * 120) + 'px';
+    c.style.animationDuration = (15 + Math.random() * 25) + 's';
+    c.style.animationDelay = (-Math.random() * 30) + 's';
+    gameArea.appendChild(c);
+  }
+}
+
+function startGame() {
+  startScreen.style.display = 'none';
+  endScreen.style.display = 'none';
+
+  score = 0; missed = 0; timeLeft = 30;
+  scoreEl.textContent = 0;
+  missedEl.textContent = 0;
+  timerEl.textContent = 30;
+  gameActive = true;
+
+  document.querySelectorAll('.helmet').forEach(h => h.remove());
+
+  gameInterval = setInterval(() => {
+    timeLeft--;
+    timerEl.textContent = timeLeft;
+    if (timeLeft <= 0) endGame();
+  }, 1000);
+
+  spawnInterval = setInterval(spawnHelmet, 700 + Math.random() * 400);
+  spawnHelmet();
+  spawnHelmet();
+}
+
+function endGame() {
+  gameActive = false;
+  clearInterval(gameInterval);
+  clearInterval(spawnInterval);
+
+  finalScoreEl.textContent = score;
+
+  let msg = '';
+  if (score >= 30) msg = 'Incredible! The magpie is overjoyed with its helmet hoard!';
+  else if (score >= 20) msg = 'Great job! That is one happy magpie!';
+  else if (score >= 10) msg = 'Nice work! The magpie appreciates every shiny helmet.';
+  else msg = 'The magpie looks at you expectantly. Try again?';
+  endMsg.textContent = msg;
+
+  endScreen.style.display = 'flex';
+}
+
+addClouds();
+</script>
+</body>
+</html>
