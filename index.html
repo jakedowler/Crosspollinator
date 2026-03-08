@@ -393,6 +393,17 @@
     </div>
 </div>
 
+<div class="fb-modal" id="archiveModal">
+    <div class="fb-box">
+        <h3 id="archiveTitle">Archive</h3>
+        <textarea id="archiveReason" placeholder="Why are you archiving this? (optional)" style="height:60px"></textarea>
+        <div class="fb-actions">
+            <button class="fb-cancel" onclick="closeArchive()">Cancel</button>
+            <button class="fb-submit" style="background:var(--accent2)" onclick="confirmArchive()">Archive</button>
+        </div>
+    </div>
+</div>
+
 <footer>
     <a href="https://github.com/jakedowler/Crosspollinator">GitHub</a> · Built with Claude
 </footer>
@@ -545,20 +556,40 @@ function getArchived() {
     return JSON.parse(localStorage.getItem('cpArchived') || '[]');
 }
 
+let archivePendingPath = '';
+
 function archiveGame(path) {
+    archivePendingPath = path;
+    const app = APPS.find(a => a.path === path);
+    const game = app ? (app.word_a + ' \u00d7 ' + app.word_b) : path;
+    document.getElementById('archiveTitle').textContent = 'Archive: ' + game;
+    document.getElementById('archiveReason').value = '';
+    document.getElementById('archiveModal').classList.add('open');
+    document.getElementById('archiveReason').focus();
+}
+
+function closeArchive() {
+    document.getElementById('archiveModal').classList.remove('open');
+    archivePendingPath = '';
+}
+
+function confirmArchive() {
+    const reason = document.getElementById('archiveReason').value.trim();
+    const path = archivePendingPath;
     const archived = getArchived();
     if (!archived.includes(path)) {
         archived.push(path);
         localStorage.setItem('cpArchived', JSON.stringify(archived));
     }
-    // Find game info for the issue
     const app = APPS.find(a => a.path === path);
     if (app) {
         const game = app.word_a + ' \u00d7 ' + app.word_b;
         const title = `[archive] ${game}`;
-        const body = `**Game:** ${game}\n**Path:** ${path}\n**Action:** Archive this game — hide from portal, deprioritize these words.`;
+        let body = `**Game:** ${game}\n**Path:** ${path}\n**Action:** Archive this game — hide from portal, deprioritize these words.`;
+        if (reason) body += `\n\n**Reason:** ${reason}`;
         window.open(ghIssueUrl(title, body, 'archive'), '_blank');
     }
+    closeArchive();
     render();
 }
 
@@ -621,6 +652,9 @@ function exportFeedback() {
 
 document.getElementById('fbModal').addEventListener('click', function(e) {
     if (e.target === this) closeFeedback();
+});
+document.getElementById('archiveModal').addEventListener('click', function(e) {
+    if (e.target === this) closeArchive();
 });
 
 render();
