@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bun Propriety — Does This Bun Beseem the Occasion?</title>
+    <style>
+        :root {
+            --warm: #f5e6d3;
+            --crust: #8b6914;
+            --golden: #daa520;
+            --cream: #fff8f0;
+            --text: #3d2b1f;
+            --accept: #4a7c59;
+            --reject: #a63d40;
+            --card-shadow: 0 8px 32px rgba(0,0,0,0.12);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Georgia', serif;
+            background: var(--warm);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            text-align: center;
+            padding: 2rem 1rem 1rem;
+            max-width: 600px;
+        }
+
+        header h1 {
+            font-size: 2.2rem;
+            color: var(--crust);
+            margin-bottom: 0.3rem;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            font-style: italic;
+            color: #7a6652;
+            font-size: 1.05rem;
+        }
+
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 1rem;
+            max-width: 520px;
+            width: 100%;
+        }
+
+        .scoreboard {
+            display: flex;
+            gap: 2rem;
+            font-size: 1rem;
+            background: var(--cream);
+            padding: 0.7rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .scoreboard span { font-weight: bold; color: var(--crust); }
+
+        .scenario-card {
+            background: var(--cream);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--card-shadow);
+            text-align: center;
+            width: 100%;
+            transition: transform 0.3s ease, opacity 0.3s ease;
+        }
+
+        .scenario-card.exit-left {
+            transform: translateX(-120%) rotate(-8deg);
+            opacity: 0;
+        }
+
+        .scenario-card.exit-right {
+            transform: translateX(120%) rotate(8deg);
+            opacity: 0;
+        }
+
+        .scenario-card.enter {
+            transform: translateY(30px);
+            opacity: 0;
+        }
+
+        .occasion-label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #9a8470;
+            margin-bottom: 0.8rem;
+        }
+
+        .occasion-name {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--crust);
+            margin-bottom: 1.2rem;
+        }
+
+        .bun-display {
+            font-size: 5rem;
+            margin: 0.5rem 0;
+            user-select: none;
+            transition: transform 0.2s;
+        }
+
+        .bun-name {
+            font-size: 1.3rem;
+            font-weight: bold;
+            margin: 0.5rem 0 0.3rem;
+            color: var(--text);
+        }
+
+        .bun-desc {
+            font-size: 0.95rem;
+            color: #7a6652;
+            line-height: 1.4;
+            margin-bottom: 0.3rem;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 1rem;
+            border: none;
+            border-radius: 14px;
+            font-size: 1.1rem;
+            font-family: 'Georgia', serif;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            font-weight: bold;
+        }
+
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0,0,0,0.15); }
+        .btn:active { transform: translateY(0); }
+
+        .btn-unseemly {
+            background: var(--reject);
+            color: white;
+        }
+
+        .btn-beseeming {
+            background: var(--accept);
+            color: white;
+        }
+
+        .feedback {
+            min-height: 3.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-style: italic;
+            color: #7a6652;
+            text-align: center;
+            padding: 0 1rem;
+            transition: opacity 0.3s;
+        }
+
+        .feedback.correct { color: var(--accept); font-weight: bold; }
+        .feedback.wrong { color: var(--reject); font-weight: bold; }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0d5c8;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--golden), var(--crust));
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+
+        .final-screen {
+            background: var(--cream);
+            border-radius: 20px;
+            padding: 2.5rem;
+            box-shadow: var(--card-shadow);
+            text-align: center;
+            width: 100%;
+            max-width: 520px;
+        }
+
+        .final-screen h2 {
+            font-size: 1.8rem;
+            color: var(--crust);
+            margin-bottom: 0.5rem;
+        }
+
+        .final-screen .grade {
+            font-size: 3rem;
+            margin: 1rem 0;
+        }
+
+        .final-screen .score-text {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .final-screen .title-earned {
+            font-size: 1rem;
+            color: var(--golden);
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+        }
+
+        .btn-restart {
+            background: var(--crust);
+            color: white;
+            padding: 0.9rem 2.5rem;
+            border: none;
+            border-radius: 14px;
+            font-size: 1.1rem;
+            font-family: 'Georgia', serif;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.15s;
+        }
+
+        .btn-restart:hover { transform: translateY(-2px); }
+
+        .streak-indicator {
+            font-size: 0.9rem;
+            color: var(--golden);
+            min-height: 1.3rem;
+        }
+
+        @media (max-width: 500px) {
+            header h1 { font-size: 1.7rem; }
+            .bun-display { font-size: 4rem; }
+            .scenario-card { padding: 1.5rem; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Bun Propriety</h1>
+        <p>Does this bun beseem the occasion? You be the judge.</p>
+    </header>
+
+    <div class="game-area" id="gameArea">
+        <div class="scoreboard">
+            <div>Round: <span id="roundNum">1</span>/10</div>
+            <div>Score: <span id="scoreNum">0</span></div>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+        </div>
+
+        <div class="scenario-card" id="scenarioCard">
+            <div class="occasion-label">The Occasion</div>
+            <div class="occasion-name" id="occasionName"></div>
+            <div class="bun-display" id="bunEmoji"></div>
+            <div class="bun-name" id="bunName"></div>
+            <div class="bun-desc" id="bunDesc"></div>
+        </div>
+
+        <div class="buttons" id="buttons">
+            <button class="btn btn-unseemly" onclick="answer(false)">Unseemly!</button>
+            <button class="btn btn-beseeming" onclick="answer(true)">Beseeming!</button>
+        </div>
+
+        <div class="streak-indicator" id="streak"></div>
+        <div class="feedback" id="feedback"></div>
+    </div>
+
+    <div class="final-screen" id="finalScreen" style="display:none">
+        <h2>Court Adjourned!</h2>
+        <div class="grade" id="gradeEmoji"></div>
+        <div class="score-text" id="finalScore"></div>
+        <div class="title-earned" id="titleEarned"></div>
+        <button class="btn-restart" onclick="startGame()">Judge Again</button>
+    </div>
+
+    <script>
+        const BUNS = [
+            { name: "Hot Cross Bun", emoji: "\u2716\ufe0f\ud83c\udf5e", desc: "Spiced, sweet, marked with a cross. A springtime classic.", formality: 3, sweet: true, festive: true },
+            { name: "Brioche", emoji: "\ud83c\udf5e", desc: "Buttery, rich French bread with a golden crown.", formality: 4, sweet: true, festive: false },
+            { name: "Sticky Bun", emoji: "\ud83c\udf6f\ud83c\udf5e", desc: "Dripping with caramel glaze and pecans. Gloriously messy.", formality: 1, sweet: true, festive: false },
+            { name: "Pretzel Bun", emoji: "\ud83e\udd68", desc: "Dark, chewy, salted. A Bavarian pub staple.", formality: 2, sweet: false, festive: false },
+            { name: "Cinnamon Roll", emoji: "\ud83c\udf00", desc: "Swirled with cinnamon sugar and cream cheese frosting.", formality: 1, sweet: true, festive: false },
+            { name: "Dinner Roll", emoji: "\ud83e\udd56", desc: "Plain, soft, modest. The dependable wallflower of bread.", formality: 3, sweet: false, festive: false },
+            { name: "Challah Roll", emoji: "\u2728\ud83c\udf5e", desc: "Braided, egg-enriched, slightly sweet. Sabbath-worthy.", formality: 4, sweet: true, festive: true },
+            { name: "Hamburger Bun", emoji: "\ud83c\udf54", desc: "Squishy sesame-topped vessel for ground beef.", formality: 1, sweet: false, festive: false },
+            { name: "Bao Bun", emoji: "\ud83e\udd5f", desc: "Pillowy steamed cloud. Filled with mystery and pork.", formality: 2, sweet: false, festive: false },
+            { name: "Scone", emoji: "\ud83c\udf75\ud83e\uddc1", desc: "Crumbly, buttery, best with clotted cream. Very proper.", formality: 5, sweet: true, festive: false },
+            { name: "Cornbread Muffin", emoji: "\ud83c\udf3d\ud83e\uddc1", desc: "Rustic, golden, slightly gritty. Southern hospitality in bread form.", formality: 2, sweet: false, festive: false },
+            { name: "Pain au Chocolat", emoji: "\ud83c\udf6b\ud83e\udd50", desc: "Flaky pastry hiding a molten chocolate heart.", formality: 4, sweet: true, festive: false },
+            { name: "Kaiser Roll", emoji: "\ud83d\udc51\ud83c\udf5e", desc: "Crown-shaped, crusty, authoritative. The emperor of rolls.", formality: 4, sweet: false, festive: false },
+            { name: "Donut", emoji: "\ud83c\udf69", desc: "Fried, glazed, hole in the middle. A sugar ring of joy.", formality: 1, sweet: true, festive: false },
+            { name: "Milk Bread Roll", emoji: "\ud83e\udd5b\ud83c\udf5e", desc: "Impossibly soft Japanese cloud bread. Tears like cotton.", formality: 3, sweet: true, festive: false },
+        ];
+
+        const OCCASIONS = [
+            { name: "A State Dinner at Buckingham Palace", formality: 5, context: "royal", wantSweet: false },
+            { name: "Sunday Brunch with Friends", formality: 2, context: "casual", wantSweet: true },
+            { name: "A Child's Birthday Party", formality: 1, context: "party", wantSweet: true },
+            { name: "Business Lunch with the CEO", formality: 4, context: "corporate", wantSweet: false },
+            { name: "Funeral Reception", formality: 5, context: "somber", wantSweet: false },
+            { name: "Backyard BBQ", formality: 1, context: "casual", wantSweet: false },
+            { name: "High Tea at The Ritz", formality: 5, context: "tea", wantSweet: true },
+            { name: "College Dorm Room Hangout", formality: 1, context: "casual", wantSweet: true },
+            { name: "Christmas Eve Dinner", formality: 4, context: "festive", wantSweet: true },
+            { name: "Romantic Candlelit Dinner", formality: 4, context: "romantic", wantSweet: false },
+            { name: "A Monastery's Silent Breakfast", formality: 5, context: "austere", wantSweet: false },
+            { name: "County Fair Food Tent", formality: 1, context: "fair", wantSweet: true },
+            { name: "Japanese Tea Ceremony", formality: 5, context: "tea", wantSweet: true },
+            { name: "Tailgate Before the Big Game", formality: 1, context: "casual", wantSweet: false },
+            { name: "Elegant Garden Wedding", formality: 4, context: "wedding", wantSweet: true },
+            { name: "Late-Night Diner at 2 AM", formality: 1, context: "casual", wantSweet: true },
+            { name: "Passover Seder", formality: 5, context: "festive", wantSweet: false },
+            { name: "Parisian Sidewalk Cafe", formality: 3, context: "french", wantSweet: true },
+            { name: "Company Potluck", formality: 2, context: "casual", wantSweet: true },
+            { name: "A Toddler's First Solid Meal", formality: 1, context: "baby", wantSweet: true },
+        ];
+
+        const EXPLANATIONS = {
+            highAtLow: [
+                "A bit overdressed for the occasion, don't you think?",
+                "That's like wearing a tuxedo to a water park.",
+                "Fancy bun, humble gathering. The bun is confused.",
+            ],
+            lowAtHigh: [
+                "The guests are appalled. Simply appalled.",
+                "Security has been notified about this bun.",
+                "This bun does NOT have clearance for this event.",
+            ],
+            sweetAtSavory: [
+                "The sweetness clashes with the savory mood.",
+                "Sugar at a savory affair? A faux pas!",
+            ],
+            savoryAtSweet: [
+                "Where's the sugar? This occasion demands sweetness!",
+                "A savory bun at a sweet event? How dull.",
+            ],
+            perfect: [
+                "A match made in bun heaven!",
+                "The bun and the occasion are in perfect harmony.",
+                "Exquisite judgment. The bun beseeches... er, beseems!",
+                "You have an eye for bun propriety.",
+            ],
+            decent: [
+                "Acceptable. The bun passes muster.",
+                "Not perfect, but no one's offended.",
+                "The bun squeaks by on a technicality.",
+            ],
+        };
+
+        let rounds = [];
+        let currentRound = 0;
+        let score = 0;
+        let streakCount = 0;
+
+        function shuffle(arr) {
+            const a = [...arr];
+            for (let i = a.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [a[i], a[j]] = [a[j], a[i]];
+            }
+            return a;
+        }
+
+        function pick(arr) {
+            return arr[Math.floor(Math.random() * arr.length)];
+        }
+
+        function doesBeseem(bun, occasion) {
+            const formalityDiff = Math.abs(bun.formality - occasion.formality);
+
+            // Big formality mismatch = unseemly
+            if (formalityDiff >= 3) return false;
+
+            // Sweet bun at a savory formal event = unseemly
+            if (bun.sweet && !occasion.wantSweet && occasion.formality >= 4) return false;
+
+            // Hamburger bun at formality 4+ = always unseemly
+            if (bun.name === "Hamburger Bun" && occasion.formality >= 4) return false;
+
+            // Donut at formality 5 = always unseemly
+            if (bun.name === "Donut" && occasion.formality >= 5) return false;
+
+            // Scone at a BBQ = unseemly
+            if (bun.name === "Scone" && occasion.formality <= 1 && !occasion.wantSweet) return false;
+
+            // Festive bun at somber occasion = unseemly
+            if (bun.festive && occasion.context === "somber") return false;
+
+            // Generally okay if formality is close enough
+            if (formalityDiff <= 1) return true;
+
+            // Medium gap — coin flip weighted by sweet match
+            if (formalityDiff === 2) {
+                return bun.sweet === occasion.wantSweet;
+            }
+
+            return false;
+        }
+
+        function getExplanation(bun, occasion, correct, playerSaidBeseem) {
+            if (correct) {
+                const fDiff = Math.abs(bun.formality - occasion.formality);
+                if (fDiff <= 1 && bun.sweet === occasion.wantSweet) return pick(EXPLANATIONS.perfect);
+                return pick(EXPLANATIONS.decent);
+            }
+
+            // Wrong answer — explain why
+            const actuallyBeseems = doesBeseem(bun, occasion);
+            if (actuallyBeseems) {
+                // Player said unseemly but it was fine
+                return "Actually, that bun fits just fine here! Don't be so judgmental.";
+            } else {
+                // Player said beseeming but it was not
+                const fDiff = bun.formality - occasion.formality;
+                if (fDiff >= 3) return pick(EXPLANATIONS.highAtLow);
+                if (fDiff <= -3) return pick(EXPLANATIONS.lowAtHigh);
+                if (bun.sweet && !occasion.wantSweet) return pick(EXPLANATIONS.sweetAtSavory);
+                if (!bun.sweet && occasion.wantSweet) return pick(EXPLANATIONS.savoryAtSweet);
+                return pick(EXPLANATIONS.lowAtHigh);
+            }
+        }
+
+        function generateRounds() {
+            rounds = [];
+            const shuffledOccasions = shuffle(OCCASIONS).slice(0, 10);
+            for (const occasion of shuffledOccasions) {
+                const bun = pick(BUNS);
+                const beseems = doesBeseem(bun, occasion);
+                rounds.push({ bun, occasion, beseems });
+            }
+        }
+
+        function showRound() {
+            const card = document.getElementById('scenarioCard');
+            card.classList.remove('exit-left', 'exit-right');
+            card.classList.add('enter');
+
+            const r = rounds[currentRound];
+            document.getElementById('roundNum').textContent = currentRound + 1;
+            document.getElementById('progressFill').style.width = `${(currentRound / 10) * 100}%`;
+            document.getElementById('occasionName').textContent = r.occasion.name;
+            document.getElementById('bunEmoji').textContent = r.bun.emoji;
+            document.getElementById('bunName').textContent = r.bun.name;
+            document.getElementById('bunDesc').textContent = r.bun.desc;
+            document.getElementById('feedback').textContent = '';
+            document.getElementById('feedback').className = 'feedback';
+            document.getElementById('buttons').style.pointerEvents = 'auto';
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    card.classList.remove('enter');
+                });
+            });
+        }
+
+        function answer(playerSaidBeseem) {
+            const r = rounds[currentRound];
+            const correct = (playerSaidBeseem === r.beseems);
+
+            const card = document.getElementById('scenarioCard');
+            const feedback = document.getElementById('feedback');
+            const buttons = document.getElementById('buttons');
+
+            buttons.style.pointerEvents = 'none';
+
+            if (correct) {
+                score++;
+                streakCount++;
+                document.getElementById('scoreNum').textContent = score;
+                feedback.className = 'feedback correct';
+                feedback.textContent = getExplanation(r.bun, r.occasion, true, playerSaidBeseem);
+            } else {
+                streakCount = 0;
+                feedback.className = 'feedback wrong';
+                feedback.textContent = getExplanation(r.bun, r.occasion, false, playerSaidBeseem);
+            }
+
+            document.getElementById('streak').textContent = streakCount >= 2 ? `Streak: ${streakCount}` : '';
+
+            card.classList.add(playerSaidBeseem ? 'exit-right' : 'exit-left');
+
+            setTimeout(() => {
+                currentRound++;
+                if (currentRound >= 10) {
+                    showFinal();
+                } else {
+                    showRound();
+                }
+            }, 1800);
+        }
+
+        function showFinal() {
+            document.getElementById('gameArea').style.display = 'none';
+            const final = document.getElementById('finalScreen');
+            final.style.display = 'block';
+            document.getElementById('progressFill').style.width = '100%';
+
+            let emoji, title;
+            if (score <= 3) { emoji = "\ud83d\ude2c"; title = "Bun Barbarian"; }
+            else if (score <= 5) { emoji = "\ud83e\udd14"; title = "Apprentice of Bread Etiquette"; }
+            else if (score <= 7) { emoji = "\ud83e\uddd0"; title = "Bun Bourgeois"; }
+            else if (score <= 9) { emoji = "\ud83c\udfa9"; title = "Grand Arbiter of Bun Propriety"; }
+            else { emoji = "\ud83d\udc51"; title = "Supreme Chancellor of Beseeming Buns"; }
+
+            document.getElementById('gradeEmoji').textContent = emoji;
+            document.getElementById('finalScore').textContent = `${score} out of 10 correct`;
+            document.getElementById('titleEarned').textContent = `Title earned: ${title}`;
+        }
+
+        function startGame() {
+            currentRound = 0;
+            score = 0;
+            streakCount = 0;
+            document.getElementById('scoreNum').textContent = '0';
+            document.getElementById('streak').textContent = '';
+            document.getElementById('finalScreen').style.display = 'none';
+            document.getElementById('gameArea').style.display = 'flex';
+            generateRounds();
+            showRound();
+        }
+
+        startGame();
+    </script>
+</body>
+</html>
