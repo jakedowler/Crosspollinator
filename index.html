@@ -510,6 +510,7 @@ function openFeedback(game, path) {
     document.getElementById('fbText').placeholder = 'What did you think? Fun? Boring? Buggy? Too complex?';
     document.getElementById('fbHint').style.display = 'none';
     document.getElementById('fbCopyCmd').style.display = 'none';
+    document.getElementById('fbSaved').textContent = 'Saved!';
     document.getElementById('fbSaved').style.display = 'none';
     document.getElementById('fbModal').classList.add('open');
     document.getElementById('fbText').focus();
@@ -527,6 +528,7 @@ function openIterate(wordA, wordB, path) {
     document.getElementById('fbHint').textContent = 'Describe what to improve. Saves locally and opens a GitHub Issue automatically.';
     document.getElementById('fbHint').style.display = 'block';
     document.getElementById('fbCopyCmd').style.display = 'none';
+    document.getElementById('fbSaved').textContent = 'Saved!';
     document.getElementById('fbSaved').style.display = 'none';
     document.getElementById('fbModal').classList.add('open');
     document.getElementById('fbText').focus();
@@ -540,21 +542,31 @@ function submitFeedback() {
     const text = document.getElementById('fbText').value.trim();
     if (!text) return;
 
-    // Save locally
+    // Dedup: skip if identical game+text was already submitted
     const feedback = JSON.parse(localStorage.getItem('cpFeedback') || '[]');
+    const isDupe = feedback.some(f => f.game === currentFbGame && f.text === text);
+    if (isDupe) {
+        document.getElementById('fbSaved').textContent = 'Already submitted!';
+        document.getElementById('fbSaved').style.display = 'block';
+        setTimeout(closeFeedback, 800);
+        return;
+    }
+
+    const timestamp = new Date().toISOString();
+    // Save locally
     feedback.push({
         game: currentFbGame,
         text: text,
         type: currentFbMode,
         path: currentFbPath,
-        time: new Date().toISOString()
+        time: timestamp
     });
     localStorage.setItem('cpFeedback', JSON.stringify(feedback));
 
-    // Open GitHub Issue automatically
+    // Open GitHub Issue automatically (include timestamp for traceability)
     const label = currentFbMode === 'iterate' ? 'iterate' : 'feedback';
     const title = `[${label}] ${currentFbGame}`;
-    const body = `**Game:** ${currentFbGame}\n**Path:** ${currentFbPath}\n**Type:** ${label}\n\n${text}`;
+    const body = `**Game:** ${currentFbGame}\n**Path:** ${currentFbPath}\n**Type:** ${label}\n**Submitted:** ${timestamp}\n\n${text}`;
     window.open(ghIssueUrl(title, body, label), '_blank');
 
     document.getElementById('fbSaved').style.display = 'block';
