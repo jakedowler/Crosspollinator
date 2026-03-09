@@ -1,59 +1,34 @@
 #!/usr/bin/env python3
-"""Multi-phase game generation pipeline using Claude Code CLI.
+"""Multi-phase game generation pipeline using the Anthropic API.
 
 Phase 1 — CONCEPT: Topic experts + game designer brainstorm a concept
 Phase 2 — BUILD: Expert developer builds the game from the concept
 Phase 3 — PLAYTEST: Playtester reviews and the developer fixes issues
 """
 
-import os
-import subprocess
+import re as _re
 import sys
 from datetime import timezone, datetime
 from pathlib import Path
+
+import anthropic
 
 from pick_topics import pick
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 
-
-def _clean_env() -> dict[str, str]:
-    """Return env dict without CLAUDECODE session vars so we can spawn a child.
-
-    We keep auth/proxy vars (CLAUDE_CODE_OAUTH_*, proxy settings) but remove
-    the session-detection vars that prevent nested launches.
-    """
-    env = os.environ.copy()
-    # Only remove the vars that trigger the "nested session" guard
-    for key in [
-        "CLAUDECODE",
-        "CLAUDE_CODE_SESSION_ID",
-        "CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR",
-        "CLAUDE_CODE_CONTAINER_ID",
-        "CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES",
-        "CLAUDE_CODE_DEBUG",
-        "CLAUDE_AUTO_BACKGROUND_TASKS",
-        "CLAUDE_AFTER_LAST_COMPACT",
-        "CLAUDE_CODE_BASE_REF",
-        "CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE",
-    ]:
-        env.pop(key, None)
-    return env
+MODEL = "claude-sonnet-4-20250514"
+client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY env var
 
 
-def _call_claude(prompt: str, timeout: int = 300) -> str:
-    """Call Claude Code CLI and return the text output."""
-    result = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "text"],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        env=_clean_env(),
+def _call_claude(prompt: str, max_tokens: int = 16000) -> str:
+    """Call the Anthropic API and return the text output."""
+    message = client.messages.create(
+        model=MODEL,
+        max_tokens=max_tokens,
+        messages=[{"role": "user", "content": prompt}],
     )
-    if result.returncode != 0:
-        print(f"Claude CLI failed:\n{result.stderr}", file=sys.stderr)
-        sys.exit(1)
-    return result.stdout
+    return message.content[0].text
 
 
 def phase_concept(word_a: str, word_b: str) -> str:
@@ -106,7 +81,7 @@ palette (3-5 specific hex colors) and visual mood.
 
 Output ONLY the expert discussion above. No code."""
 
-    return _call_claude(prompt, timeout=120)
+    return _call_claude(prompt, max_tokens=4096)
 
 
 def phase_build(word_a: str, word_b: str, concept: str) -> str:
@@ -133,7 +108,7 @@ CRITICAL REQUIREMENTS:
 9. Touch-friendly — must work on mobile (use click/touch events, big tap targets).
 10. Include a brief "how to play" hint on screen (1 sentence max)."""
 
-    return _call_claude(prompt, timeout=300)
+    return _call_claude(prompt, max_tokens=16000)
 
 
 def phase_playtest(word_a: str, word_b: str, concept: str, html: str) -> str:
@@ -168,7 +143,7 @@ Apply all fixes and improvements. If the game is fundamentally flawed
 
 Output ONLY the final HTML — no markdown fences, no commentary."""
 
-    return _call_claude(prompt, timeout=300)
+    return _call_claude(prompt, max_tokens=16000)
 
 
 def generate(word_a: str, word_b: str) -> str:
@@ -188,8 +163,6 @@ def save(html: str, word_a: str, word_b: str, date: str | None = None) -> Path:
     If a file for this word pair already exists on the given date,
     auto-increment the version (word_a_word_b_v2.html, _v3.html, etc.).
     """
-    import re as _re
-
     day = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     day_dir = OUTPUT_DIR / day
     day_dir.mkdir(parents=True, exist_ok=True)

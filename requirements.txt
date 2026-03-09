@@ -1,3 +1,1 @@
-# No Python dependencies required — uses Claude Code CLI directly.
-# To add API support later, uncomment:
-# anthropic>=0.40.0
+anthropic>=0.40.0

@@ -1,24 +1,20 @@
 #!/usr/bin/env python3
-"""Write a journal entry reflecting on today's generated app using Claude Code CLI."""
+"""Write a journal entry reflecting on today's generated app using the Anthropic API."""
 
-import os
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import anthropic
+
 JOURNAL_DIR = Path(__file__).resolve().parent.parent / "journal"
 
-
-def _clean_env() -> dict[str, str]:
-    """Return env dict without CLAUDECODE so we can spawn a child session."""
-    env = os.environ.copy()
-    env.pop("CLAUDECODE", None)
-    return env
+MODEL = "claude-sonnet-4-20250514"
+client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY env var
 
 
 def write_entry(word_a: str, word_b: str, html: str) -> Path:
-    """Ask Claude Code CLI to write a short, fun journal entry about today's creation."""
+    """Ask Claude to write a short, fun journal entry about today's creation."""
     prompt = f"""You are the Crosspollinator's daily journal keeper.
 
 Today's two random dictionary words were **{word_a}** and **{word_b}**.
@@ -38,19 +34,12 @@ Write a short, engaging journal entry (200-400 words) in markdown that covers:
 Use a casual, enthusiastic tone. Start with a ## heading that includes today's
 date, the two words, and the app name. Output ONLY the markdown, no fences."""
 
-    result = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "text"],
-        capture_output=True,
-        text=True,
-        timeout=120,
-        env=_clean_env(),
+    message = client.messages.create(
+        model=MODEL,
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
     )
-
-    if result.returncode != 0:
-        print(f"Claude CLI failed:\n{result.stderr}", file=sys.stderr)
-        sys.exit(1)
-
-    entry = result.stdout
+    entry = message.content[0].text
 
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     path = JOURNAL_DIR / f"{today}.md"
