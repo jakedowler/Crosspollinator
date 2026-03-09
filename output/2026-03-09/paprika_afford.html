@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>YIELD — Spice Market Game</title>
+<style>
+  :root {
+    --bg-paper: #F5E6C8;
+    --ink: #5C3A1E;
+    --ink-light: #8B6F4E;
+    --pale: #E8B84B;
+    --mid: #C4572A;
+    --deep: #8B1A2B;
+    --select-ring: #5C3A1E;
+    --success: #4A7C3F;
+    --danger: #8B1A2B;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--bg-paper);
+    color: var(--ink);
+  }
+
+  body {
+    background-image:
+      repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(92,58,30,0.015) 3px, rgba(92,58,30,0.015) 4px),
+      repeating-linear-gradient(90deg, transparent, transparent 5px, rgba(92,58,30,0.01) 5px, rgba(92,58,30,0.01) 6px);
+  }
+
+  .game-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 6px 10px;
+    position: relative;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 2px 0 4px;
+    border-bottom: 1.5px solid var(--ink-light);
+    flex-shrink: 0;
+    line-height: 1.2;
+  }
+
+  header h1 {
+    font-family: 'Segoe Print', 'Comic Sans MS', cursive;
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+
+  header .tagline {
+    font-style: italic;
+    font-size: 0.78rem;
+    color: var(--ink-light);
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0 3px;
+    font-size: 0.82rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    gap: 2px 8px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .status-label {
+    color: var(--ink-light);
+    font-style: italic;
+  }
+
+  .status-value {
+    font-weight: 600;
+    font-family: 'Segoe Print', 'Comic Sans MS', cursive;
+    font-size: 1rem;
+  }
+
+  .budget-warn { color: var(--danger); }
+
+  /* Hint */
+  .hint {
+    text-align: center;
+    font-size: 0.72rem;
+    color: var(--ink-light);
+    font-style: italic;
+    padding: 2px 0 4px;
+    flex-shrink: 0;
+  }
+
+  /* Tile grid */
+  .tile-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    padding: 4px 0;
+    flex: 1;
+    align-content: center;
+  }
+
+  .tile {
+    position: relative;
+    border-radius: 6px;
+    border: 1.5px solid var(--ink-light);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 0.82;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.2s;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+
+  .tile::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 5px;
+    opacity: 0.12;
+    background:
+      radial-gradient(ellipse at 30% 20%, white 0%, transparent 60%),
+      radial-gradient(ellipse at 70% 80%, rgba(0,0,0,0.15) 0%, transparent 50%);
+    pointer-events: none;
+  }
+
+  .tile:active { transform: scale(0.95); }
+
+  .tile.selected {
+    border: 2.5px solid var(--select-ring);
+    box-shadow: 0 0 0 2px rgba(92,58,30,0.25), inset 0 0 8px rgba(92,58,30,0.1);
+    transform: scale(1.03);
+  }
+
+  .tile.selected::after {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ink);
+    opacity: 0.3;
+    pointer-events: none;
+  }
+
+  .tile.disabled {
+    opacity: 0.5;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  .tile .swatch {
+    width: 70%;
+    aspect-ratio: 1;
+    border-radius: 4px;
+    border: 1px solid rgba(92,58,30,0.2);
+    margin-bottom: 4px;
+    position: relative;
+  }
+
+  /* Irregular watercolor edge effect */
+  .tile .swatch::after {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 6px rgba(255,255,255,0.3), 0 0 3px rgba(92,58,30,0.1);
+    pointer-events: none;
+  }
+
+  .tile .price-tag {
+    font-family: 'Segoe Print', 'Comic Sans MS', cursive;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+
+  .tile .revealed-value {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Segoe Print', 'Comic Sans MS', cursive;
+    font-size: 0.8rem;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.6s ease-in;
+    white-space: nowrap;
+  }
+
+  .tile .revealed-value.show {
+    opacity: 1;
+  }
+
+  .tile .revealed-value.adulterated { color: var(--danger); }
+  .tile .revealed-value.sleeper { color: var(--success); }
+  .tile .revealed-value.normal { color: var(--ink); }
+
+  /* Bottom controls */
+  .controls {
+    flex-shrink: 0;
+    padding: 6px 0 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .btn {
+    font-family: 'Segoe Print', 'Comic Sans MS', cursive;
+    font-size: 1.1rem;
+    font-weight: 600;
+    padding: 8px 28px;
+    border: 2px solid var(--ink);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+  }
+
+  .btn:active { transform: scale(0.96); }
+  .btn:hover { background: var(--ink); color: var(--bg-paper); }
+  .btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+
+  .round-result {
+    text-align: center;
+    font-size: 0.85rem;
+    min-height: 1.3em;
+    color: var(--ink);
+  }
+
+  .round-result .flavor-total { font-weight: 600; font-family: 'Segoe Print', 'Comic Sans MS', cursive; font-size: 1.05rem; }
+
+  /* Final result overlay */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(92,58,30,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(2px);
+  }
+
+  .overlay.visible { display: flex; }
+
+  .result-card {
+    background: var(--bg-paper);
+    border: 2px solid var(--ink);
+    border-radius: 12px;
+    padding: 20px 24px;
+    max-width: 340px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(92,58,30,0.3);
+  }
+
+  .result-card h2 {
+    font-family: 'Segoe Print', 'Comic Sans MS', cursive;
+    font-size: 1.6rem;
+    margin-bottom: 6px;
+  }
+
+  .result-card .rating {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 4px 0 8px;
+  }
+
+  .paprika-icons {
+    font-size: 1.4rem;
+    letter-spacing: 4px;
+    margin: 6px 0;
+  }
+
+  .swatch-strip {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin: 10px 0;
+  }
+
+  .swatch-strip .mini-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    border: 1px solid var(--ink-light);
+  }
+
+  .share-text {
+    font-family: monospace;
+    font-size: 0.72rem;
+    background: rgba(92,58,30,0.08);
+    padding: 8px;
+    border-radius: 6px;
+    margin: 8px 0;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  .result-card .btn { margin-top: 6px; }
+
+  /* Animations */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .tile { animation: fadeInUp 0.3s ease-out backwards; }
+  .tile:nth-child(1) { animation-delay: 0.02s; }
+  .tile:nth-child(2) { animation-delay: 0.04s; }
+  .tile:nth-child(3) { animation-delay: 0.06s; }
+  .tile:nth-child(4) { animation-delay: 0.08s; }
+  .tile:nth-child(5) { animation-delay: 0.10s; }
+  .tile:nth-child(6) { animation-delay: 0.12s; }
+  .tile:nth-child(7) { animation-delay: 0.14s; }
+  .tile:nth-child(8) { animation-delay: 0.16s; }
+  .tile:nth-child(9) { animation-delay: 0.18s; }
+  .tile:nth-child(10) { animation-delay: 0.20s; }
+  .tile:nth-child(11) { animation-delay: 0.22s; }
+  .tile:nth-child(12) { animation-delay: 0.24s; }
+
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(92,58,30,0.25); }
+    50% { box-shadow: 0 0 0 4px rgba(92,58,30,0.15); }
+  }
+
+  .tile.selected { animation: pulseGlow 1.5s ease-in-out infinite; }
+
+  /* Responsive */
+  @media (max-height: 600px) {
+    .tile-grid { gap: 5px; }
+    .tile .price-tag { font-size: 0.75rem; }
+    header h1 { font-size: 1.2rem; }
+    .btn { padding: 6px 20px; font-size: 1rem; }
+  }
+
+  @media (min-width: 520px) {
+    .tile-grid { gap: 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="game-container">
+  <header>
+    <h1>YIELD</h1>
+    <span class="tagline">A spice market guessing game</span>
+  </header>
+
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="status-label">Round</span>
+      <span class="status-value" id="round-num">1 / 3</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Target</span>
+      <span class="status-value" id="target-val">--</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Budget</span>
+      <span class="status-value" id="budget-val">50</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Selected</span>
+      <span class="status-value" id="selected-count">0 / 5</span>
+    </div>
+  </div>
+
+  <div class="hint" id="hint-text">Pick 5 ingredients by color &amp; price to hit the target flavor score.</div>
+
+  <div class="tile-grid" id="tile-grid"></div>
+
+  <div class="controls">
+    <div class="round-result" id="round-result"></div>
+    <button class="btn" id="lock-btn" disabled>Lock In Selection</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="result-card" id="result-card"></div>
+</div>
+
+<script>
+(function() {
+  // --- Seeded RNG (mulberry32) ---
+  function mulberry32(seed) {
+    return function() {
+      seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+      let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function dateToSeed(dateStr) {
+    let h = 0;
+    for (let i = 0; i < dateStr.length; i++) {
+      h = ((h << 5) - h + dateStr.charCodeAt(i)) | 0;
+    }
+    return h;
+  }
+
+  const TODAY = '2026-03-09';
+  const rng = mulberry32(dateToSeed(TODAY));
+
+  // --- Helpers ---
+  function randInt(min, max) { return Math.floor(rng() * (max - min + 1)) + min; }
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function lerpColor(c1, c2, t) {
+    const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
+    const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
+    const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  const PALE = [232, 184, 75];   // #E8B84B
+  const MID  = [196, 87, 42];    // #C4572A
+  const DEEP = [139, 26, 43];    // #8B1A2B
+
+  function colorFromIntensity(t) {
+    // t: 0 = palest, 1 = deepest
+    if (t < 0.5) return lerpColor(PALE, MID, t * 2);
+    return lerpColor(MID, DEEP, (t - 0.5) * 2);
+  }
+
+  // --- Generate tiles ---
+  const BUDGET = 50;
+  const TILE_COUNT = 12;
+  const PICK_COUNT = 5;
+
+  function generateTiles() {
+    const tiles = [];
+
+    // Decide which indices are adulterated (2-3) and sleeper (2-3)
+    const indices = Array.from({length: TILE_COUNT}, (_, i) => i);
+    shuffle(indices);
+    const adulteratedSet = new Set(indices.slice(0, 3));
+    const sleeperSet = new Set(indices.slice(3, 6));
+
+    for (let i = 0; i < TILE_COUNT; i++) {
+      let price, colorIntensity, flavorValue, tileType;
+
+      if (adulteratedSet.has(i)) {
+        // Adulterated: deep color, high price, LOW value
+        tileType = 'adulterated';
+        colorIntensity = 0.7 + rng() * 0.3;  // 0.7-1.0
+        price = randInt(10, 14);
+        flavorValue = randInt(1, 4);
+      } else if (sleeperSet.has(i)) {
+        // Sleeper: pale color, low price, HIGH value
+        tileType = 'sleeper';
+        colorIntensity = rng() * 0.3;  // 0.0-0.3
+        price = randInt(5, 8);
+        flavorValue = randInt(13, 18);
+      } else {
+        // Normal: color roughly correlates with value
+        tileType = 'normal';
+        colorIntensity = 0.15 + rng() * 0.7;  // 0.15-0.85
+        price = randInt(6, 13);
+        // Value loosely follows color intensity
+        const baseVal = Math.round(colorIntensity * 16) + randInt(1, 4);
+        flavorValue = Math.max(3, Math.min(17, baseVal));
+      }
+
+      tiles.push({
+        id: i,
+        price: price,
+        colorIntensity: colorIntensity,
+        color: colorFromIntensity(colorIntensity),
+        flavorValue: flavorValue,
+        type: tileType,
+        revealed: false
+      });
+    }
+
+    return tiles;
+  }
+
+  const tiles = generateTiles();
+
+  // Compute a reasonable target: pick the best realistic combination
+  // Target should be achievable but not trivially so
+  // Sort by value/price efficiency, pick top 5 within budget, then adjust
+  const sortedByEfficiency = [...tiles].sort((a, b) => (b.flavorValue / b.price) - (a.flavorValue / a.price));
+  let idealSum = 0, idealCost = 0, idealPicks = [];
+  for (const t of sortedByEfficiency) {
+    if (idealPicks.length < PICK_COUNT && idealCost + t.price <= BUDGET) {
+      idealPicks.push(t);
+      idealSum += t.flavorValue;
+      idealCost += t.price;
+    }
+  }
+  // Target is roughly 80-95% of ideal to make it achievable
+  const TARGET = Math.round(idealSum * (0.82 + rng() * 0.1));
+
+  // --- Game state ---
+  let currentRound = 1;
+  let selectedTileIds = new Set();
+  let roundResults = [];  // {totalFlavor, totalCost, picks: [...ids]}
+  let gameOver = false;
+  // Track which tiles have been revealed (persists across rounds)
+  let revealedTileIds = new Set();
+
+  // --- DOM refs ---
+  const gridEl = document.getElementById('tile-grid');
+  const roundNumEl = document.getElementById('round-num');
+  const targetEl = document.getElementById('target-val');
+  const budgetEl = document.getElementById('budget-val');
+  const selectedCountEl = document.getElementById('selected-count');
+  const lockBtn = document.getElementById('lock-btn');
+  const roundResultEl = document.getElementById('round-result');
+  const hintEl = document.getElementById('hint-text');
+  const overlayEl = document.getElementById('overlay');
+  const resultCardEl = document.getElementById('result-card');
+
+  // --- Render ---
+  function renderTiles() {
+    gridEl.innerHTML = '';
+    tiles.forEach((tile, idx) => {
+      const el = document.createElement('div');
+      el.className = 'tile';
+      el.dataset.id = idx;
+
+      if (selectedTileIds.has(idx)) el.classList.add('selected');
+      if (gameOver) el.classList.add('disabled');
+
+      const swatch = document.createElement('div');
+      swatch.className = 'swatch';
+      swatch.style.background = tile.color;
+      el.appendChild(swatch);
+
+      const priceTag = document.createElement('div');
+      priceTag.className = 'price-tag';
+      priceTag.textContent = tile.price + ' c';
+      el.appendChild(priceTag);
+
+      // Show revealed value if known
+      if (revealedTileIds.has(idx)) {
+        const rv = document.createElement('div');
+        rv.className = 'revealed-value show ' + tile.type;
+        let label = '';
+        if (tile.type === 'adulterated') label = tile.flavorValue + ' !';
+        else if (tile.type === 'sleeper') label = tile.flavorValue + ' *';
+        else label = '' + tile.flavorValue;
+        rv.textContent = label;
+        el.appendChild(rv);
+      }
+
+      if (!gameOver) {
+        el.addEventListener('click', () => toggleTile(idx));
+      }
+
+      gridEl.appendChild(el);
+    });
+  }
+
+  function getSpentBudget() {
+    let s = 0;
+    selectedTileIds.forEach(id => s += tiles[id].price);
+    return s;
+  }
+
+  function updateStatus() {
+    roundNumEl.textContent = currentRound + ' / 3';
+    targetEl.textContent = TARGET;
+    const spent = getSpentBudget();
+    const remaining = BUDGET - spent;
+    budgetEl.textContent = remaining;
+    budgetEl.classList.toggle('budget-warn', remaining < 10 && remaining >= 0);
+    selectedCountEl.textContent = selectedTileIds.size + ' / ' + PICK_COUNT;
+    lockBtn.disabled = selectedTileIds.size !== PICK_COUNT || gameOver;
+  }
+
+  function toggleTile(idx) {
+    if (gameOver) return;
+    if (selectedTileIds.has(idx)) {
+      selectedTileIds.delete(idx);
+    } else {
+      if (selectedTileIds.size >= PICK_COUNT) return;
+      // Check budget
+      const wouldSpend = getSpentBudget() + tiles[idx].price;
+      if (wouldSpend > BUDGET) {
+        // Flash budget warning
+        budgetEl.classList.add('budget-warn');
+        setTimeout(() => updateStatus(), 300);
+        return;
+      }
+      selectedTileIds.add(idx);
+    }
+    renderTiles();
+    updateStatus();
+  }
+
+  function revealSelection() {
+    const picks = [...selectedTileIds];
+    let totalFlavor = 0;
+    let totalCost = 0;
+
+    picks.forEach(id => {
+      tiles[id].revealed = true;
+      revealedTileIds.add(id);
+      totalFlavor += tiles[id].flavorValue;
+      totalCost += tiles[id].price;
+    });
+
+    roundResults.push({ totalFlavor, totalCost, picks: [...picks] });
+
+    // Animate reveal
+    renderTiles();
+
+    // Show round result
+    const diff = Math.abs(totalFlavor - TARGET);
+    const pct = (diff / TARGET) * 100;
+    let quality = '';
+    if (diff === 0) quality = 'Exact hit!';
+    else if (pct <= 5) quality = 'Very close!';
+    else if (pct <= 15) quality = 'Solid round.';
+    else if (pct <= 30) quality = 'Decent.';
+    else quality = 'Off the mark.';
+
+    roundResultEl.innerHTML = `Round ${currentRound}: <span class="flavor-total">${totalFlavor}</span> flavor (target ${TARGET}) &mdash; ${quality}`;
+
+    if (currentRound < 3) {
+      // Hints for next round
+      const hintMsgs = [
+        '',
+        'Now you know some tiles. Refine your picks for round 2.',
+        'Last chance. Use what you have learned to thread the needle.'
+      ];
+      hintEl.textContent = hintMsgs[currentRound] || '';
+      currentRound++;
+      selectedTileIds.clear();
+      updateStatus();
+
+      // Re-enable lock button text
+      if (currentRound === 3) lockBtn.textContent = 'Final Selection';
+      else lockBtn.textContent = 'Lock In Selection';
+      lockBtn.disabled = true;
+    } else {
+      // Game over
+      gameOver = true;
+      lockBtn.disabled = true;
+      renderTiles();
+      setTimeout(showFinalResult, 800);
+    }
+  }
+
+  function showFinalResult() {
+    // Best round
+    let bestRound = null;
+    let bestDiff = Infinity;
+    roundResults.forEach((r, i) => {
+      const d = Math.abs(r.totalFlavor - TARGET);
+      if (d < bestDiff) { bestDiff = d; bestRound = i; }
+    });
+
+    const bestResult = roundResults[bestRound];
+    const pct = (bestDiff / TARGET) * 100;
+
+    let rating, paprikaCount;
+    if (bestDiff === 0) { rating = 'Exceptional'; paprikaCount = 6; }
+    else if (pct <= 5) { rating = 'Superb'; paprikaCount = 5; }
+    else if (pct <= 15) { rating = 'Good'; paprikaCount = 4; }
+    else if (pct <= 30) { rating = 'Fair'; paprikaCount = 3; }
+    else { rating = 'Better luck tomorrow'; paprikaCount = 1; }
+
+    // Build swatch strip from best round picks
+    const swatchHtml = bestResult.picks.map(id => {
+      return `<div class="mini-swatch" style="background:${tiles[id].color}"></div>`;
+    }).join('');
+
+    // Share text with color blocks
+    const blocks = ['&#x2B1C;','&#x1F7E8;','&#x1F7E7;','&#x1F7E5;'];
+    const shareColors = bestResult.picks.map(id => {
+      const t = tiles[id].colorIntensity;
+      if (t < 0.25) return blocks[1];
+      if (t < 0.5) return blocks[2];
+      if (t < 0.75) return blocks[3];
+      return blocks[3];
+    }).join('');
+
+    const paprikas = '\u{1F336}\uFE0F'.repeat(paprikaCount);
+
+    resultCardEl.innerHTML = `
+      <h2>Market Day Complete</h2>
+      <div class="rating">${rating}</div>
+      <div class="paprika-icons">${paprikas}</div>
+      <p style="font-size:0.88rem;margin:6px 0">
+        Best: Round ${bestRound + 1} &mdash; <strong>${bestResult.totalFlavor}</strong> flavor (target ${TARGET})
+      </p>
+      <div class="swatch-strip">${swatchHtml}</div>
+      <div class="share-text">
+        YIELD ${TODAY}<br>
+        ${shareColors} ${paprikas}<br>
+        ${rating} (${bestResult.totalFlavor}/${TARGET})
+      </div>
+      <button class="btn" id="copy-btn">Copy Result</button>
+      <br>
+      <button class="btn" id="close-btn" style="margin-top:6px;font-size:0.9rem;padding:6px 16px;border-width:1px;">Close</button>
+    `;
+
+    overlayEl.classList.add('visible');
+
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      const text = `YIELD ${TODAY}\n${rating} (${bestResult.totalFlavor}/${TARGET})\n${'*'.repeat(paprikaCount)}`;
+      navigator.clipboard.writeText(text).then(() => {
+        document.getElementById('copy-btn').textContent = 'Copied!';
+      }).catch(() => {
+        document.getElementById('copy-btn').textContent = 'Copy failed';
+      });
+    });
+
+    document.getElementById('close-btn').addEventListener('click', () => {
+      overlayEl.classList.remove('visible');
+    });
+  }
+
+  // --- Event listeners ---
+  lockBtn.addEventListener('click', () => {
+    if (selectedTileIds.size === PICK_COUNT && !gameOver) {
+      revealSelection();
+    }
+  });
+
+  // --- Init ---
+  targetEl.textContent = TARGET;
+  renderTiles();
+  updateStatus();
+})();
+</script>
+</body>
+</html>
