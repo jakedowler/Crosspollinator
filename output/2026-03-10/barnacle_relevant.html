@@ -278,29 +278,29 @@
   .fragment {
     position: absolute;
     font-size: 15px;
-    color: var(--sand);
+    color: var(--cream);
     padding: 8px 18px;
     border-radius: 20px;
     cursor: pointer;
     white-space: nowrap;
     opacity: 0;
-    background: rgba(90,154,154,0.06);
-    border: 1px solid rgba(90,154,154,0.1);
-    text-shadow: 0 0 20px rgba(0,0,0,0.3);
+    background: rgba(90,154,154,0.12);
+    border: 1px solid rgba(90,154,154,0.2);
+    text-shadow: 0 1px 8px rgba(0,0,0,0.5);
     z-index: 5;
-    transition: background 0.2s, border-color 0.2s;
+    transition: opacity 0.8s, background 0.2s, border-color 0.2s;
   }
 
   .fragment:hover, .fragment:active {
-    background: rgba(212,148,58,0.15);
-    border-color: rgba(212,148,58,0.3);
-    box-shadow: 0 0 12px rgba(212,148,58,0.1);
+    background: rgba(212,148,58,0.2);
+    border-color: rgba(212,148,58,0.4);
+    box-shadow: 0 0 12px rgba(212,148,58,0.15);
   }
 
-  .fragment.visible { opacity: 1 !important; transition: opacity 0.8s; }
-  .fragment.fading { opacity: 0 !important; transition: opacity 1.5s; }
+  .fragment.visible { opacity: 1; }
+  .fragment.fading { opacity: 0; transition: opacity 1.5s; }
   .fragment.caught {
-    opacity: 0 !important;
+    opacity: 0;
     transform: scale(0.8) translateY(30px);
     transition: all 0.5s ease-in;
   }
@@ -771,7 +771,6 @@
     // Vary depth feel
     const depth = rng();
     el.style.fontSize = (13 + depth * 4) + 'px';
-    el.style.opacity = '0';
 
     const goRight = rng() > 0.5;
     const h = ocean.clientHeight;
