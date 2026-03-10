@@ -124,5 +124,14 @@ APPS = [
     "desc": "what sticks is who you are",
     "path": "output/2026-03-10/barnacle_relevant.html",
     "version": 1
+  },
+  {
+    "date": "2026-03-10",
+    "word_a": "issuing",
+    "word_b": "tilt",
+    "name": "TILT \u2014 What Issues Forth",
+    "desc": "",
+    "path": "output/2026-03-10/issuing_tilt.html",
+    "version": 1
   }
 ];

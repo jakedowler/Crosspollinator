@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>TILT — What Issues Forth</title>
+<meta name="description" content="Tilt to guide what's issuing from the source. Fill the vessels before time runs out.">
+<meta name="theme-color" content="#f5f0e6">
+<style>
+  :root {
+    --void: #f5f0e6;
+    --glow: #2a2a1e;
+    --ember: #c45a2c;
+    --cool: #5a7a4a;
+    --mint: #8aaa5a;
+    --purple: #7a6a4a;
+    --surface: #e8e0cc;
+    --line: #d4cbb0;
+    --olive: #6b7a3a;
+    --dark-olive: #3a4420;
+    --cream: #faf6ee;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100dvh;
+    overflow: hidden;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: var(--cream);
+    color: var(--dark-olive);
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0; left: 0;
+  }
+
+  #ui {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #ui h1 {
+    font-size: 13px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 400;
+    opacity: 0.6;
+  }
+
+  #ui .timer {
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.5;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+  }
+
+  #score-display {
+    position: absolute;
+    bottom: 16px;
+    left: 0; right: 0;
+    text-align: center;
+    z-index: 10;
+    pointer-events: none;
+    font-size: 12px;
+    letter-spacing: 2px;
+    opacity: 0.4;
+  }
+
+  #intro {
+    position: absolute;
+    inset: 0;
+    background: var(--cream);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    transition: opacity 1s;
+  }
+
+  #intro.fade { opacity: 0; pointer-events: none; }
+
+  #intro h1 {
+    font-size: 28px;
+    letter-spacing: 6px;
+    font-weight: 300;
+    margin-bottom: 8px;
+    color: var(--dark-olive);
+  }
+
+  #intro p {
+    font-size: 13px;
+    opacity: 0.5;
+    margin-bottom: 30px;
+    color: var(--olive);
+  }
+
+  #intro .start-btn {
+    background: none;
+    border: 1px solid var(--olive);
+    color: var(--dark-olive);
+    padding: 10px 28px;
+    border-radius: 24px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  #intro .start-btn:hover {
+    border-color: var(--dark-olive);
+    background: rgba(107,122,58,0.08);
+  }
+
+  #endcard {
+    position: absolute;
+    inset: 0;
+    background: rgba(250,246,238,0.95);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 50;
+    opacity: 0;
+    transition: opacity 1s;
+  }
+
+  #endcard.show { display: flex; opacity: 1; }
+
+  #endcard h2 {
+    font-size: 22px;
+    letter-spacing: 4px;
+    font-weight: 300;
+    margin-bottom: 6px;
+    color: var(--dark-olive);
+  }
+
+  #endcard .final-score {
+    font-size: 48px;
+    font-weight: 200;
+    margin: 16px 0;
+    color: var(--olive);
+  }
+
+  #endcard .breakdown {
+    font-size: 12px;
+    opacity: 0.5;
+    letter-spacing: 1px;
+    margin-bottom: 24px;
+    color: var(--dark-olive);
+  }
+
+  #endcard .again-btn {
+    background: none;
+    border: 1px solid var(--olive);
+    color: var(--dark-olive);
+    padding: 10px 28px;
+    border-radius: 24px;
+    font-size: 13px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  #endcard .again-btn:hover {
+    border-color: var(--dark-olive);
+    background: rgba(107,122,58,0.08);
+  }
+
+  #hint {
+    position: absolute;
+    bottom: 36px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 11px;
+    opacity: 0.3;
+    z-index: 10;
+    pointer-events: none;
+    font-style: italic;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <h1>TILT</h1>
+  <div class="timer" id="timer">0:45</div>
+</div>
+
+<div id="score-display">
+  <span id="score-text">0 collected</span>
+</div>
+
+<div id="hint">tilt your device or move your pointer</div>
+
+<div id="intro">
+  <h1>TILT</h1>
+  <p>guide what issues forth</p>
+  <button class="start-btn" id="start-btn">begin</button>
+</div>
+
+<div id="endcard">
+  <h2>TIME</h2>
+  <div class="final-score" id="final-score">0</div>
+  <div class="breakdown" id="breakdown"></div>
+  <button class="again-btn" id="again-btn">once more</button>
+</div>
+
+<script>
+(function() {
+  const canvas = document.getElementById('c');
+  const c = canvas.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+  let W, H;
+  function resize() {
+    W = canvas.clientWidth;
+    H = canvas.clientHeight;
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // State
+  let tiltX = 0; // -1 to 1
+  let tiltY = 0; // -1 to 1
+  let started = false;
+  let gameOver = false;
+  let timeLeft = 45;
+  let lastTime = 0;
+  let score = 0;
+  let particles = [];
+  let vessels = [];
+  let collected = { ember: 0, cool: 0, mint: 0, purple: 0 };
+  let spawnTimer = 0;
+  let burstMode = false;
+  let burstTimer = 0;
+  let shakeX = 0, shakeY = 0;
+  let combo = 0;
+  let comboTimer = 0;
+  let floatingTexts = [];
+
+  const GRAVITY = 300;
+  const SPAWN_RATE = 0.06;
+  const PARTICLE_LIFE = 6;
+  const SOURCE_RADIUS = 6;
+
+  const VESSEL_LABELS = { ember: 'fire', cool: 'leaf', mint: 'seed', purple: 'earth' };
+  const VESSEL_SYMBOLS = { ember: '\u25C6', cool: '\u25CF', mint: '\u25B2', purple: '\u25A0' };
+
+  const COLORS = {
+    ember: '#b85430',
+    cool: '#4a6a3a',
+    mint: '#7a9e48',
+    purple: '#8a6e3a'
+  };
+  const COLOR_KEYS = Object.keys(COLORS);
+
+  // Tilt input
+  let hasDeviceOrientation = false;
+
+  window.addEventListener('deviceorientation', (e) => {
+    if (e.gamma === null) return;
+    hasDeviceOrientation = true;
+    tiltX = Math.max(-1, Math.min(1, (e.gamma || 0) / 30));
+    tiltY = Math.max(-1, Math.min(1, (e.beta - 45 || 0) / 30));
+  });
+
+  // Pointer fallback
+  document.addEventListener('pointermove', (e) => {
+    if (hasDeviceOrientation) return;
+    tiltX = ((e.clientX / W) - 0.5) * 2;
+    tiltY = ((e.clientY / H) - 0.5) * 2;
+  });
+
+  // Vessels — bowls at the bottom that catch particles
+  function createVessels() {
+    vessels = [];
+    const count = 4;
+    const spacing = W / (count + 1);
+    COLOR_KEYS.forEach((key, i) => {
+      vessels.push({
+        x: spacing * (i + 1),
+        y: H - 50,
+        radius: 28,
+        color: COLORS[key],
+        key: key,
+        fill: 0,
+        capacity: 15,
+        pulseTimer: 0
+      });
+    });
+  }
+
+  function spawnParticle() {
+    const cx = W / 2;
+    const cy = H * 0.18;
+    // Issue outward in a fountain-like spray, mostly downward
+    const angle = -Math.PI / 2 + (Math.random() - 0.5) * 1.8;
+    const speed = 40 + Math.random() * 60;
+    const colorKey = COLOR_KEYS[Math.floor(Math.random() * COLOR_KEYS.length)];
+
+    particles.push({
+      x: cx + (Math.random() - 0.5) * 8,
+      y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 10,
+      radius: 2.5 + Math.random() * 2,
+      color: COLORS[colorKey],
+      colorKey: colorKey,
+      life: PARTICLE_LIFE,
+      age: 0,
+      trail: []
+    });
+  }
+
+  function update(dt) {
+    if (!started || gameOver) return;
+
+    timeLeft -= dt;
+    if (timeLeft <= 0) {
+      timeLeft = 0;
+      endGame();
+      return;
+    }
+
+    // Update timer display
+    const secs = Math.ceil(timeLeft);
+    const mins = Math.floor(secs / 60);
+    const s = secs % 60;
+    const timerEl = document.getElementById('timer');
+    timerEl.textContent = mins + ':' + s.toString().padStart(2, '0');
+    timerEl.style.color = timeLeft < 10 ? '#b85430' : '';
+    timerEl.style.opacity = timeLeft < 10 ? '0.8' : '0.5';
+
+    // Burst mode — every 10 seconds, a burst of particles
+    burstTimer -= dt;
+    if (burstTimer <= 0) {
+      burstMode = true;
+      burstTimer = 8 + Math.random() * 4;
+      setTimeout(() => { burstMode = false; }, 1500);
+    }
+
+    // Spawn rate increases as vessels fill
+    const totalFill = vessels.reduce((s, v) => s + v.fill, 0);
+    const totalCap = vessels.reduce((s, v) => s + v.capacity, 0);
+    const intensity = 1 + (totalFill / totalCap) * 1.5;
+    const rate = (burstMode ? SPAWN_RATE * 0.3 : SPAWN_RATE) / intensity;
+    spawnTimer -= dt;
+    if (spawnTimer <= 0) {
+      spawnParticle();
+      spawnTimer = rate;
+    }
+
+    // Gravity influenced by tilt
+    const gx = tiltX * GRAVITY * 1.5;
+    const gy = GRAVITY * 0.5 + tiltY * GRAVITY;
+
+    // Update particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.age += dt;
+
+      if (p.age > p.life) {
+        particles.splice(i, 1);
+        continue;
+      }
+
+      p.vx += gx * dt;
+      p.vy += gy * dt;
+
+      // Damping
+      p.vx *= 0.998;
+      p.vy *= 0.998;
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      // Trail
+      p.trail.push({ x: p.x, y: p.y });
+      if (p.trail.length > 6) p.trail.shift();
+
+      // Bounce off walls
+      if (p.x < p.radius) { p.x = p.radius; p.vx *= -0.6; }
+      if (p.x > W - p.radius) { p.x = W - p.radius; p.vx *= -0.6; }
+      if (p.y < p.radius) { p.y = p.radius; p.vy *= -0.6; }
+      if (p.y > H - p.radius) { p.y = H - p.radius; p.vy *= -0.5; }
+
+      // Check vessel collision
+      for (const v of vessels) {
+        const dx = p.x - v.x;
+        const dy = p.y - v.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < v.radius + p.radius && p.y > v.y - v.radius) {
+          // Caught!
+          particles.splice(i, 1);
+
+          if (p.colorKey === v.key) {
+            // Right vessel!
+            const wasFull = v.fill >= v.capacity;
+            v.fill = Math.min(v.fill + 1, v.capacity);
+            combo++;
+            comboTimer = 2;
+            const pts = 10 + Math.min(combo * 2, 20);
+            score += pts;
+            v.pulseTimer = 0.3;
+            collected[v.key]++;
+
+            // Vessel just filled — bonus!
+            if (!wasFull && v.fill >= v.capacity) {
+              score += 50;
+              v.pulseTimer = 0.6;
+              floatingTexts.push({
+                x: v.x, y: v.y - v.radius - 20,
+                text: 'FULL +50', color: v.color, life: 1.5
+              });
+            } else {
+              floatingTexts.push({
+                x: v.x, y: v.y - v.radius - 5,
+                text: '+' + pts + (combo > 2 ? ' x' + combo : ''),
+                color: v.color, life: 1
+              });
+            }
+          } else {
+            // Wrong vessel
+            combo = 0;
+            score = Math.max(0, score - 3);
+            v.pulseTimer = 0.15;
+            shakeX = (Math.random() - 0.5) * 8;
+            shakeY = (Math.random() - 0.5) * 8;
+          }
+          break;
+        }
+      }
+    }
+
+    // Vessel pulse decay
+    for (const v of vessels) {
+      if (v.pulseTimer > 0) v.pulseTimer -= dt;
+    }
+
+    // Combo timer
+    if (comboTimer > 0) {
+      comboTimer -= dt;
+      if (comboTimer <= 0) combo = 0;
+    }
+
+    // Shake decay
+    shakeX *= 0.85;
+    shakeY *= 0.85;
+
+    // Floating texts
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+      const ft = floatingTexts[i];
+      ft.life -= dt;
+      ft.y -= 30 * dt;
+      if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+
+    // Update score display
+    const total = Object.values(collected).reduce((a, b) => a + b, 0);
+    const comboStr = combo > 2 ? ' \u00b7 ' + combo + 'x combo' : '';
+    document.getElementById('score-text').textContent = total + ' collected' + comboStr;
+  }
+
+  function draw() {
+    c.save();
+    c.translate(shakeX, shakeY);
+    c.clearRect(-10, -10, W + 20, H + 20);
+
+    // Background — warm cream
+    const grad = c.createRadialGradient(
+      W / 2 + tiltX * 80, H * 0.18 + tiltY * 40, 0,
+      W / 2, H / 2, H * 0.8
+    );
+    grad.addColorStop(0, '#f5f0e6');
+    grad.addColorStop(1, '#ede5d0');
+    c.fillStyle = grad;
+    c.fillRect(0, 0, W, H);
+
+    if (!started && !gameOver) return;
+
+    // Ambient floating rings
+    const t = Date.now() * 0.001;
+    for (let i = 0; i < 5; i++) {
+      const ax = W * 0.2 + Math.sin(t * 0.3 + i * 2) * W * 0.3;
+      const ay = H * 0.3 + Math.cos(t * 0.2 + i * 1.5) * H * 0.25;
+      const ar = 30 + i * 15;
+      c.strokeStyle = 'rgba(107,122,58,0.03)';
+      c.lineWidth = 1;
+      c.beginPath();
+      c.arc(ax, ay, ar, 0, Math.PI * 2);
+      c.stroke();
+    }
+
+    // Subtle grid lines
+    c.strokeStyle = 'rgba(58,68,32,0.04)';
+    c.lineWidth = 0.5;
+    for (let y = 0; y < H; y += 40) {
+      c.beginPath();
+      c.moveTo(0, y + tiltY * 5);
+      c.lineTo(W, y - tiltY * 5);
+      c.stroke();
+    }
+
+    // Source — pulsing point at top center
+    const cx = W / 2;
+    const cy = H * 0.18;
+    const pulse = 1 + Math.sin(Date.now() * 0.004) * 0.3;
+
+    // Source glow
+    const sg = c.createRadialGradient(cx, cy, 0, cx, cy, 30 * pulse);
+    sg.addColorStop(0, 'rgba(107,122,58,0.2)');
+    sg.addColorStop(1, 'rgba(107,122,58,0)');
+    c.fillStyle = sg;
+    c.beginPath();
+    c.arc(cx, cy, 30 * pulse, 0, Math.PI * 2);
+    c.fill();
+
+    // Source dot
+    c.fillStyle = 'rgba(58,68,32,0.7)';
+    c.beginPath();
+    c.arc(cx, cy, SOURCE_RADIUS * pulse, 0, Math.PI * 2);
+    c.fill();
+
+    // Orbiting shapes around source
+    const orbitR = 18 + Math.sin(Date.now() * 0.002) * 3;
+    COLOR_KEYS.forEach((k, i) => {
+      const a = Date.now() * 0.002 + i * Math.PI / 2;
+      const ox = cx + Math.cos(a) * orbitR;
+      const oy = cy + Math.sin(a) * orbitR;
+      c.fillStyle = COLORS[k];
+      c.globalAlpha = 0.3;
+      c.beginPath();
+      c.arc(ox, oy, 2, 0, Math.PI * 2);
+      c.fill();
+      c.globalAlpha = 1;
+    });
+
+    // Gravity direction indicator
+    const indicatorLen = 20;
+    c.strokeStyle = 'rgba(58,68,32,0.15)';
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(cx, cy + 20);
+    c.lineTo(cx + tiltX * indicatorLen, cy + 20 + (0.5 + tiltY * 0.5) * indicatorLen);
+    c.stroke();
+
+    // Particles
+    for (const p of particles) {
+      const alpha = Math.max(0, 1 - p.age / p.life);
+
+      // Trail
+      if (p.trail.length > 1) {
+        c.strokeStyle = p.color;
+        c.lineWidth = p.radius * 0.5;
+        c.globalAlpha = alpha * 0.2;
+        c.beginPath();
+        c.moveTo(p.trail[0].x, p.trail[0].y);
+        for (let t = 1; t < p.trail.length; t++) {
+          c.lineTo(p.trail[t].x, p.trail[t].y);
+        }
+        c.stroke();
+        c.globalAlpha = 1;
+      }
+
+      // Glow
+      c.globalAlpha = alpha * 0.25;
+      c.fillStyle = p.color;
+      c.beginPath();
+      c.arc(p.x, p.y, p.radius * 3, 0, Math.PI * 2);
+      c.fill();
+      c.globalAlpha = 1;
+
+      // Core — shape depends on type
+      c.fillStyle = p.color;
+      c.globalAlpha = alpha;
+      if (p.colorKey === 'ember') {
+        // Diamond
+        c.beginPath();
+        c.moveTo(p.x, p.y - p.radius);
+        c.lineTo(p.x + p.radius, p.y);
+        c.lineTo(p.x, p.y + p.radius);
+        c.lineTo(p.x - p.radius, p.y);
+        c.closePath();
+        c.fill();
+      } else if (p.colorKey === 'mint') {
+        // Triangle
+        c.beginPath();
+        c.moveTo(p.x, p.y - p.radius);
+        c.lineTo(p.x + p.radius, p.y + p.radius * 0.7);
+        c.lineTo(p.x - p.radius, p.y + p.radius * 0.7);
+        c.closePath();
+        c.fill();
+      } else if (p.colorKey === 'purple') {
+        // Square
+        c.fillRect(p.x - p.radius * 0.8, p.y - p.radius * 0.8, p.radius * 1.6, p.radius * 1.6);
+      } else {
+        // Circle (cool)
+        c.beginPath();
+        c.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        c.fill();
+      }
+      c.globalAlpha = 1;
+    }
+
+    // Vessels
+    for (const v of vessels) {
+      const pulseScale = v.pulseTimer > 0 ? 1 + v.pulseTimer * 0.5 : 1;
+      const r = v.radius * pulseScale;
+
+      // Vessel glow
+      c.globalAlpha = 0.08;
+      c.fillStyle = v.color;
+      c.beginPath();
+      c.arc(v.x, v.y, r * 1.5, 0, Math.PI * 2);
+      c.fill();
+      c.globalAlpha = 1;
+
+      // Vessel bowl shape (arc)
+      c.strokeStyle = v.color;
+      c.lineWidth = 2;
+      c.globalAlpha = 0.6;
+      c.beginPath();
+      c.arc(v.x, v.y, r, -0.2, Math.PI + 0.2);
+      c.stroke();
+      c.globalAlpha = 1;
+
+      // Fill level
+      const fillPct = v.fill / v.capacity;
+      if (fillPct > 0) {
+        c.fillStyle = v.color;
+        c.globalAlpha = 0.2 + fillPct * 0.3;
+        c.beginPath();
+        c.arc(v.x, v.y, r * fillPct, 0, Math.PI * 2);
+        c.fill();
+        c.globalAlpha = 1;
+      }
+
+      // Shape symbol inside vessel
+      c.fillStyle = v.color;
+      c.globalAlpha = 0.3;
+      c.font = '14px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText(VESSEL_SYMBOLS[v.key], v.x, v.y + 4);
+      c.globalAlpha = 1;
+
+      // Count label
+      c.fillStyle = v.color;
+      c.globalAlpha = 0.7;
+      c.font = '10px monospace';
+      c.textAlign = 'center';
+      c.textBaseline = 'alphabetic';
+      c.fillText(v.fill + '/' + v.capacity, v.x, v.y + r + 14);
+      c.globalAlpha = 1;
+    }
+
+    // Floating score texts
+    for (const ft of floatingTexts) {
+      c.fillStyle = ft.color;
+      c.globalAlpha = ft.life;
+      c.font = 'bold 12px monospace';
+      c.textAlign = 'center';
+      c.fillText(ft.text, ft.x, ft.y);
+      c.globalAlpha = 1;
+    }
+
+    c.restore();
+  }
+
+  function endGame() {
+    gameOver = true;
+    const total = Object.values(collected).reduce((a, b) => a + b, 0);
+    const fullVessels = vessels.filter(v => v.fill >= v.capacity).length;
+
+    document.getElementById('final-score').textContent = score;
+
+    let rating;
+    if (fullVessels === 4) rating = 'Perfect Harvest';
+    else if (fullVessels >= 3) rating = 'Abundant';
+    else if (fullVessels >= 2) rating = 'Plentiful';
+    else if (total >= 20) rating = 'Steady Flow';
+    else if (total >= 10) rating = 'Trickle';
+    else rating = 'Drought';
+
+    const endH2 = document.querySelector('#endcard h2');
+    endH2.textContent = rating;
+
+    const parts = COLOR_KEYS.map(k => {
+      const v = vessels.find(vv => vv.key === k);
+      return VESSEL_SYMBOLS[k] + ' ' + collected[k];
+    }).join('  ');
+    document.getElementById('breakdown').textContent =
+      total + ' caught \u00b7 ' + fullVessels + ' vessels full\n' + parts;
+
+    setTimeout(() => {
+      document.getElementById('endcard').classList.add('show');
+    }, 500);
+  }
+
+  function startGame() {
+    started = true;
+    gameOver = false;
+    timeLeft = 45;
+    score = 0;
+    particles = [];
+    collected = { ember: 0, cool: 0, mint: 0, purple: 0 };
+    spawnTimer = 0;
+    burstTimer = 6;
+    burstMode = false;
+    combo = 0;
+    comboTimer = 0;
+    floatingTexts = [];
+    shakeX = 0;
+    shakeY = 0;
+
+    document.getElementById('endcard').classList.remove('show');
+    document.getElementById('intro').classList.add('fade');
+    document.getElementById('hint').style.transition = 'opacity 3s';
+    setTimeout(() => {
+      document.getElementById('hint').style.opacity = '0';
+    }, 4000);
+
+    createVessels();
+  }
+
+  // Main loop
+  function loop(time) {
+    if (!lastTime) lastTime = time;
+    const dt = Math.min((time - lastTime) / 1000, 0.05);
+    lastTime = time;
+
+    update(dt);
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('start-btn').addEventListener('click', () => {
+    startGame();
+    // Request device orientation permission on iOS
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      DeviceOrientationEvent.requestPermission().catch(() => {});
+    }
+  });
+
+  document.getElementById('again-btn').addEventListener('click', () => {
+    startGame();
+  });
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
