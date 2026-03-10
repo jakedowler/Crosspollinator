@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pick two random words from a curated, kid-friendly word list."""
+"""Pick two random seed words from a curated word list."""
 
 import secrets
 from pathlib import Path

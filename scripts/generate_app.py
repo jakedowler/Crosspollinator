@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
-"""Multi-phase game generation pipeline.
+"""Daily creative build pipeline.
 
-Uses the Anthropic Python SDK when ANTHROPIC_API_KEY is set (CI),
-otherwise falls back to the Claude Code CLI (local development).
+Picks two random words, sets up the output directory with a BUILD.md,
+and provides utilities for saving the final HTML artifact.
 
-Phase 1 — CONCEPT: Topic experts + game designer brainstorm a concept
-Phase 2 — BUILD: Expert developer builds the game from the concept
-Phase 3 — PLAYTEST: Playtester reviews and the developer fixes issues
+The actual building is done interactively — what gets built is entirely
+up to the builder. No templates, no categories, no constraints beyond
+the two seed words and a 30-minute time box.
 """
 
-import os
 import re as _re
-import subprocess
-import sys
 from datetime import timezone, datetime
 from pathlib import Path
 
@@ -20,172 +17,26 @@ from pick_topics import pick
 
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "output"
 
-MODEL = "claude-sonnet-4-20250514"
-_USE_SDK = bool(os.environ.get("ANTHROPIC_API_KEY"))
 
+def setup_build(word_a: str, word_b: str, date: str | None = None) -> Path:
+    """Create the output directory and BUILD.md for today's session.
 
-def _clean_env() -> dict[str, str]:
-    """Return env dict without CLAUDECODE session vars for CLI fallback."""
-    env = os.environ.copy()
-    for key in [
-        "CLAUDECODE", "CLAUDE_CODE_SESSION_ID",
-        "CLAUDE_CODE_WEBSOCKET_AUTH_FILE_DESCRIPTOR",
-        "CLAUDE_CODE_CONTAINER_ID", "CLAUDE_CODE_EMIT_TOOL_USE_SUMMARIES",
-        "CLAUDE_CODE_DEBUG", "CLAUDE_AUTO_BACKGROUND_TASKS",
-        "CLAUDE_AFTER_LAST_COMPACT", "CLAUDE_CODE_BASE_REF",
-        "CLAUDE_CODE_REMOTE_ENVIRONMENT_TYPE",
-    ]:
-        env.pop(key, None)
-    return env
+    Returns the path to BUILD.md.
+    """
+    day = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day_dir = OUTPUT_DIR / day
+    day_dir.mkdir(parents=True, exist_ok=True)
 
-
-def _call_claude(prompt: str, max_tokens: int = 16000) -> str:
-    """Call Claude via SDK (CI) or CLI (local) and return the text output."""
-    if _USE_SDK:
-        import anthropic
-        client = anthropic.Anthropic()
-        message = client.messages.create(
-            model=MODEL,
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
+    build_md = day_dir / "BUILD.md"
+    if not build_md.exists():
+        now = datetime.now(timezone.utc).strftime("%H:%M")
+        build_md.write_text(
+            f"# {word_a} x {word_b}\n\n## Build Log\n\n"
+            f"### {now} — Start\n"
+            f"Words drawn: **{word_a}** and **{word_b}**\n\n",
+            encoding="utf-8",
         )
-        return message.content[0].text
-
-    # CLI fallback
-    result = subprocess.run(
-        ["claude", "-p", prompt, "--output-format", "text"],
-        capture_output=True, text=True, timeout=300, env=_clean_env(),
-    )
-    if result.returncode != 0:
-        print(f"Claude CLI failed:\n{result.stderr}", file=sys.stderr)
-        sys.exit(1)
-    return result.stdout
-
-
-def phase_concept(word_a: str, word_b: str) -> str:
-    """Phase 1: Expert brainstorm to design the game concept."""
-    prompt = f"""You are a panel of experts designing a brilliant once-a-day web game.
-
-Today's two random seed words: "{word_a}" and "{word_b}"
-
-Work through these roles IN ORDER, writing out each expert's contribution:
-
-── TOPIC EXPERT A ──
-You are a world expert on "{word_a}". Share 3-4 fascinating, surprising, or
-delightful facts about {word_a} that most people wouldn't know. What makes
-{word_a} interesting, weird, beautiful, or fun? Think about its properties,
-behaviors, cultural significance, or how it connects to everyday life.
-
-── TOPIC EXPERT B ──
-You are a world expert on "{word_b}". Same thing — 3-4 surprising facts about
-{word_b}. What's genuinely interesting about it?
-
-── CONNECTION WEAVER ──
-Now find 2-3 creative connections between {word_a} and {word_b}. Don't just
-mash the words together — find a GENUINE thematic link. Maybe they share an
-underlying principle, an unexpected parallel, a visual similarity, or an
-emotional resonance. The best connections feel like "aha!" moments.
-
-── GAME DESIGNER (daily game specialist) ──
-You design games like Wordle, Connections, Mini Crossword, Coffee Golf, Spelling
-Bee, and other beloved daily web games. Your games have these qualities:
-• ONE elegant core mechanic (not multiple mini-games)
-• Depth from simplicity — easy to learn, satisfying to master
-• The theme is WOVEN INTO the mechanic, not just a skin
-• A sense of discovery or "aha!" moments during play
-• Replayable or has a clear satisfying arc (30 sec to 3 min)
-• NO "tap things before time runs out" — that's lazy design
-
-Using the connections above, design ONE game concept. Describe:
-1. The core mechanic (what does the player DO?)
-2. How the theme of {word_a} × {word_b} is woven into gameplay (not just visual)
-3. The win/lose condition or satisfying endpoint
-4. Why it's immediately fun (the "hook")
-
-── VISUAL DIRECTOR ──
-Choose a specific, distinctive visual style for this game. NOT dark/moody.
-Pick from styles like: watercolor wash, retro pixel art, paper cutout,
-chalkboard sketch, candy-coated 3D, sunset gradient, ocean palette, neon
-arcade, botanical illustration, comic book pop art, construction paper collage,
-stained glass, crayon drawing, or invent your own. Describe the exact color
-palette (3-5 specific hex colors) and visual mood.
-
-Output ONLY the expert discussion above. No code."""
-
-    return _call_claude(prompt, max_tokens=4096)
-
-
-def phase_build(word_a: str, word_b: str, concept: str) -> str:
-    """Phase 2: Build the game from the concept document."""
-    prompt = f"""You are an expert web game developer. A design team has created
-this game concept for the words "{word_a}" × "{word_b}":
-
---- CONCEPT DOCUMENT ---
-{concept}
---- END CONCEPT ---
-
-Now BUILD this game as a single, self-contained HTML file.
-
-CRITICAL REQUIREMENTS:
-1. Output ONLY the complete HTML file — no markdown fences, no commentary.
-2. Self-contained: HTML + CSS + JS in one file, no external dependencies.
-3. The game must WORK — all mechanics described in the concept must function.
-4. FIT THE VIEWPORT: Use height: 100vh / max-height: 100dvh. No scrolling.
-   Keep the header tiny (one line: game name + short tagline).
-5. Use the EXACT visual style and color palette from the Visual Director.
-6. The theme must be WOVEN into gameplay, not just decorative.
-7. Modern CSS (flexbox/grid, variables, transitions, animations).
-8. Clean, readable code — this will be reviewed by a playtester.
-9. Touch-friendly — must work on mobile (use click/touch events, big tap targets).
-10. Include a brief "how to play" hint on screen (1 sentence max)."""
-
-    return _call_claude(prompt, max_tokens=16000)
-
-
-def phase_playtest(word_a: str, word_b: str, concept: str, html: str) -> str:
-    """Phase 3: Playtest the game and fix issues."""
-    prompt = f"""You are a panel of playtesters reviewing a web game for
-"{word_a}" × "{word_b}".
-
---- ORIGINAL CONCEPT ---
-{concept}
---- END CONCEPT ---
-
---- CURRENT HTML ---
-{html}
---- END HTML ---
-
-Review this game from THREE perspectives:
-
-🧒 CHILD (age 8): "Is this fun? Do I understand what to do immediately?
-Can I play it without reading instructions? Is anything confusing or broken?"
-
-🎮 DAILY GAMER (plays Wordle/NYT Games daily): "Is the core mechanic
-satisfying? Does it have depth? Is the theme genuinely woven in or just
-a paint job? Would I share this with friends?"
-
-🔧 QA TESTER: Read the JavaScript carefully. Are there bugs? Does the game
-loop work? Can the player get stuck? Does it handle edge cases? Is anything
-broken — missing event listeners, wrong selectors, logic errors, NaN scores?
-
-After all three reviews, output the FIXED AND IMPROVED complete HTML file.
-Apply all fixes and improvements. If the game is fundamentally flawed
-(e.g., the mechanic doesn't match the concept), redesign it.
-
-Output ONLY the final HTML — no markdown fences, no commentary."""
-
-    return _call_claude(prompt, max_tokens=16000)
-
-
-def generate(word_a: str, word_b: str) -> str:
-    """Run the full 3-phase generation pipeline."""
-    print(f"  📋 Phase 1: Concept design...")
-    concept = phase_concept(word_a, word_b)
-    print(f"  🔨 Phase 2: Building game...")
-    html = phase_build(word_a, word_b, concept)
-    print(f"  🎮 Phase 3: Playtesting & fixing...")
-    html = phase_playtest(word_a, word_b, concept, html)
-    return html
+    return build_md
 
 
 def save(html: str, word_a: str, word_b: str, date: str | None = None) -> Path:
@@ -222,14 +73,14 @@ def save(html: str, word_a: str, word_b: str, date: str | None = None) -> Path:
 
 
 def main() -> tuple[str, str, Path]:
+    """Pick words and set up the build directory."""
     word_a, word_b = pick()
     print(f"🎲  Picked: {word_a} × {word_b}")
 
-    html = generate(word_a, word_b)
-    path = save(html, word_a, word_b)
-    print(f"✅  Saved to {path}")
+    build_md = setup_build(word_a, word_b)
+    print(f"📝  Build log: {build_md}")
 
-    return word_a, word_b, path
+    return word_a, word_b, build_md
 
 
 if __name__ == "__main__":

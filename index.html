@@ -272,7 +272,7 @@
             margin-bottom: 0.5rem;
             font-size: 0.85rem;
         }
-        .fb-entry .fb-game { color: var(--purple); font-weight: 600; }
+        .fb-entry .fb-project { color: var(--purple); font-weight: 600; }
         .fb-entry .fb-text { color: var(--text); margin-top: 0.25rem; }
         .fb-entry .fb-time { color: var(--muted); font-size: 0.75rem; margin-top: 0.25rem; }
         .fb-export {
@@ -433,7 +433,7 @@ function render() {
     APPS.forEach(a => { allWords.add(a.word_a); allWords.add(a.word_b); });
     document.getElementById('wordCount').textContent = allWords.size;
 
-    // Only show the latest version of each game (by word pair)
+    // Only show the latest version of each creation (by word pair)
     const latestVersions = {};
     APPS.forEach(app => {
         const key = app.word_a + '×' + app.word_b;
@@ -476,7 +476,7 @@ function render() {
                     <div class="card-actions">
                         <button class="act-btn iterate-btn" onclick="event.preventDefault();openIterate('${app.word_a}','${app.word_b}','${app.path}')">Iterate</button>
                         <button class="act-btn" onclick="event.preventDefault();openFeedback('${app.word_a} × ${app.word_b}','${app.path}')">Feedback</button>
-                        <button class="act-btn archive-btn" onclick="event.preventDefault();archiveGame('${app.path}')">Archive</button>
+                        <button class="act-btn archive-btn" onclick="event.preventDefault();archiveProject('${app.path}')">Archive</button>
                     </div>
                 </a>
             `).join('')}
@@ -489,7 +489,7 @@ function render() {
 
 const REPO = 'jakedowler/Crosspollinator';
 
-let currentFbGame = '';
+let currentFbProject = '';
 let currentFbMode = 'feedback'; // 'feedback' or 'iterate'
 let currentFbWordA = '';
 let currentFbWordB = '';
@@ -501,11 +501,11 @@ function ghIssueUrl(title, body, labels) {
     return `https://github.com/${REPO}/issues/new?${params}`;
 }
 
-function openFeedback(game, path) {
-    currentFbGame = game;
+function openFeedback(project, path) {
+    currentFbProject = project;
     currentFbMode = 'feedback';
     currentFbPath = path;
-    document.getElementById('fbTitle').textContent = 'Feedback: ' + game;
+    document.getElementById('fbTitle').textContent = 'Feedback: ' + project;
     document.getElementById('fbText').value = '';
     document.getElementById('fbText').placeholder = 'What did you think? Fun? Boring? Buggy? Too complex?';
     document.getElementById('fbHint').style.display = 'none';
@@ -517,14 +517,14 @@ function openFeedback(game, path) {
 }
 
 function openIterate(wordA, wordB, path) {
-    currentFbGame = wordA + ' \u00d7 ' + wordB;
+    currentFbProject = wordA + ' \u00d7 ' + wordB;
     currentFbMode = 'iterate';
     currentFbWordA = wordA;
     currentFbWordB = wordB;
     currentFbPath = path;
-    document.getElementById('fbTitle').textContent = 'Iterate: ' + currentFbGame;
+    document.getElementById('fbTitle').textContent = 'Iterate: ' + currentFbProject;
     document.getElementById('fbText').value = '';
-    document.getElementById('fbText').placeholder = 'What should change? e.g. "Make the mechanic more like Wordle" or "Too hard for kids, simplify"';
+    document.getElementById('fbText').placeholder = 'What should change? e.g. "Try a different interaction model" or "Simplify the interface"';
     document.getElementById('fbHint').textContent = 'Describe what to improve. Saves locally and opens a GitHub Issue automatically.';
     document.getElementById('fbHint').style.display = 'block';
     document.getElementById('fbCopyCmd').style.display = 'none';
@@ -542,9 +542,9 @@ function submitFeedback() {
     const text = document.getElementById('fbText').value.trim();
     if (!text) return;
 
-    // Dedup: skip if identical game+text was already submitted
+    // Dedup: skip if identical project+text was already submitted
     const feedback = JSON.parse(localStorage.getItem('cpFeedback') || '[]');
-    const isDupe = feedback.some(f => f.game === currentFbGame && f.text === text);
+    const isDupe = feedback.some(f => f.project === currentFbProject && f.text === text);
     if (isDupe) {
         document.getElementById('fbSaved').textContent = 'Already submitted!';
         document.getElementById('fbSaved').style.display = 'block';
@@ -555,7 +555,7 @@ function submitFeedback() {
     const timestamp = new Date().toISOString();
     // Save locally
     feedback.push({
-        game: currentFbGame,
+        project: currentFbProject,
         text: text,
         type: currentFbMode,
         path: currentFbPath,
@@ -565,8 +565,8 @@ function submitFeedback() {
 
     // Open GitHub Issue automatically (include timestamp for traceability)
     const label = currentFbMode === 'iterate' ? 'iterate' : 'feedback';
-    const title = `[${label}] ${currentFbGame}`;
-    const body = `**Game:** ${currentFbGame}\n**Path:** ${currentFbPath}\n**Type:** ${label}\n**Submitted:** ${timestamp}\n\n${text}`;
+    const title = `[${label}] ${currentFbProject}`;
+    const body = `**Project:** ${currentFbProject}\n**Path:** ${currentFbPath}\n**Type:** ${label}\n**Submitted:** ${timestamp}\n\n${text}`;
     window.open(ghIssueUrl(title, body, label), '_blank');
 
     document.getElementById('fbSaved').style.display = 'block';
@@ -581,11 +581,11 @@ function getArchived() {
 
 let archivePendingPath = '';
 
-function archiveGame(path) {
+function archiveProject(path) {
     archivePendingPath = path;
     const app = APPS.find(a => a.path === path);
-    const game = app ? (app.word_a + ' \u00d7 ' + app.word_b) : path;
-    document.getElementById('archiveTitle').textContent = 'Archive: ' + game;
+    const project = app ? (app.word_a + ' \u00d7 ' + app.word_b) : path;
+    document.getElementById('archiveTitle').textContent = 'Archive: ' + project;
     document.getElementById('archiveReason').value = '';
     document.getElementById('archiveModal').classList.add('open');
     document.getElementById('archiveReason').focus();
@@ -606,9 +606,9 @@ function confirmArchive() {
     }
     const app = APPS.find(a => a.path === path);
     if (app) {
-        const game = app.word_a + ' \u00d7 ' + app.word_b;
-        const title = `[archive] ${game}`;
-        let body = `**Game:** ${game}\n**Path:** ${path}\n**Action:** Archive this game — hide from portal, deprioritize these words.`;
+        const project = app.word_a + ' \u00d7 ' + app.word_b;
+        const title = `[archive] ${project}`;
+        let body = `**Project:** ${project}\n**Path:** ${path}\n**Action:** Archive — hide from portal, deprioritize these words.`;
         if (reason) body += `\n\n**Reason:** ${reason}`;
         window.open(ghIssueUrl(title, body, 'archive'), '_blank');
     }
@@ -616,7 +616,7 @@ function confirmArchive() {
     render();
 }
 
-function unarchiveGame(path) {
+function unarchiveProject(path) {
     let archived = getArchived();
     archived = archived.filter(p => p !== path);
     localStorage.setItem('cpArchived', JSON.stringify(archived));
@@ -636,7 +636,7 @@ function renderArchivedSection(archivedApps) {
                 <span style="color:var(--purple);font-weight:600">${app.word_a} \u00d7 ${app.word_b}</span>
                 <span style="color:var(--muted);font-size:0.8rem;margin-left:0.5rem">${app.name || ''}</span>
             </div>
-            <button class="act-btn" onclick="unarchiveGame('${app.path}')">Restore</button>
+            <button class="act-btn" onclick="unarchiveProject('${app.path}')">Restore</button>
         </div>
     `).join('');
 }
@@ -654,7 +654,7 @@ function renderFeedbackHistory() {
     container.style.display = 'block';
     list.innerHTML = feedback.slice().reverse().map(f => `
         <div class="fb-entry">
-            <div class="fb-game">${f.game} ${f.type === 'iterate' ? '<span style="color:var(--green);font-size:0.7rem;margin-left:0.4rem">ITERATE</span>' : ''}</div>
+            <div class="fb-project">${f.project || f.game || ''} ${f.type === 'iterate' ? '<span style="color:var(--green);font-size:0.7rem;margin-left:0.4rem">ITERATE</span>' : ''}</div>
             <div class="fb-text">${f.text}</div>
             <div class="fb-time">${new Date(f.time).toLocaleString()}</div>
         </div>
@@ -664,7 +664,7 @@ function renderFeedbackHistory() {
 function exportFeedback() {
     const feedback = JSON.parse(localStorage.getItem('cpFeedback') || '[]');
     const text = feedback.map(f =>
-        `**${f.game}** (${new Date(f.time).toLocaleDateString()}): ${f.text}`
+        `**${f.project || f.game || ''}** (${new Date(f.time).toLocaleDateString()}): ${f.text}`
     ).join('\n');
     navigator.clipboard.writeText(text).then(() => {
         const btn = document.querySelector('.fb-export');

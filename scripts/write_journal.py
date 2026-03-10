@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Write a journal entry reflecting on today's generated app.
+"""Write a journal entry reflecting on today's daily creation.
 
 Uses the Anthropic Python SDK when ANTHROPIC_API_KEY is set (CI),
 otherwise falls back to the Claude Code CLI (local development).
@@ -33,25 +33,25 @@ def _clean_env() -> dict[str, str]:
 
 
 def write_entry(word_a: str, word_b: str, html: str) -> Path:
-    """Ask Claude to write a short, fun journal entry about today's creation."""
+    """Ask Claude to write a short, fun journal entry about today's build."""
     prompt = f"""You are the Crosspollinator's daily journal keeper.
 
-Today's two random dictionary words were **{word_a}** and **{word_b}**.
-Here's the HTML source of the web app that was generated from them:
+Today's two random seed words were **{word_a}** and **{word_b}**.
+Here's the HTML source of what was built from them in a 30-minute session:
 
-<app>
+<creation>
 {html[:8000]}
-</app>
+</creation>
 
 Write a short, engaging journal entry (200-400 words) in markdown that covers:
-- The creative leap: how two random words became an app concept
-- What the app actually does
+- The creative leap: how two random words became a concept
+- What was actually built
 - A highlight — the cleverest or most surprising part
 - An honest "if I had more time" reflection on what could be improved
 - A playful sign-off
 
 Use a casual, enthusiastic tone. Start with a ## heading that includes today's
-date, the two words, and the app name. Output ONLY the markdown, no fences."""
+date, the two words, and the project name. Output ONLY the markdown, no fences."""
 
     if _USE_SDK:
         import anthropic
