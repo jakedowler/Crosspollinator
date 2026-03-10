@@ -433,7 +433,6 @@
     const el = document.getElementById('wave-indicator');
     // Phase labels for progression feel
     let phaseLabel = '';
-    const progress = 1 - (timeLeft / 60);
     if (progress > 0.75) phaseLabel = ' · surge';
     else if (progress > 0.5) phaseLabel = ' · rising';
     else if (progress > 0.25) phaseLabel = ' · steady';
