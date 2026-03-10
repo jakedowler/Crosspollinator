@@ -115,5 +115,14 @@ APPS = [
     "desc": "Best: Round ${bestRound + 1} &mdash; ${bestResult.totalFlavor} flavor (target ${TARGET})",
     "path": "output/2026-03-09/paprika_afford.html",
     "version": 1
+  },
+  {
+    "date": "2026-03-10",
+    "word_a": "barnacle",
+    "word_b": "relevant",
+    "name": "Barnacle \u2014 What Sticks",
+    "desc": "what sticks is who you are",
+    "path": "output/2026-03-10/barnacle_relevant.html",
+    "version": 1
   }
 ];
