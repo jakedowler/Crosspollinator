@@ -20,8 +20,11 @@ def extract_tagline(html: str) -> str:
     """Try to pull a tagline from the first <p> inside <header>, or subtitle."""
     match = re.search(r"<header>.*?<p[^>]*>(.*?)</p>", html, re.IGNORECASE | re.DOTALL)
     if match:
-        # Strip HTML tags from the tagline
-        return re.sub(r"<[^>]+>", "", match.group(1)).strip()
+        text = re.sub(r"<[^>]+>", "", match.group(1)).strip()
+        # Reject if it looks like code/JS leaked in (too long or has code chars)
+        if len(text) > 200 or "${" in text or "function" in text:
+            return ""
+        return text
     return ""
 
 

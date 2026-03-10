@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Crosspollinator — Daily Random Web Apps</title>
+    <title>Crosspollinator</title>
     <style>
         :root {
             --bg: #0d1117;
@@ -142,9 +142,13 @@
             color: var(--muted);
             font-size: 0.85rem;
             margin-top: 0.2rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }
 
-        .card .play-btn {
+        .card .open-btn {
             flex-shrink: 0;
             background: var(--accent);
             color: var(--bg);
@@ -346,9 +350,30 @@
         .fb-box .copy-cmd:hover { border-color: var(--accent); color: var(--accent); }
 
         @media (max-width: 600px) {
+            header { padding: 2rem 1rem 1.5rem; }
             header h1 { font-size: 1.8rem; }
-            .card { flex-wrap: wrap; }
-            .card .words { width: 100%; }
+            header p { font-size: 0.95rem; }
+            .grid { padding: 0 1rem; }
+            .card {
+                flex-wrap: wrap;
+                padding: 1rem;
+                gap: 0.75rem;
+            }
+            .card .words {
+                width: 100%;
+                font-size: 1rem;
+            }
+            .card .word {
+                font-size: 0.95rem;
+                padding: 0.35rem 0.75rem;
+            }
+            .card .times { font-size: 1rem; }
+            .card .info { width: 100%; }
+            .card .open-btn { display: none; }
+            .card-actions {
+                width: 100%;
+                justify-content: flex-end;
+            }
         }
     </style>
 </head>
@@ -356,9 +381,9 @@
 
 <header>
     <h1><span class="cross">Cross</span><span class="pollinator">pollinator</span></h1>
-    <p>Every day, two random dictionary words collide and a new web app is born. No curation, no bias — just pure creative chaos.</p>
+    <p>Two random words. Thirty minutes. Something new every day.</p>
     <div class="stats">
-        <div class="stat">Apps built: <b id="appCount">0</b></div>
+        <div class="stat">Creations: <b id="appCount">0</b></div>
         <div class="stat">Words used: <b id="wordCount">0</b></div>
     </div>
 </header>
@@ -472,7 +497,7 @@ function render() {
                         <div class="app-name">${app.name || (app.word_a + ' × ' + app.word_b)}${app.version > 1 ? ' <span style="font-size:0.65rem;color:var(--green);font-weight:700;margin-left:0.3rem">v' + app.version + '</span>' : ''}</div>
                         ${app.desc ? `<div class="app-desc">${app.desc}</div>` : ''}
                     </div>
-                    <div class="play-btn">Play</div>
+                    <div class="open-btn">Open</div>
                     <div class="card-actions">
                         <button class="act-btn iterate-btn" onclick="event.preventDefault();openIterate('${app.word_a}','${app.word_b}','${app.path}')">Iterate</button>
                         <button class="act-btn" onclick="event.preventDefault();openFeedback('${app.word_a} × ${app.word_b}','${app.path}')">Feedback</button>
