@@ -133,5 +133,32 @@ APPS = [
     "desc": "",
     "path": "output/2026-03-10/issuing_tilt.html",
     "version": 1
+  },
+  {
+    "date": "2026-03-11",
+    "word_a": "fractal",
+    "word_b": "cathedral",
+    "name": "Fractal Cathedral",
+    "desc": "",
+    "path": "output/2026-03-11/fractal_cathedral.html",
+    "version": 1
+  },
+  {
+    "date": "2026-03-11",
+    "word_a": "molten",
+    "word_b": "origami",
+    "name": "Molten Origami",
+    "desc": "",
+    "path": "output/2026-03-11/molten_origami.html",
+    "version": 1
+  },
+  {
+    "date": "2026-03-11",
+    "word_a": "whispering",
+    "word_b": "magnets",
+    "name": "Whispering Magnets",
+    "desc": "",
+    "path": "output/2026-03-11/whispering_magnets.html",
+    "version": 1
   }
 ];
