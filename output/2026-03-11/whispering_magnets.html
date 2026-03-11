@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whispering Magnets</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #060610;
+    overflow: hidden;
+    font-family: 'Georgia', serif;
+    cursor: crosshair;
+    user-select: none;
+  }
+  canvas { display: block; position: fixed; top: 0; left: 0; }
+  #bg-canvas { z-index: 0; }
+  #main-canvas { z-index: 1; }
+
+  #ui {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    color: #7777aa;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    text-shadow: 0 0 10px rgba(80,80,180,0.3);
+    line-height: 1.7;
+    transition: opacity 2s ease;
+  }
+  #ui.visible { opacity: 0.75; }
+  #ui .title {
+    font-size: 20px;
+    color: #9999cc;
+    letter-spacing: 6px;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    font-weight: normal;
+  }
+  #ui .hint {
+    font-style: italic;
+    color: #555588;
+    font-size: 10px;
+    margin-top: 6px;
+  }
+  #polarity-indicator {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+    color: #7777aa;
+    font-size: 12px;
+    text-align: right;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 2s ease;
+  }
+  #polarity-indicator.visible { opacity: 0.75; }
+  #polarity-indicator .pole {
+    font-size: 16px;
+    letter-spacing: 2px;
+    margin-top: 4px;
+  }
+  #whisper-text {
+    position: fixed;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    color: #aaaadd;
+    font-size: 16px;
+    font-style: italic;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 2s ease;
+    text-align: center;
+    text-shadow: 0 0 30px rgba(140,140,255,0.4);
+    max-width: 500px;
+    letter-spacing: 2px;
+  }
+  #magnet-count {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10;
+    color: #444466;
+    font-size: 11px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 2s ease;
+  }
+  #magnet-count.visible { opacity: 0.6; }
+
+  #start-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #060610;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: opacity 1.5s ease;
+  }
+  #start-overlay .start-title {
+    font-size: 32px;
+    color: #aaaadd;
+    letter-spacing: 12px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    text-shadow: 0 0 40px rgba(120,120,220,0.3);
+    font-weight: normal;
+  }
+  #start-overlay .start-sub {
+    font-size: 13px;
+    color: #555588;
+    letter-spacing: 4px;
+    font-style: italic;
+  }
+  #start-overlay .start-click {
+    margin-top: 50px;
+    font-size: 11px;
+    color: #444466;
+    letter-spacing: 3px;
+    animation: breathe 3s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.8; }
+  }
+</style>
+</head>
+<body>
+
+<div id="start-overlay">
+  <div class="start-title">Whispering Magnets</div>
+  <div class="start-sub">an interactive sonic experience</div>
+  <div class="start-click">click to enter the field</div>
+</div>
+
+<div id="ui">
+  <div class="title">Whispering Magnets</div>
+  <div>Click to place a magnet</div>
+  <div>Drag to reposition</div>
+  <div>[Space] toggle N/S polarity</div>
+  <div>[X] remove last &nbsp; [C] clear all</div>
+  <div class="hint">Place magnets close together and listen...</div>
+</div>
+
+<div id="polarity-indicator">
+  <div>next polarity</div>
+  <div class="pole" id="pole-display" style="color:#cc7788">NORTH</div>
+</div>
+
+<div id="whisper-text"></div>
+<div id="magnet-count"></div>
+
+<canvas id="bg-canvas"></canvas>
+<canvas id="main-canvas"></canvas>
+
+<script>
+// ==============================
+// WHISPERING MAGNETS
+// An interactive sonic art piece
+// ==============================
+
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+const whisperEl = document.getElementById('whisper-text');
+const poleDisplay = document.getElementById('pole-display');
+const magnetCountEl = document.getElementById('magnet-count');
+
+let W, H;
+function resize() {
+  W = bgCanvas.width = canvas.width = window.innerWidth;
+  H = bgCanvas.height = canvas.height = window.innerHeight;
+  drawBackground();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Draw static background with subtle texture
+function drawBackground() {
+  const grad = bgCtx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+  grad.addColorStop(0, '#0c0c1a');
+  grad.addColorStop(0.5, '#080814');
+  grad.addColorStop(1, '#040408');
+  bgCtx.fillStyle = grad;
+  bgCtx.fillRect(0, 0, W, H);
+
+  // Subtle star-like dots
+  for (let i = 0; i < 200; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const r = Math.random() * 1.2;
+    const a = 0.02 + Math.random() * 0.06;
+    bgCtx.beginPath();
+    bgCtx.arc(x, y, r, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(140, 140, 200, ${a})`;
+    bgCtx.fill();
+  }
+}
+
+// ==================
+// AUDIO ENGINE
+// ==================
+let audioCtx = null;
+let masterGain = null;
+let reverbNode = null;
+let compressor = null;
+
+const WHISPER_PHRASES = [
+  "come closer...",
+  "I feel you near...",
+  "don't pull away...",
+  "we are connected...",
+  "the field remembers...",
+  "can you feel it too?",
+  "invisible threads bind us...",
+  "attraction is memory...",
+  "polarity shifts like breath...",
+  "the space between us hums...",
+  "closer... closer...",
+  "repulsion is just longing inverted...",
+  "aligned at last...",
+  "the force speaks in silence...",
+  "listen to the field...",
+  "we orbit endlessly...",
+  "magnetism is desire...",
+  "drawn together by unseen hands...",
+  "the void whispers back...",
+  "entropy resists, but we persist...",
+  "feel the pull of the invisible...",
+  "north seeks south, always...",
+  "opposites entangle in the dark...",
+  "the field lines sing your name...",
+  "resonance between worlds...",
+  "flux and flow and forever...",
+  "convergence is not collision...",
+  "we are dipoles dreaming of unity...",
+  "the whisper is the force itself...",
+  "what attracts you, shapes you...",
+  "distance is an illusion of poles...",
+  "every field remembers its source...",
+  "the quiet force moves mountains...",
+];
+
+const REPULSION_PHRASES = [
+  "not yet...",
+  "the same charge pushes...",
+  "we mirror each other's resistance...",
+  "too alike to touch...",
+  "like repels like, but listens still...",
+  "the space between grows taut...",
+  "parallel lines never meet...",
+  "same polarity, same loneliness...",
+  "we push, and in pushing, acknowledge...",
+  "reflection, not rejection...",
+];
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  // Compressor to prevent clipping
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -24;
+  compressor.knee.value = 12;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.005;
+  compressor.release.value = 0.1;
+  compressor.connect(audioCtx.destination);
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.5;
+
+  // Convolution reverb - cathedral-like
+  const sampleRate = audioCtx.sampleRate;
+  const length = sampleRate * 4;
+  const impulse = audioCtx.createBuffer(2, length, sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      // Multi-decay reverb for more natural sound
+      const decay = Math.pow(1 - t, 2) * 0.5 + Math.pow(1 - t, 5) * 0.5;
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+  }
+  reverbNode = audioCtx.createConvolver();
+  reverbNode.buffer = impulse;
+
+  const reverbGain = audioCtx.createGain();
+  reverbGain.gain.value = 0.35;
+
+  // Reverb high-cut for warmth
+  const reverbFilter = audioCtx.createBiquadFilter();
+  reverbFilter.type = 'lowpass';
+  reverbFilter.frequency.value = 3000;
+
+  masterGain.connect(compressor);
+  masterGain.connect(reverbNode);
+  reverbNode.connect(reverbFilter);
+  reverbFilter.connect(reverbGain);
+  reverbGain.connect(compressor);
+}
+
+// Create whisper-like sound with sibilance and formants
+function createWhisperSound(frequency, intensity, pan, type) {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+
+  const now = audioCtx.currentTime;
+  const duration = 0.2 + Math.random() * 0.6;
+
+  // Noise buffer with breath-like amplitude shaping
+  const bufLen = Math.floor(audioCtx.sampleRate * duration);
+  const noiseBuffer = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+
+  // Different whisper textures based on type
+  const isConsonant = type === 'consonant';
+  const isSibilant = type === 'sibilant';
+
+  for (let i = 0; i < bufLen; i++) {
+    const t = i / audioCtx.sampleRate;
+    const tNorm = i / bufLen;
+    // ADSR-like envelope
+    let env;
+    if (tNorm < 0.05) env = tNorm / 0.05;
+    else if (tNorm < 0.3) env = 1;
+    else env = Math.pow(1 - (tNorm - 0.3) / 0.7, 1.5);
+
+    // Breath modulation - irregular, organic
+    const breathMod = 1 + 0.2 * Math.sin(t * 12 * Math.PI)
+                        + 0.15 * Math.sin(t * 7.3 * Math.PI)
+                        + 0.1 * Math.sin(t * 23 * Math.PI);
+
+    // Consonant bursts
+    let consonantMod = 1;
+    if (isConsonant) {
+      consonantMod = tNorm < 0.1 ? 3 : 0.5;
+    }
+    if (isSibilant) {
+      // More high-frequency content
+      consonantMod = 1.5;
+    }
+
+    noiseData[i] = (Math.random() * 2 - 1) * env * breathMod * consonantMod * 0.12;
+  }
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer;
+
+  // Formant filters - vowel-like quality
+  const f1 = audioCtx.createBiquadFilter();
+  f1.type = 'bandpass';
+  f1.frequency.value = isSibilant ? 5000 + Math.random() * 2000 : 600 + frequency * 0.4;
+  f1.Q.value = isSibilant ? 1 : 5;
+
+  const f2 = audioCtx.createBiquadFilter();
+  f2.type = 'bandpass';
+  f2.frequency.value = 1800 + frequency * 0.3 + Math.random() * 300;
+  f2.Q.value = 3;
+
+  const f3 = audioCtx.createBiquadFilter();
+  f3.type = 'bandpass';
+  f3.frequency.value = 3200 + Math.random() * 800;
+  f3.Q.value = 2;
+
+  // Breath / air quality
+  const airFilter = audioCtx.createBiquadFilter();
+  airFilter.type = 'highshelf';
+  airFilter.frequency.value = 4000;
+  airFilter.gain.value = isSibilant ? 10 : 4;
+
+  const gainNode = audioCtx.createGain();
+  const vol = intensity * (isSibilant ? 0.06 : isConsonant ? 0.08 : 0.1);
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(vol, now + 0.02);
+  gainNode.gain.setValueAtTime(vol, now + duration * 0.4);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = Math.max(-1, Math.min(1, pan));
+
+  // Mix formant paths
+  const mix = audioCtx.createGain();
+  mix.gain.value = 1;
+
+  src.connect(f1); src.connect(f2); src.connect(f3);
+  f1.connect(mix); f2.connect(mix); f3.connect(mix);
+  mix.connect(airFilter);
+  airFilter.connect(gainNode);
+  gainNode.connect(panner);
+  panner.connect(masterGain);
+
+  src.start(now);
+  src.stop(now + duration);
+}
+
+// Continuous field tone per magnet
+function createFieldTone(freq, pan) {
+  if (!audioCtx) return null;
+
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+
+  // Second oscillator for subtle beating
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 1.002; // slight detune
+
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0;
+
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = pan;
+
+  // Vibrato
+  const lfo = audioCtx.createOscillator();
+  lfo.type = 'triangle';
+  lfo.frequency.value = 0.3 + Math.random() * 1.5;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 2;
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+
+  // Amplitude tremolo
+  const tremolo = audioCtx.createOscillator();
+  tremolo.type = 'sine';
+  tremolo.frequency.value = 0.1 + Math.random() * 0.4;
+  const tremoloGain = audioCtx.createGain();
+  tremoloGain.gain.value = 0.002;
+  tremolo.connect(tremoloGain);
+  tremoloGain.connect(gainNode.gain);
+
+  osc.connect(gainNode);
+  osc2.connect(gainNode);
+  gainNode.connect(panner);
+  panner.connect(masterGain);
+
+  osc.start();
+  osc2.start();
+  lfo.start();
+  tremolo.start();
+
+  return { osc, osc2, gainNode, panner, lfo, lfoGain, tremolo, tremoloGain };
+}
+
+// Background drone
+function createDrone() {
+  if (!audioCtx) return;
+  // Deep harmonic drone
+  [55, 82.5, 110, 146.83].forEach((f, idx) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = idx < 2 ? 'sine' : 'triangle';
+    osc.frequency.value = f;
+
+    const g = audioCtx.createGain();
+    g.gain.value = idx < 2 ? 0.006 : 0.002;
+
+    const lfo = audioCtx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.05 + Math.random() * 0.15;
+    const lfoG = audioCtx.createGain();
+    lfoG.gain.value = 0.003;
+    lfo.connect(lfoG);
+    lfoG.connect(g.gain);
+
+    // Slow pitch drift
+    const pitchLfo = audioCtx.createOscillator();
+    pitchLfo.type = 'sine';
+    pitchLfo.frequency.value = 0.02 + Math.random() * 0.05;
+    const pitchLfoG = audioCtx.createGain();
+    pitchLfoG.gain.value = 0.5;
+    pitchLfo.connect(pitchLfoG);
+    pitchLfoG.connect(osc.frequency);
+
+    osc.connect(g);
+    g.connect(masterGain);
+    osc.start();
+    lfo.start();
+    pitchLfo.start();
+  });
+}
+
+// Musical chime for placement
+function playPlacementChime(polarity, x) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const notes = polarity > 0 ? [523.25, 659.25, 783.99] : [392, 493.88, 587.33];
+  const pan = (x / W) * 2 - 1;
+
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now + i * 0.06);
+    g.gain.linearRampToValueAtTime(0.03, now + i * 0.06 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.8);
+
+    const p = audioCtx.createStereoPanner();
+    p.pan.value = pan;
+
+    osc.connect(g);
+    g.connect(p);
+    p.connect(masterGain);
+    osc.start(now + i * 0.06);
+    osc.stop(now + i * 0.06 + 1);
+  });
+}
+
+// ==================
+// MAGNETS
+// ==================
+const magnets = [];
+let nextPolarity = 1;
+let dragMagnet = null;
+let dragOffset = { x: 0, y: 0 };
+
+class Magnet {
+  constructor(x, y, polarity) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.polarity = polarity;
+    this.radius = 16;
+    this.fieldRadius = 280;
+    this.pulsePhase = Math.random() * Math.PI * 2;
+    this.whisperCooldown = 0;
+    this.tone = null;
+    this.toneFreq = polarity > 0 ? 220 + Math.random() * 80 : 155 + Math.random() * 50;
+    this.glowIntensity = 0;
+    this.trail = [];
+    this.id = Math.random();
+    this.birthed = performance.now();
+    this.secretPhrase = WHISPER_PHRASES[Math.floor(Math.random() * WHISPER_PHRASES.length)];
+    this.breathPhase = Math.random() * Math.PI * 2;
+    this.orbitAngle = Math.random() * Math.PI * 2;
+
+    const pan = (x / W) * 2 - 1;
+    this.tone = createFieldTone(this.toneFreq, pan);
+  }
+
+  updateTone() {
+    if (!this.tone) return;
+    this.tone.panner.pan.value = Math.max(-1, Math.min(1, (this.x / W) * 2 - 1));
+  }
+
+  destroy() {
+    if (this.tone) {
+      const now = audioCtx.currentTime;
+      this.tone.gainNode.gain.cancelScheduledValues(now);
+      this.tone.gainNode.gain.linearRampToValueAtTime(0, now + 0.15);
+      const tone = this.tone;
+      setTimeout(() => {
+        try { tone.osc.stop(); tone.osc2.stop(); tone.lfo.stop(); tone.tremolo.stop(); } catch(e){}
+      }, 200);
+    }
+  }
+}
+
+// ==================
+// PARTICLES
+// ==================
+const particles = [];
+const MAX_PARTICLES = 800;
+
+class Particle {
+  constructor(x, y, color) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.life = 1;
+    this.maxLife = 0.5 + Math.random() * 2.5;
+    this.size = 0.5 + Math.random() * 2;
+    this.alpha = 0;
+    this.color = color || '150, 150, 220';
+  }
+
+  update(dt) {
+    let fx = 0, fy = 0;
+    for (const m of magnets) {
+      const dx = this.x - m.x;
+      const dy = this.y - m.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) + 1;
+      if (dist < m.fieldRadius) {
+        const strength = m.polarity * 6000 / (dist * dist);
+        fx += (dx / dist) * strength;
+        fy += (dy / dist) * strength;
+      }
+    }
+
+    this.vx = this.vx * 0.92 + fx * dt;
+    this.vy = this.vy * 0.92 + fy * dt;
+
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (speed > 120) {
+      this.vx = (this.vx / speed) * 120;
+      this.vy = (this.vy / speed) * 120;
+    }
+
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+
+    this.life -= dt / this.maxLife;
+    this.alpha = Math.max(0, Math.min(0.5, this.life * 0.5 * Math.min(1, speed / 20)));
+
+    return this.life > 0 && this.x > -50 && this.x < W + 50 && this.y > -50 && this.y < H + 50;
+  }
+}
+
+// ==================
+// FIELD COMPUTATION
+// ==================
+function getFieldAt(x, y) {
+  let fx = 0, fy = 0;
+  for (const m of magnets) {
+    const dx = x - m.x;
+    const dy = y - m.y;
+    const distSq = dx * dx + dy * dy + 200;
+    const dist = Math.sqrt(distSq);
+    const strength = m.polarity * 40000 / distSq;
+    fx += (dx / dist) * strength;
+    fy += (dy / dist) * strength;
+  }
+  return { x: fx, y: fy };
+}
+
+function getFieldStrengthAt(x, y) {
+  const f = getFieldAt(x, y);
+  return Math.sqrt(f.x * f.x + f.y * f.y);
+}
+
+function traceFieldLine(startX, startY, steps, stepSize) {
+  const points = [];
+  let x = startX, y = startY;
+  for (let i = 0; i < steps; i++) {
+    points.push({ x, y, i });
+    const f = getFieldAt(x, y);
+    const mag = Math.sqrt(f.x * f.x + f.y * f.y) + 0.001;
+    x += (f.x / mag) * stepSize;
+    y += (f.y / mag) * stepSize;
+    if (x < -30 || x > W + 30 || y < -30 || y > H + 30) break;
+    let tooClose = false;
+    for (const m of magnets) {
+      const dx = x - m.x;
+      const dy = y - m.y;
+      if (dx * dx + dy * dy < m.radius * m.radius * 0.8) { tooClose = true; break; }
+    }
+    if (tooClose) { points.push({ x, y, i: i+1 }); break; }
+  }
+  return points;
+}
+
+// ==================
+// WHISPER DISPLAY
+// ==================
+let whisperTimeout = null;
+let whisperQueue = [];
+
+function showWhisper(text) {
+  whisperEl.textContent = '\u201C' + text + '\u201D';
+  whisperEl.style.opacity = 1;
+  if (whisperTimeout) clearTimeout(whisperTimeout);
+  whisperTimeout = setTimeout(() => {
+    whisperEl.style.opacity = 0;
+  }, 3500);
+}
+
+// ==================
+// INTERACTION
+// ==================
+let mouseX = 0, mouseY = 0;
+let started = false;
+
+document.getElementById('start-overlay').addEventListener('click', () => {
+  started = true;
+  const overlay = document.getElementById('start-overlay');
+  overlay.style.opacity = 0;
+  setTimeout(() => { overlay.style.display = 'none'; }, 1500);
+  setTimeout(() => {
+    document.getElementById('ui').classList.add('visible');
+    document.getElementById('polarity-indicator').classList.add('visible');
+    document.getElementById('magnet-count').classList.add('visible');
+  }, 500);
+  initAudio();
+  createDrone();
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  if (!started) return;
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+
+  for (const m of magnets) {
+    const dx = e.clientX - m.x;
+    const dy = e.clientY - m.y;
+    if (dx * dx + dy * dy < (m.radius + 12) * (m.radius + 12)) {
+      dragMagnet = m;
+      dragOffset.x = dx;
+      dragOffset.y = dy;
+      canvas.style.cursor = 'grabbing';
+      return;
+    }
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+  if (dragMagnet) {
+    dragMagnet.x = e.clientX - dragOffset.x;
+    dragMagnet.y = e.clientY - dragOffset.y;
+    dragMagnet.vx = 0;
+    dragMagnet.vy = 0;
+  } else {
+    // Change cursor when hovering a magnet
+    let hovering = false;
+    for (const m of magnets) {
+      const dx = e.clientX - m.x;
+      const dy = e.clientY - m.y;
+      if (dx * dx + dy * dy < (m.radius + 12) * (m.radius + 12)) {
+        hovering = true;
+        break;
+      }
+    }
+    canvas.style.cursor = hovering ? 'grab' : 'crosshair';
+  }
+});
+
+canvas.addEventListener('mouseup', (e) => {
+  if (!started) return;
+  if (dragMagnet) {
+    dragMagnet = null;
+    canvas.style.cursor = 'crosshair';
+    return;
+  }
+
+  if (magnets.length < 24) {
+    const m = new Magnet(e.clientX, e.clientY, nextPolarity);
+    magnets.push(m);
+    updateMagnetCount();
+
+    playPlacementChime(nextPolarity, e.clientX);
+    createWhisperSound(m.toneFreq, 0.7, (e.clientX / W) * 2 - 1, 'sibilant');
+
+    // Burst particles
+    const burstCount = 40;
+    for (let i = 0; i < burstCount; i++) {
+      const angle = (i / burstCount) * Math.PI * 2 + Math.random() * 0.2;
+      const speed = 30 + Math.random() * 50;
+      const p = new Particle(
+        e.clientX + Math.cos(angle) * m.radius,
+        e.clientY + Math.sin(angle) * m.radius,
+        nextPolarity > 0 ? '200, 140, 160' : '140, 160, 220'
+      );
+      p.vx = Math.cos(angle) * speed * nextPolarity;
+      p.vy = Math.sin(angle) * speed * nextPolarity;
+      p.size = 1 + Math.random() * 2;
+      if (particles.length < MAX_PARTICLES) particles.push(p);
+    }
+  }
+});
+
+// Touch support
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  canvas.dispatchEvent(new MouseEvent('mousedown', { clientX: t.clientX, clientY: t.clientY }));
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  canvas.dispatchEvent(new MouseEvent('mousemove', { clientX: t.clientX, clientY: t.clientY }));
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  canvas.dispatchEvent(new MouseEvent('mouseup', { clientX: mouseX, clientY: mouseY }));
+}, { passive: false });
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    nextPolarity *= -1;
+    poleDisplay.textContent = nextPolarity > 0 ? 'NORTH' : 'SOUTH';
+    poleDisplay.style.color = nextPolarity > 0 ? '#cc7788' : '#7788cc';
+  }
+  if (e.code === 'KeyC') {
+    magnets.forEach(m => m.destroy());
+    magnets.length = 0;
+    particles.length = 0;
+    updateMagnetCount();
+  }
+  if (e.code === 'KeyX' && magnets.length > 0) {
+    const m = magnets.pop();
+    m.destroy();
+    updateMagnetCount();
+  }
+});
+
+function updateMagnetCount() {
+  const n = magnets.filter(m => m.polarity > 0).length;
+  const s = magnets.filter(m => m.polarity < 0).length;
+  magnetCountEl.textContent = `${n}N / ${s}S`;
+}
+
+// ==================
+// MAIN LOOP
+// ==================
+let lastTime = performance.now();
+let time = 0;
+let lastWhisperSoundTime = 0;
+let frameCount = 0;
+
+function update(now) {
+  requestAnimationFrame(update);
+
+  const rawDt = (now - lastTime) / 1000;
+  const dt = Math.min(rawDt, 0.04);
+  lastTime = now;
+  time += dt;
+  frameCount++;
+
+  // --- Spawn field particles ---
+  if (magnets.length > 0 && frameCount % 2 === 0) {
+    const spawnCount = Math.min(magnets.length * 2, 10);
+    for (let i = 0; i < spawnCount; i++) {
+      const m = magnets[Math.floor(Math.random() * magnets.length)];
+      const angle = Math.random() * Math.PI * 2;
+      const dist = m.radius * 1.5 + Math.random() * m.fieldRadius * 0.6;
+      const color = m.polarity > 0 ? '180, 130, 160' : '130, 150, 200';
+      const p = new Particle(
+        m.x + Math.cos(angle) * dist,
+        m.y + Math.sin(angle) * dist,
+        color
+      );
+      if (particles.length < MAX_PARTICLES) particles.push(p);
+    }
+  }
+
+  // Ambient floating particles
+  if (frameCount % 8 === 0 && particles.length < MAX_PARTICLES) {
+    const p = new Particle(Math.random() * W, Math.random() * H, '100, 100, 160');
+    p.size = 0.3 + Math.random() * 0.7;
+    p.maxLife = 2 + Math.random() * 3;
+    particles.push(p);
+  }
+
+  // --- Update particles ---
+  for (let i = particles.length - 1; i >= 0; i--) {
+    if (!particles[i].update(dt)) particles.splice(i, 1);
+  }
+
+  // --- Update magnets ---
+  for (let i = 0; i < magnets.length; i++) {
+    const a = magnets[i];
+    if (a === dragMagnet) {
+      a.glowIntensity *= 0.92;
+      a.pulsePhase += dt * 3;
+      a.breathPhase += dt;
+      a.updateTone();
+      continue;
+    }
+
+    let totalInteraction = 0;
+
+    for (let j = i + 1; j < magnets.length; j++) {
+      const b = magnets[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distSq = dx * dx + dy * dy + 1;
+      const dist = Math.sqrt(distSq);
+
+      // Magnetic force
+      const polProduct = a.polarity * b.polarity;
+      const forceMag = -polProduct * 12000 / distSq;
+
+      // Prevent overlap
+      const minDist = a.radius + b.radius + 4;
+      let repulsion = 0;
+      if (dist < minDist) {
+        repulsion = (minDist - dist) * 30;
+      }
+
+      const fx = (dx / dist) * (forceMag + repulsion);
+      const fy = (dy / dist) * (forceMag + repulsion);
+
+      if (b !== dragMagnet) {
+        b.vx += fx * dt;
+        b.vy += fy * dt;
+      }
+      a.vx -= fx * dt;
+      a.vy -= fy * dt;
+
+      // --- AUDIO INTERACTIONS ---
+      const interactionDist = 320;
+      if (dist < interactionDist) {
+        const intensity = Math.pow(1 - dist / interactionDist, 1.5);
+        totalInteraction += intensity;
+
+        // Tone volume
+        const toneVol = intensity * intensity * 0.015;
+        if (a.tone) {
+          const now2 = audioCtx.currentTime;
+          a.tone.gainNode.gain.cancelScheduledValues(now2);
+          a.tone.gainNode.gain.linearRampToValueAtTime(
+            Math.min(0.03, toneVol), now2 + 0.05
+          );
+          // Pitch bending based on interaction
+          const bendAmount = polProduct < 0 ? intensity * 5 : -intensity * 3;
+          a.tone.lfoGain.gain.linearRampToValueAtTime(2 + intensity * 8, now2 + 0.1);
+        }
+        if (b.tone) {
+          const now2 = audioCtx.currentTime;
+          b.tone.gainNode.gain.cancelScheduledValues(now2);
+          b.tone.gainNode.gain.linearRampToValueAtTime(
+            Math.min(0.03, toneVol), now2 + 0.05
+          );
+        }
+
+        // Whisper sounds
+        a.whisperCooldown -= dt;
+        if (intensity > 0.2 && a.whisperCooldown <= 0 && time - lastWhisperSoundTime > 0.3) {
+          const pan = ((a.x + b.x) / 2 / W) * 2 - 1;
+          const freq = 150 + (1 - intensity) * 500;
+
+          // Choose whisper texture based on intensity and polarity
+          const types = ['vowel', 'consonant', 'sibilant'];
+          const typeIdx = Math.floor(Math.random() * 3);
+          createWhisperSound(freq, intensity * 0.8, pan, types[typeIdx]);
+
+          // Second layered whisper for richness at high intensity
+          if (intensity > 0.5 && Math.random() < 0.4) {
+            setTimeout(() => {
+              createWhisperSound(freq * 1.3, intensity * 0.4, pan + 0.2, 'sibilant');
+            }, 50 + Math.random() * 100);
+          }
+
+          a.whisperCooldown = 0.3 + Math.random() * (1.5 - intensity);
+          lastWhisperSoundTime = time;
+
+          // Show text whisper
+          if (intensity > 0.55 && Math.random() < 0.1) {
+            if (polProduct < 0) {
+              showWhisper(a.secretPhrase);
+            } else {
+              showWhisper(REPULSION_PHRASES[Math.floor(Math.random() * REPULSION_PHRASES.length)]);
+            }
+          }
+        }
+
+        a.glowIntensity = Math.max(a.glowIntensity, intensity);
+        b.glowIntensity = Math.max(b.glowIntensity, intensity);
+      }
+    }
+
+    // Damping
+    a.vx *= 0.965;
+    a.vy *= 0.965;
+
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+
+    // Soft boundary
+    const margin = a.radius + 5;
+    const bounce = -0.4;
+    if (a.x < margin) { a.x = margin; a.vx *= bounce; }
+    if (a.x > W - margin) { a.x = W - margin; a.vx *= bounce; }
+    if (a.y < margin) { a.y = margin; a.vy *= bounce; }
+    if (a.y > H - margin) { a.y = H - margin; a.vy *= bounce; }
+
+    a.glowIntensity *= 0.94;
+    a.pulsePhase += dt * (2 + totalInteraction * 3);
+    a.breathPhase += dt * 0.7;
+
+    // Decay tone
+    if (a.tone && totalInteraction < 0.01) {
+      const now2 = audioCtx.currentTime;
+      a.tone.gainNode.gain.cancelScheduledValues(now2);
+      a.tone.gainNode.gain.linearRampToValueAtTime(0, now2 + 0.5);
+    }
+
+    a.updateTone();
+
+    // Trail
+    if (frameCount % 2 === 0) {
+      const speed = Math.sqrt(a.vx * a.vx + a.vy * a.vy);
+      if (speed > 2) {
+        a.trail.push({ x: a.x, y: a.y, alpha: Math.min(1, speed / 50) });
+        if (a.trail.length > 40) a.trail.shift();
+      }
+    }
+    for (const t of a.trail) t.alpha *= 0.94;
+  }
+
+  render();
+}
+
+// ==================
+// RENDER
+// ==================
+function render() {
+  // Fade trail
+  ctx.fillStyle = 'rgba(6, 6, 16, 0.18)';
+  ctx.fillRect(0, 0, W, H);
+
+  if (magnets.length === 0) return;
+
+  // --- FIELD LINES ---
+  ctx.lineCap = 'round';
+  for (const m of magnets) {
+    const numLines = 16;
+    for (let i = 0; i < numLines; i++) {
+      const baseAngle = (i / numLines) * Math.PI * 2;
+      const angle = baseAngle + time * 0.05;
+      const startDist = m.radius + 2;
+      const sx = m.x + Math.cos(angle) * startDist;
+      const sy = m.y + Math.sin(angle) * startDist;
+
+      const dir = m.polarity > 0 ? 1 : -1;
+      const points = traceFieldLine(sx, sy, 60, 5 * dir);
+      if (points.length < 3) continue;
+
+      // Draw with gradient along path
+      for (let j = 1; j < points.length; j++) {
+        const progress = j / points.length;
+        const alpha = (0.04 + m.glowIntensity * 0.12) * (1 - progress * 0.7);
+        if (alpha < 0.005) break;
+
+        ctx.beginPath();
+        ctx.moveTo(points[j-1].x, points[j-1].y);
+        ctx.lineTo(points[j].x, points[j].y);
+
+        if (m.polarity > 0) {
+          ctx.strokeStyle = `rgba(200, 130, 170, ${alpha})`;
+        } else {
+          ctx.strokeStyle = `rgba(130, 160, 230, ${alpha})`;
+        }
+        ctx.lineWidth = Math.max(0.3, (1 - progress) * 1.5);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // --- CONNECTION LINES (wavy whisper paths) ---
+  for (let i = 0; i < magnets.length; i++) {
+    for (let j = i + 1; j < magnets.length; j++) {
+      const a = magnets[i];
+      const b = magnets[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist > 350) continue;
+
+      const intensity = Math.pow(1 - dist / 350, 1.5);
+      if (intensity < 0.01) continue;
+
+      const polProduct = a.polarity * b.polarity;
+      const midX = (a.x + b.x) / 2;
+      const midY = (a.y + b.y) / 2;
+
+      // Multiple wavy lines for richer effect
+      const lineCount = Math.ceil(intensity * 3);
+      for (let l = 0; l < lineCount; l++) {
+        ctx.beginPath();
+        const segments = 40;
+        const waveOffset = l * 1.5 + time * 2;
+        const waveAmp = intensity * (12 + l * 5) * (polProduct < 0 ? 1 : 1.5);
+        const waveFreq = polProduct < 0 ? 3 + l : 5 + l;
+
+        for (let s = 0; s <= segments; s++) {
+          const t = s / segments;
+          const x = a.x + dx * t;
+          const y = a.y + dy * t;
+          const perpX = -dy / (dist + 1);
+          const perpY = dx / (dist + 1);
+          // Envelope: fade at endpoints
+          const env = Math.sin(t * Math.PI);
+          const wave = Math.sin(t * Math.PI * waveFreq + waveOffset) * waveAmp * env;
+          const px = x + perpX * wave;
+          const py = y + perpY * wave;
+          if (s === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+
+        let r, g, bl;
+        if (polProduct < 0) {
+          // Attraction: warm purple
+          r = 180; g = 140; bl = 220;
+        } else {
+          // Repulsion: cool blue-green
+          r = 100; g = 160; bl = 200;
+        }
+        const lineAlpha = intensity * (0.15 - l * 0.03);
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${bl}, ${lineAlpha})`;
+        ctx.lineWidth = Math.max(0.5, (1.5 - l * 0.3) * intensity);
+        ctx.stroke();
+      }
+
+      // "Breath" text particles along connection
+      if (Math.random() < intensity * 0.4) {
+        const t = 0.2 + Math.random() * 0.6;
+        const perpX = -dy / (dist + 1);
+        const perpY = dx / (dist + 1);
+        const wavePos = Math.sin(t * Math.PI * 4 + time * 2) * intensity * 15;
+        const p = new Particle(
+          a.x + dx * t + perpX * wavePos + (Math.random() - 0.5) * 10,
+          a.y + dy * t + perpY * wavePos + (Math.random() - 0.5) * 10,
+          polProduct < 0 ? '180, 150, 210' : '120, 160, 190'
+        );
+        p.size = 0.5 + intensity * 2;
+        if (particles.length < MAX_PARTICLES) particles.push(p);
+      }
+    }
+  }
+
+  // --- PARTICLES ---
+  for (const p of particles) {
+    if (p.alpha < 0.005) continue;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${p.color}, ${p.alpha})`;
+    ctx.fill();
+  }
+
+  // --- MAGNETS ---
+  for (const m of magnets) {
+    const age = (performance.now() - m.birthed) / 1000;
+    const spawnScale = Math.min(1, age * 4);
+    const breathScale = 1 + 0.03 * Math.sin(m.breathPhase * Math.PI * 2);
+    const r = m.radius * spawnScale * breathScale;
+
+    // Trail
+    if (m.trail.length > 1) {
+      ctx.lineCap = 'round';
+      for (let ti = 1; ti < m.trail.length; ti++) {
+        const t = m.trail[ti];
+        const prev = m.trail[ti - 1];
+        if (t.alpha < 0.01) continue;
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(t.x, t.y);
+        const col = m.polarity > 0 ? '180, 120, 150' : '120, 140, 200';
+        ctx.strokeStyle = `rgba(${col}, ${t.alpha * 0.25})`;
+        ctx.lineWidth = r * 0.3 * t.alpha;
+        ctx.stroke();
+      }
+    }
+
+    // Outer glow
+    const pulse = 0.85 + 0.15 * Math.sin(m.pulsePhase);
+    const glowR = (r * 3.5 + m.glowIntensity * 50) * pulse;
+    const outerGlow = ctx.createRadialGradient(m.x, m.y, r * 0.5, m.x, m.y, glowR);
+    if (m.polarity > 0) {
+      outerGlow.addColorStop(0, `rgba(220, 130, 160, ${(0.1 + m.glowIntensity * 0.25) * spawnScale})`);
+      outerGlow.addColorStop(0.4, `rgba(180, 80, 120, ${(0.04 + m.glowIntensity * 0.1) * spawnScale})`);
+      outerGlow.addColorStop(1, 'rgba(120, 40, 80, 0)');
+    } else {
+      outerGlow.addColorStop(0, `rgba(130, 160, 240, ${(0.1 + m.glowIntensity * 0.25) * spawnScale})`);
+      outerGlow.addColorStop(0.4, `rgba(80, 110, 200, ${(0.04 + m.glowIntensity * 0.1) * spawnScale})`);
+      outerGlow.addColorStop(1, 'rgba(40, 60, 140, 0)');
+    }
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = outerGlow;
+    ctx.fill();
+
+    // Core body
+    const coreGrad = ctx.createRadialGradient(
+      m.x - r * 0.2, m.y - r * 0.2, 0,
+      m.x, m.y, r
+    );
+    if (m.polarity > 0) {
+      coreGrad.addColorStop(0, '#f0c0d0');
+      coreGrad.addColorStop(0.5, '#c06888');
+      coreGrad.addColorStop(1, '#7a3858');
+    } else {
+      coreGrad.addColorStop(0, '#c0d0f0');
+      coreGrad.addColorStop(0.5, '#6878c0');
+      coreGrad.addColorStop(1, '#38487a');
+    }
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = coreGrad;
+    ctx.fill();
+
+    // Inner ring
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, r * 0.65, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.08 * spawnScale})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Outer ring with glow-dependent brightness
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, r + 1.5, 0, Math.PI * 2);
+    const ringBright = 0.25 + m.glowIntensity * 0.5;
+    ctx.strokeStyle = m.polarity > 0
+      ? `rgba(255, 160, 190, ${ringBright * spawnScale})`
+      : `rgba(160, 190, 255, ${ringBright * spawnScale})`;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Polarity label
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.65 * spawnScale})`;
+    ctx.font = `${Math.round(10 * spawnScale)}px Georgia`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(m.polarity > 0 ? 'N' : 'S', m.x, m.y);
+
+    // Whisper ripples
+    if (m.glowIntensity > 0.08) {
+      const ringCount = 4;
+      for (let ri = 0; ri < ringCount; ri++) {
+        const phase = (m.pulsePhase * 0.8 + ri * 1.6) % (Math.PI * 2);
+        const ringDist = r + 4 + (phase / (Math.PI * 2)) * 50;
+        const ringAlpha = (1 - phase / (Math.PI * 2)) * m.glowIntensity * 0.2;
+        if (ringAlpha < 0.005) continue;
+
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, ringDist, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(200, 200, 255, ${ringAlpha})`;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+
+    // Orbiting micro-particles for active magnets
+    if (m.glowIntensity > 0.15) {
+      m.orbitAngle += dt * 2;
+      const orbitCount = 3;
+      for (let oi = 0; oi < orbitCount; oi++) {
+        const oAngle = m.orbitAngle + (oi / orbitCount) * Math.PI * 2;
+        const oDist = r + 8 + m.glowIntensity * 15;
+        const ox = m.x + Math.cos(oAngle) * oDist;
+        const oy = m.y + Math.sin(oAngle) * oDist;
+        const oAlpha = m.glowIntensity * 0.4;
+
+        ctx.beginPath();
+        ctx.arc(ox, oy, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(200, 200, 255, ${oAlpha})`;
+        ctx.fill();
+      }
+    }
+  }
+
+  // --- CURSOR FIELD INDICATOR ---
+  if (magnets.length > 0 && !dragMagnet) {
+    const field = getFieldAt(mouseX, mouseY);
+    const mag = Math.sqrt(field.x * field.x + field.y * field.y);
+    if (mag > 0.3) {
+      const len = Math.min(25, mag * 0.04);
+      const alpha = Math.min(0.4, mag * 0.008);
+
+      // Arrow
+      const nx = field.x / mag;
+      const ny = field.y / mag;
+      const ex = mouseX + nx * len;
+      const ey = mouseY + ny * len;
+
+      ctx.beginPath();
+      ctx.moveTo(mouseX, mouseY);
+      ctx.lineTo(ex, ey);
+      ctx.strokeStyle = `rgba(160, 160, 230, ${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Arrowhead
+      const headLen = 4;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - nx * headLen + ny * headLen * 0.4, ey - ny * headLen - nx * headLen * 0.4);
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - nx * headLen - ny * headLen * 0.4, ey - ny * headLen + nx * headLen * 0.4);
+      ctx.strokeStyle = `rgba(160, 160, 230, ${alpha * 0.7})`;
+      ctx.stroke();
+
+      // Subtle field strength ring at cursor
+      ctx.beginPath();
+      ctx.arc(mouseX, mouseY, 3 + mag * 0.02, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(160, 160, 230, ${alpha * 0.3})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+  }
+}
+
+requestAnimationFrame(update);
+</script>
+</body>
+</html>

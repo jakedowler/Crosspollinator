@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Molten Origami</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #080406;
+  overflow: hidden;
+  font-family: 'Georgia', serif;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+canvas { display: block; position: absolute; top: 0; left: 0; }
+#glow-canvas { mix-blend-mode: screen; pointer-events: none; }
+#ui {
+  position: fixed; top: 20px; left: 20px; z-index: 10;
+  color: #d4a056; pointer-events: none;
+}
+#ui h1 {
+  font-size: 26px; font-weight: 300; letter-spacing: 8px;
+  text-transform: uppercase;
+  text-shadow: 0 0 30px rgba(255,100,20,0.4), 0 0 60px rgba(255,60,0,0.2);
+  margin-bottom: 4px;
+}
+#ui p {
+  font-size: 12px; opacity: 0.5; letter-spacing: 3px;
+  font-style: italic;
+}
+#controls {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  z-index: 10; display: flex; gap: 10px; pointer-events: all;
+}
+#controls button {
+  background: rgba(120,50,15,0.12);
+  border: 1px solid rgba(212,160,86,0.2);
+  color: #d4a056; padding: 8px 22px;
+  font-family: 'Georgia', serif; font-size: 12px;
+  letter-spacing: 3px; cursor: pointer;
+  transition: all 0.4s ease; border-radius: 1px;
+  text-transform: uppercase;
+}
+#controls button:hover {
+  background: rgba(200,80,20,0.25);
+  border-color: rgba(255,160,60,0.5);
+  text-shadow: 0 0 12px rgba(255,120,20,0.6);
+}
+#controls button.active {
+  background: rgba(255,80,10,0.2);
+  border-color: rgba(255,140,40,0.7);
+  text-shadow: 0 0 20px rgba(255,100,10,0.8);
+  box-shadow: 0 0 20px rgba(255,80,0,0.15);
+}
+#heat-bar {
+  position: fixed; right: 24px; top: 50%; transform: translateY(-50%);
+  width: 6px; height: 180px;
+  background: rgba(30,15,8,0.6);
+  border: 1px solid rgba(212,160,86,0.15);
+  border-radius: 3px; z-index: 10; overflow: hidden;
+}
+#heat-fill {
+  position: absolute; bottom: 0; width: 100%; height: 25%;
+  background: linear-gradient(to top, #cc2200, #ff6600, #ffaa00, #ffdd44);
+  border-radius: 2px; transition: height 0.4s ease;
+  box-shadow: 0 -4px 15px rgba(255,80,0,0.4);
+}
+#heat-label {
+  position: fixed; right: 20px; top: calc(50% + 105px);
+  color: rgba(212,160,86,0.4); font-size: 9px; letter-spacing: 3px;
+  z-index: 10; text-align: center; width: 16px;
+}
+#tooltip {
+  position: fixed; bottom: 64px; left: 50%; transform: translateX(-50%);
+  color: rgba(212,160,86,0.35); font-size: 11px; letter-spacing: 1.5px;
+  z-index: 10; text-align: center; transition: opacity 0.5s;
+  white-space: nowrap;
+}
+#shape-name {
+  position: fixed; top: 22px; right: 60px; z-index: 10;
+  color: rgba(212,160,86,0.3); font-size: 10px; letter-spacing: 3px;
+  text-transform: uppercase;
+}
+</style>
+</head>
+<body>
+<div id="ui">
+  <h1>Molten Origami</h1>
+  <p>where fire meets fold</p>
+</div>
+<div id="shape-name">CRANE</div>
+<div id="heat-bar"><div id="heat-fill"></div></div>
+<div id="heat-label">HEAT</div>
+<div id="controls">
+  <button id="btn-fold" class="active" onclick="setMode('fold')">Fold</button>
+  <button id="btn-melt" onclick="setMode('melt')">Melt</button>
+  <button id="btn-cool" onclick="setMode('cool')">Cool</button>
+  <button id="btn-new" onclick="newShape()">Next</button>
+</div>
+<div id="tooltip">drag across a crease to fold &mdash; keys 1/2/3, N</div>
+<canvas id="main-canvas"></canvas>
+<canvas id="glow-canvas"></canvas>
+
+<script>
+// ===== SETUP =====
+const mainCanvas = document.getElementById('main-canvas');
+const glowCanvas = document.getElementById('glow-canvas');
+const ctx = mainCanvas.getContext('2d');
+const gCtx = glowCanvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = mainCanvas.width = glowCanvas.width = window.innerWidth;
+  H = mainCanvas.height = glowCanvas.height = window.innerHeight;
+  if (vertices.length) shapeGenerators[currentShape]();
+}
+window.addEventListener('resize', resize);
+
+// ===== STATE =====
+let mode = 'fold';
+let globalHeat = 0.15;
+let time = 0;
+let mx = 0, my = 0, pmx = 0, pmy = 0;
+let mouseDown = false;
+let dragSX = 0, dragSY = 0;
+let isDragging = false;
+let flashIntensity = 0;
+let ambientPulse = 0;
+
+// ===== PARTICLE POOLS =====
+const embers = [];
+const drips = [];
+const sparks = [];
+const smoke = [];
+const poolDrops = []; // molten pools on ground
+
+// ===== ORIGAMI DATA =====
+class Vertex {
+  constructor(x, y) {
+    this.x = x; this.y = y;
+    this.bx = x; this.by = y;
+    this.vx = 0; this.vy = 0;
+    this.heat = 0;
+    this.ox = 0; this.oy = 0; // melt offset
+    this.z = 0;
+  }
+}
+
+class Face {
+  constructor(verts, colorIdx, depth) {
+    this.v = verts;
+    this.ci = colorIdx;
+    this.depth = depth || 0;
+    this.heat = 0;
+    this.glow = 0;
+  }
+}
+
+class Crease {
+  constructor(a, b) {
+    this.a = a; this.b = b;
+    this.heat = 0;
+    this.folded = false;
+    this.pulse = Math.random() * Math.PI * 2;
+    this.foldTime = 0;
+  }
+}
+
+let vertices = [];
+let faces = [];
+let creases = [];
+
+const palette = [
+  [38, 14, 8], [52, 20, 10], [44, 16, 11],
+  [58, 24, 9], [34, 11, 9], [48, 20, 14],
+  [42, 18, 7], [56, 22, 12]
+];
+
+// ===== SHAPE GENERATORS =====
+const shapeNames = ['CRANE', 'STAR', 'LOTUS', 'DRAGON'];
+
+function makeCrane() {
+  vertices = []; faces = []; creases = [];
+  const cx = W/2, cy = H/2 - 20;
+  const s = Math.min(W, H) * 0.26;
+  const v = (x, y) => { vertices.push(new Vertex(cx + x*s, cy + y*s)); return vertices.length - 1; };
+
+  // Main diamond + extensions
+  const top = v(0, -1);
+  const rt = v(0.72, 0);
+  const bot = v(0, 0.58);
+  const lt = v(-0.72, 0);
+  const ctr = v(0, 0);
+  const rwt = v(1.15, -0.35); // right wing tip
+  const lwt = v(-1.15, -0.35); // left wing tip
+  const tail = v(0, 1.05);
+  const head = v(0, -1.35);
+  const rmu = v(0.36, -0.5); // right mid upper
+  const lmu = v(-0.36, -0.5);
+  const rml = v(0.36, 0.29); // right mid lower
+  const lml = v(-0.36, 0.29);
+  // Extra detail vertices
+  const rw1 = v(0.85, -0.18);
+  const lw1 = v(-0.85, -0.18);
+  const t1 = v(0.15, 0.82);
+  const t2 = v(-0.15, 0.82);
+
+  // Faces
+  const f = (vs, ci, d) => faces.push(new Face(vs, ci % palette.length, d));
+  // Upper body
+  f([top, rmu, ctr], 0, 0); f([rmu, rt, ctr], 1, 1);
+  f([top, ctr, lmu], 1, 0); f([lmu, ctr, lt], 0, 1);
+  // Wings
+  f([top, rwt, rmu], 2, 2); f([rwt, rw1, rmu], 3, 2);
+  f([rw1, rt, rmu], 4, 1); f([rwt, rt, rw1], 5, 3);
+  f([top, lmu, lwt], 3, 2); f([lwt, lmu, lw1], 2, 2);
+  f([lw1, lmu, lt], 5, 1); f([lwt, lw1, lt], 4, 3);
+  // Lower body
+  f([ctr, rt, rml], 2, 0); f([rml, bot, ctr], 3, 1);
+  f([ctr, lml, lt], 3, 0); f([ctr, bot, lml], 2, 1);
+  // Tail
+  f([bot, rml, t1], 4, 2); f([t1, tail, bot], 5, 3);
+  f([bot, t2, lml], 5, 2); f([bot, tail, t2], 4, 3);
+  // Head
+  f([top, head, rmu], 6, 3); f([top, lmu, head], 7, 3);
+
+  // Creases
+  const c = (a, b) => creases.push(new Crease(a, b));
+  c(top, ctr); c(ctr, bot); c(lt, rt); // main cross
+  c(top, rt); c(top, lt); c(rt, bot); c(lt, bot); // diamond edges
+  c(rmu, ctr); c(lmu, ctr); c(rml, ctr); c(lml, ctr); // inner spokes
+  c(top, rwt); c(rwt, rt); c(top, lwt); c(lwt, lt); // wing edges
+  c(rmu, rw1); c(rw1, rt); c(lmu, lw1); c(lw1, lt);
+  c(rmu, rwt); c(lmu, lwt);
+  c(bot, tail); c(rml, t1); c(t1, tail); c(lml, t2); c(t2, tail);
+  c(top, head); c(rmu, head); c(lmu, head);
+  c(rml, rt); c(lml, lt);
+}
+
+function makeStar() {
+  vertices = []; faces = []; creases = [];
+  const cx = W/2, cy = H/2 - 15;
+  const R = Math.min(W, H) * 0.28;
+  const pts = 7;
+  const v = (x, y) => { vertices.push(new Vertex(x, y)); return vertices.length - 1; };
+
+  const center = v(cx, cy);
+  const outer = [], inner = [], mid = [];
+
+  for (let i = 0; i < pts; i++) {
+    const a = (i / pts) * Math.PI * 2 - Math.PI / 2;
+    const a2 = ((i + 0.5) / pts) * Math.PI * 2 - Math.PI / 2;
+    outer.push(v(cx + Math.cos(a) * R, cy + Math.sin(a) * R));
+    inner.push(v(cx + Math.cos(a2) * R * 0.4, cy + Math.sin(a2) * R * 0.4));
+    mid.push(v(cx + Math.cos(a) * R * 0.55, cy + Math.sin(a) * R * 0.55));
+  }
+
+  for (let i = 0; i < pts; i++) {
+    const ni = (i + 1) % pts;
+    // Inner fan
+    faces.push(new Face([center, mid[i], mid[ni]], i % palette.length, 0));
+    // Mid triangles
+    faces.push(new Face([mid[i], outer[i], inner[i]], (i+1) % palette.length, 1));
+    faces.push(new Face([mid[i], inner[i], mid[ni]], (i+2) % palette.length, 1));
+    faces.push(new Face([mid[ni], inner[i], outer[ni]], (i+3) % palette.length, 2));
+    // Creases
+    creases.push(new Crease(center, mid[i]));
+    creases.push(new Crease(mid[i], outer[i]));
+    creases.push(new Crease(mid[i], mid[ni]));
+    creases.push(new Crease(outer[i], inner[i]));
+    creases.push(new Crease(inner[i], outer[ni]));
+    creases.push(new Crease(mid[i], inner[i]));
+    creases.push(new Crease(inner[i], mid[ni]));
+  }
+}
+
+function makeLotus() {
+  vertices = []; faces = []; creases = [];
+  const cx = W/2, cy = H/2 - 15;
+  const s = Math.min(W, H) * 0.27;
+  const n = 6;
+  const v = (x, y) => { vertices.push(new Vertex(x, y)); return vertices.length - 1; };
+
+  const center = v(cx, cy);
+  const rings = [[], [], []]; // inner, mid, outer
+
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+    rings[0].push(v(cx + Math.cos(a) * s * 0.25, cy + Math.sin(a) * s * 0.25));
+    rings[1].push(v(cx + Math.cos(a) * s * 0.6, cy + Math.sin(a) * s * 0.6));
+    rings[2].push(v(cx + Math.cos(a) * s, cy + Math.sin(a) * s));
+  }
+
+  const between = [];
+  for (let i = 0; i < n; i++) {
+    const a = ((i + 0.5) / n) * Math.PI * 2 - Math.PI / 2;
+    between.push(v(cx + Math.cos(a) * s * 0.45, cy + Math.sin(a) * s * 0.45));
+  }
+
+  for (let i = 0; i < n; i++) {
+    const ni = (i + 1) % n;
+    faces.push(new Face([center, rings[0][i], rings[0][ni]], i % palette.length, 0));
+    faces.push(new Face([rings[0][i], rings[1][i], between[i]], (i+1) % palette.length, 1));
+    faces.push(new Face([rings[0][i], between[i], rings[0][ni]], (i+2) % palette.length, 1));
+    faces.push(new Face([between[i], rings[1][ni], rings[0][ni]], (i+3) % palette.length, 1));
+    faces.push(new Face([rings[1][i], rings[2][i], between[i]], (i+4) % palette.length, 2));
+    faces.push(new Face([between[i], rings[2][i], rings[2][ni]], (i+5) % palette.length, 2));
+    faces.push(new Face([between[i], rings[2][ni], rings[1][ni]], (i+6) % palette.length, 2));
+
+    creases.push(new Crease(center, rings[0][i]));
+    creases.push(new Crease(rings[0][i], rings[1][i]));
+    creases.push(new Crease(rings[1][i], rings[2][i]));
+    creases.push(new Crease(rings[0][i], between[i]));
+    creases.push(new Crease(between[i], rings[0][ni]));
+    creases.push(new Crease(rings[0][i], rings[0][ni]));
+    creases.push(new Crease(rings[1][i], between[i]));
+    creases.push(new Crease(between[i], rings[1][ni]));
+    creases.push(new Crease(rings[2][i], between[i]));
+    creases.push(new Crease(between[i], rings[2][ni]));
+  }
+}
+
+function makeDragon() {
+  vertices = []; faces = []; creases = [];
+  const cx = W/2, cy = H/2 - 10;
+  const s = Math.min(W, H) * 0.22;
+  const v = (x, y) => { vertices.push(new Vertex(cx + x*s, cy + y*s)); return vertices.length - 1; };
+
+  // Dragon-like angular form
+  const nose = v(0, -1.5);
+  const headL = v(-0.3, -1.1);
+  const headR = v(0.3, -1.1);
+  const neckL = v(-0.2, -0.6);
+  const neckR = v(0.2, -0.6);
+  const spine = v(0, 0);
+  const bodyL = v(-0.5, 0);
+  const bodyR = v(0.5, 0);
+  const wingLT = v(-1.4, -0.5);
+  const wingRT = v(1.4, -0.5);
+  const wingLM = v(-1.1, 0.2);
+  const wingRM = v(1.1, 0.2);
+  const hipL = v(-0.35, 0.6);
+  const hipR = v(0.35, 0.6);
+  const tailM = v(0, 0.9);
+  const tailTip = v(0, 1.5);
+  const tailL = v(-0.2, 1.2);
+  const tailR = v(0.2, 1.2);
+  const wingLB = v(-0.8, 0.5);
+  const wingRB = v(0.8, 0.5);
+
+  const f = (vs, ci, d) => faces.push(new Face(vs, ci % palette.length, d));
+  // Head
+  f([nose, headR, headL], 0, 3);
+  f([headL, headR, neckR], 1, 2); f([headL, neckR, neckL], 2, 2);
+  // Neck to body
+  f([neckL, neckR, spine], 3, 1);
+  f([neckL, spine, bodyL], 4, 1); f([neckR, bodyR, spine], 5, 1);
+  // Wings
+  f([neckL, wingLT, bodyL], 0, 2); f([wingLT, wingLM, bodyL], 1, 3);
+  f([bodyL, wingLM, wingLB], 2, 2);
+  f([neckR, bodyR, wingRT], 3, 2); f([wingRT, bodyR, wingRM], 4, 3);
+  f([bodyR, wingRB, wingRM], 5, 2);
+  // Lower body
+  f([spine, bodyR, hipR], 6, 1); f([spine, hipL, bodyL], 7, 1);
+  f([spine, hipR, tailM], 0, 1); f([spine, tailM, hipL], 1, 1);
+  // Tail
+  f([tailM, hipR, tailR], 2, 2); f([tailM, tailL, hipL], 3, 2);
+  f([tailM, tailR, tailTip], 4, 3); f([tailM, tailTip, tailL], 5, 3);
+  f([bodyL, wingLB, hipL], 6, 1); f([bodyR, hipR, wingRB], 7, 1);
+
+  const c = (a, b) => creases.push(new Crease(a, b));
+  c(nose, headL); c(nose, headR); c(headL, headR);
+  c(headL, neckL); c(headR, neckR); c(neckL, neckR);
+  c(neckL, spine); c(neckR, spine); c(spine, bodyL); c(spine, bodyR);
+  c(neckL, bodyL); c(neckR, bodyR);
+  c(neckL, wingLT); c(wingLT, wingLM); c(wingLM, bodyL); c(wingLT, bodyL);
+  c(neckR, wingRT); c(wingRT, wingRM); c(wingRM, bodyR); c(wingRT, bodyR);
+  c(bodyL, wingLB); c(wingLM, wingLB); c(bodyR, wingRB); c(wingRM, wingRB);
+  c(bodyL, hipL); c(bodyR, hipR); c(spine, hipL); c(spine, hipR);
+  c(spine, tailM); c(hipL, tailM); c(hipR, tailM);
+  c(tailM, tailL); c(tailM, tailR); c(tailM, tailTip);
+  c(tailL, tailTip); c(tailR, tailTip);
+  c(hipL, tailL); c(hipR, tailR);
+  c(wingLB, hipL); c(wingRB, hipR);
+  c(headL, neckR);
+}
+
+let currentShape = 0;
+const shapeGenerators = [makeCrane, makeStar, makeLotus, makeDragon];
+
+function newShape() {
+  currentShape = (currentShape + 1) % shapeGenerators.length;
+  shapeGenerators[currentShape]();
+  globalHeat = 0.15;
+  embers.length = 0; drips.length = 0; sparks.length = 0; smoke.length = 0;
+  document.getElementById('shape-name').textContent = shapeNames[currentShape];
+}
+
+// ===== INIT =====
+W = mainCanvas.width = glowCanvas.width = window.innerWidth;
+H = mainCanvas.height = glowCanvas.height = window.innerHeight;
+makeCrane();
+
+// ===== INPUT =====
+function onDown(x, y) {
+  mouseDown = true; dragSX = x; dragSY = y; mx = x; my = y; isDragging = false;
+}
+function onMove(x, y) {
+  pmx = mx; pmy = my; mx = x; my = y;
+  if (mouseDown && Math.hypot(mx - dragSX, my - dragSY) > 12) isDragging = true;
+}
+function onUp() {
+  if (mouseDown && isDragging && mode === 'fold') performFold();
+  if (mouseDown && !isDragging && mode === 'fold') performClickFold();
+  mouseDown = false; isDragging = false;
+}
+
+mainCanvas.addEventListener('mousedown', e => onDown(e.clientX, e.clientY));
+mainCanvas.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+mainCanvas.addEventListener('mouseup', onUp);
+mainCanvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+mainCanvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+mainCanvas.addEventListener('touchend', e => { e.preventDefault(); onUp(); }, {passive:false});
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('#controls button').forEach(b => b.classList.remove('active'));
+  const el = document.getElementById('btn-' + m);
+  if (el) el.classList.add('active');
+  const tips = {
+    fold: 'drag across a crease to fold \u2014 keys 1/2/3, N',
+    melt: 'move cursor over shape to apply searing heat',
+    cool: 'move cursor to cool and resolidify the form'
+  };
+  document.getElementById('tooltip').textContent = tips[m] || '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === '1') setMode('fold');
+  if (e.key === '2') setMode('melt');
+  if (e.key === '3') setMode('cool');
+  if (e.key === 'n' || e.key === 'N') newShape();
+});
+
+// ===== FOLD MECHANICS =====
+function findNearestCrease(px, py, maxDist) {
+  let best = null, bestD = maxDist || 100;
+  for (const cr of creases) {
+    const a = vpos(cr.a), b = vpos(cr.b);
+    const d = distToSeg(px, py, a.x, a.y, b.x, b.y);
+    if (d < bestD) { bestD = d; best = cr; }
+  }
+  return best;
+}
+
+function distToSeg(px, py, x1, y1, x2, y2) {
+  const dx = x2-x1, dy = y2-y1;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.hypot(px-x1, py-y1);
+  let t = ((px-x1)*dx + (py-y1)*dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (x1+t*dx), py - (y1+t*dy));
+}
+
+function performFold() {
+  const midX = (dragSX + mx) / 2, midY = (dragSY + my) / 2;
+  const cr = findNearestCrease(midX, midY, 100);
+  if (cr) foldCrease(cr);
+}
+
+function performClickFold() {
+  const cr = findNearestCrease(mx, my, 60);
+  if (cr) foldCrease(cr);
+}
+
+function foldCrease(cr) {
+  cr.folded = !cr.folded;
+  cr.heat = Math.min(1, cr.heat + 0.6);
+  cr.foldTime = time;
+
+  const a = vertices[cr.a], b = vertices[cr.b];
+  const ax = b.bx - a.bx, ay = b.by - a.by;
+  const len = Math.hypot(ax, ay);
+  if (len < 1) return;
+  const nx = -ay/len, ny = ax/len;
+  const fDir = cr.folded ? 1 : -1;
+
+  for (const v of vertices) {
+    const dx = v.bx - a.bx, dy = v.by - a.by;
+    const dot = dx*nx + dy*ny;
+    const along = (dx*ax + dy*ay) / len;
+    if (dot > 8 && along > -len*0.15 && along < len*1.15) {
+      const inf = Math.max(0, 1 - Math.abs(dot) / (len * 0.7));
+      v.z += fDir * inf * 35;
+      v.vy += fDir * inf * -3;
+      v.heat = Math.min(1, v.heat + inf * 0.2);
+    }
+  }
+
+  // Sparks burst along crease
+  emitSparksAlongCrease(cr, 30);
+  // Smoke puff
+  emitSmokeAlongCrease(cr, 6);
+  flashIntensity = Math.min(0.6, flashIntensity + 0.25);
+  globalHeat = Math.min(1, globalHeat + 0.08);
+}
+
+function emitSparksAlongCrease(cr, count) {
+  const a = vpos(cr.a), b = vpos(cr.b);
+  for (let i = 0; i < count; i++) {
+    const t = Math.random();
+    sparks.push({
+      x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t,
+      vx: (Math.random()-0.5)*8, vy: (Math.random()-0.5)*8 - 3,
+      life: 1, decay: 0.015 + Math.random()*0.03,
+      size: 0.8 + Math.random()*2.5, hue: 15 + Math.random()*35
+    });
+  }
+}
+
+function emitSmokeAlongCrease(cr, count) {
+  const a = vpos(cr.a), b = vpos(cr.b);
+  for (let i = 0; i < count; i++) {
+    const t = Math.random();
+    smoke.push({
+      x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t,
+      vx: (Math.random()-0.5)*0.8, vy: -0.8 - Math.random()*1.2,
+      life: 1, decay: 0.006 + Math.random()*0.008,
+      size: 8 + Math.random()*15, rot: Math.random()*Math.PI*2
+    });
+  }
+}
+
+// ===== VERTEX POSITION HELPER =====
+function vpos(i) {
+  const v = vertices[i];
+  return { x: v.x + v.ox, y: v.y + v.oy + v.z * 0.25 };
+}
+
+// ===== UPDATE =====
+function update(dt) {
+  time += dt;
+  ambientPulse = Math.sin(time * 0.7) * 0.5 + 0.5;
+
+  // Flash decay
+  flashIntensity *= 0.92;
+
+  // Heat application
+  if (mode === 'melt' || mode === 'cool') {
+    const radius = 130;
+    const speed = mode === 'melt' ? 0.04 : -0.06;
+    for (const v of vertices) {
+      const d = Math.hypot(v.x + v.ox - mx, v.y + v.oy - my);
+      if (d < radius) {
+        const inf = (1 - d/radius) * (1 - d/radius); // quadratic falloff
+        v.heat = Math.max(0, Math.min(1, v.heat + speed * inf));
+      }
+    }
+    for (const cr of creases) {
+      const a = vpos(cr.a), b = vpos(cr.b);
+      const cmx = (a.x+b.x)/2, cmy = (a.y+b.y)/2;
+      const d = Math.hypot(cmx-mx, cmy-my);
+      if (d < radius) {
+        const inf = (1 - d/radius) * (1 - d/radius);
+        cr.heat = Math.max(0, Math.min(1, cr.heat + speed * 0.8 * inf));
+      }
+    }
+  }
+
+  // Heat propagation via creases
+  for (const cr of creases) {
+    const va = vertices[cr.a], vb = vertices[cr.b];
+    const diff = (va.heat - vb.heat) * 0.015;
+    va.heat -= diff; vb.heat += diff;
+    cr.heat = Math.max(cr.heat * 0.997, (va.heat + vb.heat) / 2 * 0.85);
+    cr.pulse += 0.025 + cr.heat * 0.08;
+  }
+
+  // Vertex physics
+  for (const v of vertices) {
+    // Melt distortion
+    if (v.heat > 0.25) {
+      const ms = (v.heat - 0.25) / 0.75;
+      const ms2 = ms * ms;
+      v.ox += (Math.sin(time * 3 + v.bx * 0.01) * ms2 * 1.5 + (Math.random()-0.5) * ms * 1.5);
+      v.oy += (Math.cos(time * 2.3 + v.by * 0.01) * ms2 * 0.8 + Math.random() * ms * 1.0);
+      v.oy += ms2 * 0.5; // gravity droop
+      v.ox *= 0.94; v.oy *= 0.96;
+      const maxO = 50 * ms;
+      v.ox = Math.max(-maxO, Math.min(maxO, v.ox));
+      v.oy = Math.max(-maxO*0.3, Math.min(maxO * 1.2, v.oy));
+
+      // Drip spawn
+      if (v.heat > 0.65 && Math.random() < 0.015 * ms) {
+        drips.push({
+          x: v.x + v.ox, y: v.y + v.oy,
+          vx: (Math.random()-0.5)*0.6, vy: 0.5 + Math.random(),
+          life: 1, decay: 0.004 + Math.random()*0.005,
+          size: 2 + Math.random()*4, heat: v.heat, trail: []
+        });
+      }
+
+      // Ember spawn
+      if (v.heat > 0.4 && Math.random() < 0.01 * ms && embers.length < 400) {
+        embers.push({
+          x: v.x + v.ox + (Math.random()-0.5)*10,
+          y: v.y + v.oy + (Math.random()-0.5)*10,
+          vx: (Math.random()-0.5)*0.6, vy: -0.4 - Math.random()*2,
+          life: 1, decay: 0.006 + Math.random()*0.015,
+          size: 0.5 + Math.random()*2
+        });
+      }
+    } else {
+      v.ox *= 0.93; v.oy *= 0.93;
+    }
+
+    v.z *= 0.96;
+    v.heat *= 0.9995;
+    v.vx *= 0.93; v.vy *= 0.93;
+    v.x += v.vx; v.y += v.vy;
+    v.x += (v.bx - v.x) * 0.008;
+    v.y += (v.by - v.y) * 0.008;
+  }
+
+  // Face glow
+  for (const f of faces) {
+    let h = 0;
+    for (const vi of f.v) h += vertices[vi].heat;
+    f.heat = h / f.v.length;
+    f.glow += (f.heat - f.glow) * 0.08;
+  }
+
+  // Global heat
+  let th = 0;
+  for (const v of vertices) th += v.heat;
+  globalHeat += (th / vertices.length - globalHeat) * 0.06;
+  document.getElementById('heat-fill').style.height = Math.min(100, globalHeat * 120) + '%';
+
+  // Hot crease embers
+  for (const cr of creases) {
+    if (cr.heat > 0.3 && Math.random() < cr.heat * 0.15 && embers.length < 400) {
+      const a = vpos(cr.a), b = vpos(cr.b);
+      const t = Math.random();
+      embers.push({
+        x: a.x + (b.x-a.x)*t, y: a.y + (b.y-a.y)*t,
+        vx: (Math.random()-0.5)*0.4, vy: -0.5 - Math.random()*1.8,
+        life: 1, decay: 0.005 + Math.random()*0.02,
+        size: 0.5 + Math.random()*2
+      });
+    }
+  }
+
+  // Update particles
+  for (let i = embers.length-1; i >= 0; i--) {
+    const p = embers[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vy -= 0.015;
+    p.vx += (Math.random()-0.5)*0.1;
+    p.life -= p.decay;
+    if (p.life <= 0) embers.splice(i, 1);
+  }
+
+  for (let i = drips.length-1; i >= 0; i--) {
+    const d = drips[i];
+    d.trail.push({x: d.x, y: d.y});
+    if (d.trail.length > 18) d.trail.shift();
+    d.x += d.vx; d.y += d.vy;
+    d.vy += 0.1; d.vx *= 0.99;
+    d.life -= d.decay; d.heat *= 0.994;
+    if (d.life <= 0 || d.y > H + 30) {
+      // Pool on ground
+      if (d.y < H + 10 && d.heat > 0.2) {
+        poolDrops.push({
+          x: d.x, y: Math.min(d.y, H - 5),
+          size: d.size * 1.5, heat: d.heat, life: 1, decay: 0.002
+        });
+      }
+      drips.splice(i, 1);
+    }
+  }
+
+  for (let i = sparks.length-1; i >= 0; i--) {
+    const s = sparks[i];
+    s.x += s.vx; s.y += s.vy;
+    s.vy += 0.06; s.vx *= 0.97;
+    s.life -= s.decay;
+    if (s.life <= 0) sparks.splice(i, 1);
+  }
+
+  for (let i = smoke.length-1; i >= 0; i--) {
+    const s = smoke[i];
+    s.x += s.vx; s.y += s.vy;
+    s.vy -= 0.005;
+    s.vx += (Math.random()-0.5)*0.05;
+    s.size += 0.15;
+    s.rot += 0.005;
+    s.life -= s.decay;
+    if (s.life <= 0) smoke.splice(i, 1);
+  }
+
+  for (let i = poolDrops.length-1; i >= 0; i--) {
+    const p = poolDrops[i];
+    p.life -= p.decay;
+    p.heat *= 0.999;
+    p.size += 0.02;
+    if (p.life <= 0) poolDrops.splice(i, 1);
+  }
+}
+
+// ===== DRAW =====
+function draw() {
+  // Main canvas
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  const bgG = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W,H)*0.75);
+  bgG.addColorStop(0, `rgba(${20+globalHeat*50},${6+globalHeat*12},${4+globalHeat*4},1)`);
+  bgG.addColorStop(0.5, `rgba(${12+globalHeat*20},${4+globalHeat*5},${3},1)`);
+  bgG.addColorStop(1, '#080406');
+  ctx.fillStyle = bgG;
+  ctx.fillRect(0, 0, W, H);
+
+  // Ambient heat haze (subtle background distortion lines)
+  if (globalHeat > 0.15) {
+    ctx.globalAlpha = (globalHeat - 0.15) * 0.12;
+    for (let i = 0; i < 8; i++) {
+      const y = H * 0.2 + i * H * 0.08;
+      ctx.beginPath();
+      for (let x = 0; x < W; x += 3) {
+        const wave = Math.sin(x * 0.008 + time * 1.5 + i) * 8 * globalHeat;
+        if (x === 0) ctx.moveTo(x, y + wave);
+        else ctx.lineTo(x, y + wave);
+      }
+      ctx.strokeStyle = `rgba(255,80,20,0.3)`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Pool drops on ground
+  for (const p of poolDrops) {
+    const a = p.life * p.heat;
+    if (a < 0.01) continue;
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size);
+    g.addColorStop(0, `rgba(255,${Math.floor(100+p.heat*100)},${Math.floor(20*p.heat)},${a*0.8})`);
+    g.addColorStop(0.5, `rgba(200,${Math.floor(50*p.heat)},0,${a*0.3})`);
+    g.addColorStop(1, `rgba(100,20,0,0)`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, p.size, p.size * 0.4, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Sort & draw faces
+  const sf = [...faces].sort((a,b) => a.depth - b.depth);
+  for (const face of sf) {
+    const pts = face.v.map(i => vpos(i));
+    const h = face.glow;
+    const c = palette[face.ci];
+
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+
+    // Paper texture: slight noise via multiple color stops
+    const r = c[0] + (255-c[0]) * h * 0.75;
+    const g = c[1] + (150-c[1]) * h * h * 0.8;
+    const b = c[2] + (30-c[2]) * h * h * h;
+    const ds = 1 - face.depth * 0.06;
+
+    ctx.fillStyle = `rgb(${Math.floor(r*ds)},${Math.floor(g*ds)},${Math.floor(b*ds)})`;
+    ctx.fill();
+
+    // Hot face glow overlay
+    if (h > 0.15) {
+      const ga = (h-0.15) * 0.5;
+      // Inner glow gradient from face center
+      const cx = pts.reduce((s,p) => s+p.x, 0) / pts.length;
+      const cy = pts.reduce((s,p) => s+p.y, 0) / pts.length;
+      let maxR = 0;
+      for (const p of pts) maxR = Math.max(maxR, Math.hypot(p.x-cx, p.y-cy));
+      const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
+      fg.addColorStop(0, `rgba(255,${Math.floor(120+h*80)},${Math.floor(20+h*30)},${ga*0.7})`);
+      fg.addColorStop(1, `rgba(255,${Math.floor(60+h*40)},0,${ga*0.2})`);
+      ctx.fillStyle = fg;
+      ctx.fill();
+    }
+
+    // Edge highlight
+    ctx.strokeStyle = `rgba(${Math.floor(90+h*165)},${Math.floor(30+h*80)},${Math.floor(10+h*25)},${0.1+h*0.35})`;
+    ctx.lineWidth = 0.5 + h * 0.5;
+    ctx.stroke();
+  }
+
+  // Draw creases
+  for (const cr of creases) {
+    const a = vpos(cr.a), b = vpos(cr.b);
+    const h = cr.heat;
+    const pulse = Math.sin(cr.pulse) * 0.3 + 0.7;
+
+    // Wide outer glow
+    if (h > 0.08) {
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = `rgba(255,${Math.floor(50+h*60)},0,${h*0.25*pulse})`;
+      ctx.lineWidth = 5 + h * 18;
+      ctx.lineCap = 'round'; ctx.stroke();
+    }
+
+    // Mid glow
+    if (h > 0.04) {
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = `rgba(255,${Math.floor(100+h*120)},${Math.floor(h*50)},${0.2+h*0.6})`;
+      ctx.lineWidth = 1.5 + h * 5;
+      ctx.lineCap = 'round'; ctx.stroke();
+    }
+
+    // Core line
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    const cR = 90 + h * 165, cG = 35 + h * 170, cB = 12 + h * 70;
+    ctx.strokeStyle = `rgba(${Math.floor(cR)},${Math.floor(cG)},${Math.floor(cB)},${0.15 + h * 0.7})`;
+    ctx.lineWidth = cr.folded ? 2.5 : 0.8;
+    ctx.lineCap = 'round'; ctx.stroke();
+
+    // White-hot core
+    if (h > 0.5) {
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      const wh = (h-0.5)*2;
+      ctx.strokeStyle = `rgba(255,${Math.floor(220+wh*35)},${Math.floor(130+wh*125)},${wh*0.7*pulse})`;
+      ctx.lineWidth = 0.8 + wh * 2;
+      ctx.stroke();
+    }
+
+    // Fold indicator - small notch marks
+    if (cr.folded) {
+      const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+      const dx = b.x-a.x, dy = b.y-a.y;
+      const l = Math.hypot(dx, dy);
+      if (l > 0) {
+        const nx = -dy/l * 6, ny = dx/l * 6;
+        ctx.beginPath();
+        ctx.moveTo(mx-nx, my-ny); ctx.lineTo(mx+nx, my+ny);
+        ctx.strokeStyle = `rgba(255,200,100,${0.3+h*0.5})`;
+        ctx.lineWidth = 1; ctx.stroke();
+      }
+    }
+  }
+
+  // Drips with trails
+  for (const d of drips) {
+    if (d.trail.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(d.trail[0].x, d.trail[0].y);
+      for (let i = 1; i < d.trail.length; i++) ctx.lineTo(d.trail[i].x, d.trail[i].y);
+      ctx.strokeStyle = `rgba(255,${Math.floor(70+d.heat*110)},0,${d.life*0.35})`;
+      ctx.lineWidth = d.size * 0.5 * d.life;
+      ctx.lineCap = 'round'; ctx.stroke();
+    }
+    // Head
+    const sz = d.size * d.life;
+    if (sz > 0.1) {
+      const dg = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, sz);
+      dg.addColorStop(0, `rgba(255,${Math.floor(200*d.heat)},${Math.floor(80*d.heat)},${d.life})`);
+      dg.addColorStop(0.6, `rgba(255,${Math.floor(80*d.heat)},0,${d.life*0.5})`);
+      dg.addColorStop(1, `rgba(180,30,0,0)`);
+      ctx.fillStyle = dg;
+      ctx.beginPath(); ctx.arc(d.x, d.y, sz, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Smoke wisps
+  for (const s of smoke) {
+    const a = s.life * 0.15;
+    if (a < 0.005) continue;
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    ctx.rotate(s.rot);
+    const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, s.size);
+    sg.addColorStop(0, `rgba(60,30,15,${a})`);
+    sg.addColorStop(0.5, `rgba(40,20,10,${a*0.5})`);
+    sg.addColorStop(1, `rgba(20,10,5,0)`);
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(0, 0, s.size, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // Embers
+  for (const p of embers) {
+    const a = p.life;
+    const sz = p.size * Math.min(1, p.life * 2);
+    if (sz < 0.1) continue;
+    ctx.beginPath(); ctx.arc(p.x, p.y, sz, 0, Math.PI*2);
+    const eg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, sz);
+    eg.addColorStop(0, `rgba(255,220,60,${a})`);
+    eg.addColorStop(0.4, `rgba(255,120,20,${a*0.6})`);
+    eg.addColorStop(1, `rgba(200,40,0,0)`);
+    ctx.fillStyle = eg; ctx.fill();
+  }
+
+  // Sparks
+  for (const s of sparks) {
+    const sz = s.size * s.life;
+    ctx.beginPath(); ctx.arc(s.x, s.y, sz, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(255,${Math.floor(180+s.hue*0.8)},${Math.floor(80*s.life)},${s.life})`;
+    ctx.fill();
+    // Trail
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(s.x - s.vx*3, s.y - s.vy*3);
+    ctx.strokeStyle = `rgba(255,${Math.floor(120+s.hue)},30,${s.life*0.5})`;
+    ctx.lineWidth = sz * 0.4; ctx.stroke();
+  }
+
+  // Fold preview
+  if (mouseDown && isDragging && mode === 'fold') {
+    ctx.setLineDash([6, 8]);
+    ctx.beginPath(); ctx.moveTo(dragSX, dragSY); ctx.lineTo(mx, my);
+    ctx.strokeStyle = 'rgba(255,180,60,0.35)';
+    ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.setLineDash([]);
+
+    const midX = (dragSX+mx)/2, midY = (dragSY+my)/2;
+    const cr = findNearestCrease(midX, midY, 100);
+    if (cr) {
+      const a = vpos(cr.a), b = vpos(cr.b);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = 'rgba(255,210,80,0.5)';
+      ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,240,160,0.7)';
+      ctx.lineWidth = 1.5; ctx.stroke();
+    }
+  }
+
+  // Cursor ring for melt/cool
+  if (mode === 'melt' || mode === 'cool') {
+    const r = 130;
+    ctx.beginPath(); ctx.arc(mx, my, r, 0, Math.PI*2);
+    if (mode === 'melt') {
+      ctx.strokeStyle = `rgba(255,80,10,${0.08 + Math.sin(time*3)*0.04})`;
+      // Inner warm glow
+      const mg = ctx.createRadialGradient(mx, my, 0, mx, my, r);
+      mg.addColorStop(0, 'rgba(255,60,0,0.03)');
+      mg.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = mg; ctx.fill();
+    } else {
+      ctx.strokeStyle = `rgba(80,140,255,${0.08 + Math.sin(time*3)*0.03})`;
+      const cg = ctx.createRadialGradient(mx, my, 0, mx, my, r);
+      cg.addColorStop(0, 'rgba(60,100,255,0.02)');
+      cg.addColorStop(1, 'rgba(60,100,255,0)');
+      ctx.fillStyle = cg; ctx.fill();
+    }
+    ctx.lineWidth = 1; ctx.stroke();
+  }
+
+  // Flash overlay
+  if (flashIntensity > 0.01) {
+    ctx.fillStyle = `rgba(255,150,50,${flashIntensity * 0.15})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // Vignette
+  const vig = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.25, W/2, H/2, Math.max(W,H)*0.78);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.55)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  // ===== GLOW CANVAS (additive blending) =====
+  gCtx.clearRect(0, 0, W, H);
+
+  // Crease glow on separate layer for bloom
+  for (const cr of creases) {
+    if (cr.heat < 0.15) continue;
+    const a = vpos(cr.a), b = vpos(cr.b);
+    const h = cr.heat;
+    const pulse = Math.sin(cr.pulse) * 0.2 + 0.8;
+
+    gCtx.beginPath(); gCtx.moveTo(a.x, a.y); gCtx.lineTo(b.x, b.y);
+    gCtx.strokeStyle = `rgba(255,${Math.floor(60+h*60)},0,${h*0.15*pulse})`;
+    gCtx.lineWidth = 20 + h * 30;
+    gCtx.lineCap = 'round'; gCtx.stroke();
+  }
+
+  // Face glow bloom
+  for (const face of sf) {
+    if (face.glow < 0.2) continue;
+    const pts = face.v.map(i => vpos(i));
+    const cx = pts.reduce((s,p) => s+p.x, 0) / pts.length;
+    const cy = pts.reduce((s,p) => s+p.y, 0) / pts.length;
+    let maxR = 0;
+    for (const p of pts) maxR = Math.max(maxR, Math.hypot(p.x-cx, p.y-cy));
+
+    const h = face.glow;
+    const fg = gCtx.createRadialGradient(cx, cy, 0, cx, cy, maxR * 1.5);
+    fg.addColorStop(0, `rgba(255,${Math.floor(80+h*80)},0,${(h-0.2)*0.12})`);
+    fg.addColorStop(1, `rgba(255,40,0,0)`);
+    gCtx.fillStyle = fg;
+    gCtx.beginPath(); gCtx.arc(cx, cy, maxR * 1.5, 0, Math.PI*2); gCtx.fill();
+  }
+
+  // Ember bloom
+  for (const p of embers) {
+    if (p.life < 0.3) continue;
+    gCtx.beginPath();
+    gCtx.arc(p.x, p.y, p.size * 4, 0, Math.PI*2);
+    gCtx.fillStyle = `rgba(255,150,30,${p.life * 0.06})`;
+    gCtx.fill();
+  }
+
+  // Spark bloom
+  for (const s of sparks) {
+    if (s.life < 0.2) continue;
+    gCtx.beginPath();
+    gCtx.arc(s.x, s.y, s.size * 6, 0, Math.PI*2);
+    gCtx.fillStyle = `rgba(255,180,60,${s.life * 0.08})`;
+    gCtx.fill();
+  }
+}
+
+// ===== MAIN LOOP =====
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// Fade in tooltip then out
+setTimeout(() => {
+  document.getElementById('tooltip').style.opacity = '0';
+}, 8000);
+</script>
+</body>
+</html>

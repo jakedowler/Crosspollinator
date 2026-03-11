@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fractal Cathedral</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #000;
+  overflow: hidden;
+  font-family: 'Georgia', serif;
+  cursor: crosshair;
+}
+canvas { display: block; position: fixed; top: 0; left: 0; }
+#ui {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  color: rgba(200, 180, 150, 0.8);
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 0 0 10px rgba(0,0,0,0.9);
+  line-height: 1.7;
+}
+#title {
+  font-size: 26px;
+  letter-spacing: 8px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  color: rgba(220, 200, 160, 0.85);
+  text-shadow: 0 0 30px rgba(255, 200, 100, 0.25), 0 0 60px rgba(255, 180, 80, 0.1);
+}
+#controls {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(200, 180, 150, 0.4);
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 10;
+  text-align: center;
+  line-height: 1.8;
+  letter-spacing: 1px;
+}
+#loading {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 2s;
+}
+#loading .cross {
+  width: 2px; height: 40px;
+  background: rgba(220, 200, 160, 0.3);
+  position: relative;
+  margin-bottom: 30px;
+}
+#loading .cross::after {
+  content: '';
+  position: absolute;
+  width: 24px; height: 2px;
+  background: rgba(220, 200, 160, 0.3);
+  top: 12px; left: -11px;
+}
+#loading span {
+  color: rgba(220, 200, 160, 0.7);
+  font-size: 18px;
+  letter-spacing: 10px;
+  text-transform: uppercase;
+  animation: pulse 2.5s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.9; }
+}
+</style>
+</head>
+<body>
+<div id="loading"><div class="cross"></div><span>Entering the Cathedral</span></div>
+<div id="ui">
+  <div id="title">Fractal Cathedral</div>
+  <div>Depth <span id="depth">5</span> &middot; <span id="style">Gothic</span></div>
+</div>
+<div id="controls">
+  Scroll to zoom into infinite detail &middot; Click to place candles &middot; Drag to shift view<br>
+  [1-4] Style &middot; [Space] Auto-evolve &middot; [R] Reset &middot; [&uarr;&darr;] Depth
+</div>
+<canvas id="c"></canvas>
+
+<script>
+const C = document.getElementById('c');
+const X = C.getContext('2d');
+let W, H;
+
+function resize() {
+  W = C.width = innerWidth;
+  H = C.height = innerHeight;
+}
+resize();
+addEventListener('resize', resize);
+
+// === STATE ===
+const S = {
+  zoom: 1, tz: 1,
+  ox: 0, oy: 0, tox: 0, toy: 0,
+  mx: 0, my: 0,
+  depth: 5, maxD: 9,
+  t: 0,
+  style: 0,
+  sNames: ['Gothic', 'Byzantine', 'Celestial', 'Abyssal'],
+  evolving: false, evoP: 0,
+  lights: [],
+  drag: false, dsx: 0, dsy: 0,
+  particles: [],
+  clickX: -1, clickY: -1,
+};
+
+// Palettes
+const PAL = [
+  { bg:[6,4,12], pri:[210,175,95], sec:[50,70,150], acc:[175,45,25], glass:[35,90,195], warm:[255,210,130] },
+  { bg:[10,4,6], pri:[235,195,75], sec:[155,25,35], acc:[25,145,75], glass:[195,155,35], warm:[255,230,100] },
+  { bg:[4,6,18], pri:[175,195,235], sec:[75,115,195], acc:[195,215,250], glass:[95,145,250], warm:[200,220,255] },
+  { bg:[8,1,12], pri:[145,75,195], sec:[195,15,55], acc:[95,0,145], glass:[175,55,215], warm:[220,140,255] },
+];
+
+function pal() { return PAL[S.style]; }
+function lerp3(a,b,t) { return [a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]; }
+function rgb(c,a) { return `rgba(${c[0]|0},${c[1]|0},${c[2]|0},${a})`; }
+
+// === AUDIO ===
+let ac=null, mg=null, rv=null, drones=[];
+
+function initAudio() {
+  try {
+    ac = new (AudioContext || webkitAudioContext)();
+    mg = ac.createGain(); mg.gain.value = 0.12;
+    rv = ac.createGain(); rv.gain.value = 0.5;
+
+    // Cathedral reverb via delay network
+    for (let i=0; i<6; i++) {
+      const d = ac.createDelay(3);
+      d.delayTime.value = [0.17, 0.37, 0.53, 0.79, 1.13, 1.47][i];
+      const fb = ac.createGain();
+      fb.gain.value = [0.35, 0.28, 0.22, 0.18, 0.14, 0.1][i];
+      const lp = ac.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 1800 - i * 200;
+      rv.connect(d); d.connect(lp); lp.connect(fb); fb.connect(d); lp.connect(mg);
+    }
+    rv.connect(mg); mg.connect(ac.destination);
+
+    // Organ drone - open fifth with subtle beating
+    const base = 55;
+    [[1,'sine',0.12],[1.002,'sine',0.04],[1.5,'sine',0.08],[1.498,'sine',0.03],
+     [2,'triangle',0.06],[3,'triangle',0.03],[4,'sine',0.015],[6,'sine',0.008]].forEach(([h,type,v]) => {
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = type; o.frequency.value = base * h;
+      g.gain.value = v;
+      o.connect(g); g.connect(rv); o.start();
+      drones.push({o, g, bf: base*h});
+    });
+  } catch(e) {}
+}
+
+function chime(freq, dur, vol=0.06) {
+  if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  o.connect(g); g.connect(rv); o.start(); o.stop(ac.currentTime + dur);
+  // Octave shimmer
+  const o2 = ac.createOscillator(), g2 = ac.createGain();
+  o2.type = 'sine'; o2.frequency.value = freq * 2;
+  g2.gain.setValueAtTime(vol * 0.3, ac.currentTime);
+  g2.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur * 0.7);
+  o2.connect(g2); g2.connect(rv); o2.start(); o2.stop(ac.currentTime + dur * 0.7);
+}
+
+function bellChord(freqs, dur) {
+  freqs.forEach((f,i) => setTimeout(() => chime(f, dur, 0.04), i * 80));
+}
+
+function updateAudio() {
+  if (!ac || !drones.length) return;
+  const m = [1, 1.0595, 0.9439, 0.8409][S.style];
+  drones.forEach((d,i) => {
+    const lfo = Math.sin(S.t * 0.15 + i * 1.7) * 0.3;
+    d.o.frequency.setTargetAtTime(d.bf * m + lfo, ac.currentTime, 0.8);
+    const v = d.g.gain.value;
+    const tv = (0.12 - i * 0.012) * (0.7 + 0.3 * Math.sin(S.t * 0.08 + i * 0.9));
+    d.g.gain.setTargetAtTime(Math.max(0.001, tv), ac.currentTime, 0.5);
+  });
+}
+
+// === FRACTAL ARCHITECTURE ===
+
+// Gothic pointed arch with recursive tracery
+function drawArch(x, y, w, h, dep, maxD) {
+  if (dep > maxD || w < 1.5 || h < 2) return;
+  const p = pal(), t = S.t, dr = dep / maxD;
+  const breath = Math.sin(t * 0.25 + dep * 0.6) * 0.015;
+  const aw = w * (1 + breath), ah = h * (1 + breath);
+
+  X.save();
+  X.translate(x, y);
+
+  const ac_ = lerp3(p.pri, p.sec, dr);
+  const glow = 0.3 + 0.2 * Math.sin(t * 0.4 + dep);
+
+  // Main pointed arch path
+  X.beginPath();
+  X.moveTo(-aw/2, ah/2);
+  X.lineTo(-aw/2, -ah * 0.05);
+  // True ogival arch - two arcs meeting at a point
+  X.bezierCurveTo(-aw/2, -ah*0.45, -aw*0.08, -ah*0.55, 0, -ah/2);
+  X.bezierCurveTo(aw*0.08, -ah*0.55, aw/2, -ah*0.45, aw/2, -ah*0.05);
+  X.lineTo(aw/2, ah/2);
+
+  // Fill with stained glass gradient
+  if (dep < maxD - 1) {
+    const g = X.createLinearGradient(0, -ah/2, 0, ah/3);
+    const gc = lerp3(p.bg, p.glass, 0.15 + 0.08 * Math.sin(t * 0.15 + dep));
+    g.addColorStop(0, rgb(p.glass, 0.06 + glow * 0.06));
+    g.addColorStop(0.4, rgb(gc, 0.03));
+    g.addColorStop(1, rgb(p.bg, 0.08));
+    X.fillStyle = g;
+    X.fill();
+  }
+
+  // Stroke arch
+  X.strokeStyle = rgb(ac_, 0.65 - dr * 0.35);
+  X.lineWidth = Math.max(0.4, 3.5 - dep * 0.4);
+  X.stroke();
+
+  // Inner arch line (double molding)
+  if (dep < maxD - 1 && aw > 10) {
+    const inset = Math.max(1, aw * 0.04);
+    X.beginPath();
+    X.moveTo(-aw/2 + inset, ah/2);
+    X.lineTo(-aw/2 + inset, -ah * 0.03);
+    X.bezierCurveTo(-aw/2 + inset, -ah*0.42, -aw*0.06, -ah*0.52, 0, -ah/2 + inset * 0.8);
+    X.bezierCurveTo(aw*0.06, -ah*0.52, aw/2 - inset, -ah*0.42, aw/2 - inset, -ah*0.03);
+    X.lineTo(aw/2 - inset, ah/2);
+    X.strokeStyle = rgb(ac_, 0.25 - dr * 0.12);
+    X.lineWidth = Math.max(0.3, 1.5 - dep * 0.2);
+    X.stroke();
+  }
+
+  // Tracery subdivision
+  if (dep < maxD - 1) {
+    // Central mullion
+    X.strokeStyle = rgb(ac_, 0.35 - dr * 0.15);
+    X.lineWidth = Math.max(0.3, 2 - dep * 0.25);
+    X.beginPath();
+    X.moveTo(0, ah * 0.05);
+    X.lineTo(0, ah/2);
+    X.stroke();
+
+    // Sub-arches
+    const sw = aw * 0.44, sh = ah * 0.68;
+    drawArch(-aw * 0.225, ah * 0.07, sw, sh, dep + 1, maxD);
+    drawArch(aw * 0.225, ah * 0.07, sw, sh, dep + 1, maxD);
+
+    // Trefoil / quatrefoil in spandrel
+    if (dep < 3 && aw > 30) {
+      drawRose(0, -ah * 0.28, aw * 0.14, dep + 2, maxD);
+    }
+
+    // Side lancets at first level
+    if (dep === 0 && aw > 60) {
+      drawArch(-aw * 0.42, ah * 0.1, aw * 0.12, ah * 0.45, dep + 2, maxD);
+      drawArch(aw * 0.42, ah * 0.1, aw * 0.12, ah * 0.45, dep + 2, maxD);
+    }
+  }
+
+  X.restore();
+}
+
+// Fractal rose window with stained glass
+function drawRose(x, y, r, dep, maxD) {
+  if (dep > maxD || r < 1) return;
+  const p = pal(), t = S.t, dr = dep / maxD;
+  const n = [8, 6, 12, 7][S.style];
+  const rot = t * 0.04 * (dep % 2 ? 1 : -1) + dep * Math.PI / n;
+
+  X.save();
+  X.translate(x, y);
+  X.rotate(rot);
+
+  // Outer circle
+  const rc = lerp3(p.glass, p.acc, 0.4 + 0.4 * Math.sin(t * 0.25 + dep));
+  X.strokeStyle = rgb(rc, 0.55 - dr * 0.25);
+  X.lineWidth = Math.max(0.3, 2.2 - dep * 0.25);
+  X.beginPath(); X.arc(0, 0, r, 0, Math.PI*2); X.stroke();
+
+  // Second concentric circle
+  if (r > 5) {
+    X.strokeStyle = rgb(rc, 0.2);
+    X.lineWidth = Math.max(0.2, 1 - dep * 0.15);
+    X.beginPath(); X.arc(0, 0, r * 0.75, 0, Math.PI*2); X.stroke();
+  }
+
+  // Stained glass petals
+  for (let i = 0; i < n; i++) {
+    const a1 = (i / n) * Math.PI * 2;
+    const a2 = ((i + 1) / n) * Math.PI * 2;
+
+    X.beginPath();
+    X.moveTo(0, 0);
+    X.arc(0, 0, r, a1, a2);
+    X.closePath();
+
+    // Multi-hue stained glass
+    const hShift = (i / n) * 80 + t * 4 + dep * 25;
+    const gc = [
+      p.glass[0] + Math.sin(hShift * 0.0174) * 70,
+      p.glass[1] + Math.sin(hShift * 0.0131 + 2.1) * 50,
+      p.glass[2] + Math.sin(hShift * 0.0193 + 4.2) * 60,
+    ];
+
+    // Light reactivity from mouse and placed candles
+    let lightBoost = 0;
+    const wx = x * S.zoom + S.ox + W/2;
+    const wy = y * S.zoom + S.oy + H/2;
+    const md = Math.hypot((wx - S.mx) / W, (wy - S.my) / H);
+    lightBoost += Math.max(0, 1 - md * 3) * 0.12;
+
+    S.lights.forEach(l => {
+      const ld = Math.hypot((wx - l.x) / W, (wy - l.y) / H);
+      lightBoost += Math.max(0, 1 - ld * 4) * 0.08;
+    });
+
+    const baseA = 0.07 + lightBoost;
+    const flicker = 0.025 * Math.sin(t * 0.5 + i * 1.3 + dep * 0.7);
+    X.fillStyle = rgb(gc, baseA + flicker);
+    X.fill();
+
+    // Lead lines between panes
+    X.strokeStyle = rgb(rc, 0.2 - dr * 0.08);
+    X.lineWidth = Math.max(0.2, 0.8 - dep * 0.1);
+    X.stroke();
+
+    // Petal-shaped inner design
+    if (r > 10 && dep < maxD - 2) {
+      const cx = Math.cos((a1 + a2) / 2) * r * 0.5;
+      const cy = Math.sin((a1 + a2) / 2) * r * 0.5;
+      const pr = r * 0.2;
+      X.beginPath();
+      X.arc(cx, cy, pr, 0, Math.PI * 2);
+      X.fillStyle = rgb(gc, 0.04 + lightBoost * 0.5);
+      X.fill();
+      X.strokeStyle = rgb(rc, 0.15);
+      X.lineWidth = 0.4;
+      X.stroke();
+    }
+  }
+
+  // Recursive inner rose
+  if (dep < maxD - 1) {
+    drawRose(0, 0, r * 0.45, dep + 1, maxD);
+
+    // Perimeter sub-roses
+    if (r > 12) {
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + Math.PI / n;
+        drawRose(Math.cos(a) * r * 0.62, Math.sin(a) * r * 0.62, r * 0.18, dep + 2, maxD);
+      }
+    }
+  }
+
+  X.restore();
+}
+
+// Fractal column with clustered shafts
+function drawColumn(x, y, w, h, dep, maxD) {
+  if (dep > maxD || h < 3) return;
+  const p = pal(), dr = dep / maxD;
+  const cc = lerp3(p.pri, [95,85,75], dr);
+
+  X.save();
+  X.translate(x, y);
+
+  // Shaft with 3D illusion
+  const g = X.createLinearGradient(-w/2, 0, w/2, 0);
+  g.addColorStop(0, rgb(cc, 0.08));
+  g.addColorStop(0.2, rgb(cc, 0.3 - dr * 0.15));
+  g.addColorStop(0.5, rgb(cc, 0.45 - dr * 0.2));
+  g.addColorStop(0.8, rgb(cc, 0.3 - dr * 0.15));
+  g.addColorStop(1, rgb(cc, 0.08));
+  X.fillStyle = g;
+  X.fillRect(-w/2, -h/2, w, h);
+
+  // Entasis - subtle curve highlight
+  X.strokeStyle = rgb(cc, 0.15);
+  X.lineWidth = 0.5;
+  X.beginPath();
+  X.moveTo(-w*0.1, -h/2);
+  X.quadraticCurveTo(-w*0.05, 0, -w*0.1, h/2);
+  X.stroke();
+  X.beginPath();
+  X.moveTo(w*0.1, -h/2);
+  X.quadraticCurveTo(w*0.05, 0, w*0.1, h/2);
+  X.stroke();
+
+  // Capital
+  const ch = h * 0.06, cw = w * 1.5;
+  X.fillStyle = rgb(cc, 0.5 - dr * 0.2);
+  X.beginPath();
+  X.moveTo(-cw/2, -h/2);
+  X.quadraticCurveTo(-cw/2, -h/2 + ch*0.3, -w/2, -h/2 + ch);
+  X.lineTo(w/2, -h/2 + ch);
+  X.quadraticCurveTo(cw/2, -h/2 + ch*0.3, cw/2, -h/2);
+  X.closePath();
+  X.fill();
+
+  // Capital leaf decoration
+  if (w > 6 && dep < 2) {
+    const leaves = 3;
+    for (let i = 0; i < leaves; i++) {
+      const lx = -w/2 + (i + 0.5) * (w / leaves);
+      X.strokeStyle = rgb(p.acc, 0.2);
+      X.lineWidth = 0.5;
+      X.beginPath();
+      X.moveTo(lx, -h/2 + ch);
+      X.quadraticCurveTo(lx - w*0.08, -h/2 + ch * 2.5, lx, -h/2 + ch * 3.5);
+      X.stroke();
+      X.beginPath();
+      X.moveTo(lx, -h/2 + ch);
+      X.quadraticCurveTo(lx + w*0.08, -h/2 + ch * 2.5, lx, -h/2 + ch * 3.5);
+      X.stroke();
+    }
+  }
+
+  // Base
+  X.beginPath();
+  X.moveTo(-cw/2, h/2);
+  X.quadraticCurveTo(-cw/2, h/2 - ch*0.3, -w/2, h/2 - ch);
+  X.lineTo(w/2, h/2 - ch);
+  X.quadraticCurveTo(cw/2, h/2 - ch*0.3, cw/2, h/2);
+  X.closePath();
+  X.fill();
+
+  // Fluting
+  if (w > 4) {
+    const fl = Math.max(3, Math.floor(w / 2.5));
+    X.strokeStyle = rgb(cc, 0.08);
+    X.lineWidth = 0.3;
+    for (let i = 0; i < fl; i++) {
+      const fx = -w/2 + (i + 0.5) * (w / fl);
+      X.beginPath(); X.moveTo(fx, -h/2 + ch); X.lineTo(fx, h/2 - ch); X.stroke();
+    }
+  }
+
+  // Clustered mini-columns
+  if (dep < maxD - 1 && w > 5) {
+    drawColumn(-w * 0.75, 0, w * 0.25, h * 0.85, dep + 1, maxD);
+    drawColumn(w * 0.75, 0, w * 0.25, h * 0.85, dep + 1, maxD);
+  }
+
+  X.restore();
+}
+
+// Fractal rib vault
+function drawVault(x, y, w, h, dep, maxD) {
+  if (dep > maxD || w < 2.5) return;
+  const p = pal(), t = S.t, dr = dep / maxD;
+  const rc = lerp3(p.pri, p.sec, 0.25 + dr * 0.35);
+
+  X.save();
+  X.translate(x, y);
+
+  X.strokeStyle = rgb(rc, 0.5 - dr * 0.28);
+  X.lineWidth = Math.max(0.4, 2.8 - dep * 0.35);
+
+  // Transverse ribs
+  X.beginPath(); X.moveTo(-w/2, h/2); X.quadraticCurveTo(0, -h*0.35, w/2, h/2); X.stroke();
+  X.beginPath(); X.moveTo(-w/2, -h/2); X.quadraticCurveTo(0, h*0.35, w/2, -h/2); X.stroke();
+
+  // Diagonal ribs
+  X.strokeStyle = rgb(rc, 0.35 - dr * 0.2);
+  X.lineWidth = Math.max(0.3, 2 - dep * 0.3);
+  X.beginPath(); X.moveTo(-w/2, -h/2); X.quadraticCurveTo(w*0.1, -h*0.05, w/2, h/2); X.stroke();
+  X.beginPath(); X.moveTo(w/2, -h/2); X.quadraticCurveTo(-w*0.1, -h*0.05, -w/2, h/2); X.stroke();
+
+  // Lierne ribs (decorative short ribs)
+  if (w > 20 && dep < maxD - 1) {
+    X.strokeStyle = rgb(rc, 0.18);
+    X.lineWidth = Math.max(0.2, 1 - dep * 0.15);
+    const lr = w * 0.15;
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2 + Math.PI / 4;
+      X.beginPath();
+      X.moveTo(0, 0);
+      X.lineTo(Math.cos(a) * lr, Math.sin(a) * lr);
+      X.stroke();
+    }
+  }
+
+  // Boss (keystone ornament)
+  if (w > 12) {
+    const br = w * 0.035;
+    X.fillStyle = rgb(p.acc, 0.4);
+    X.beginPath(); X.arc(0, 0, br, 0, Math.PI*2); X.fill();
+    drawRose(0, 0, br * 2.5, dep + 3, maxD);
+  }
+
+  // Recursive sub-vaults
+  if (dep < maxD - 2) {
+    const sw = w * 0.44, sh = h * 0.44;
+    drawVault(-w*0.24, -h*0.24, sw, sh, dep+1, maxD);
+    drawVault(w*0.24, -h*0.24, sw, sh, dep+1, maxD);
+    drawVault(-w*0.24, h*0.24, sw, sh, dep+1, maxD);
+    drawVault(w*0.24, h*0.24, sw, sh, dep+1, maxD);
+  }
+
+  X.restore();
+}
+
+// Fractal flying buttress
+function drawButtress(x, y, len, angle, w, dep, maxD, side) {
+  if (dep > maxD || len < 1.5) return;
+  const p = pal(), t = S.t, dr = dep / maxD;
+  const ex = x + Math.cos(angle) * len;
+  const ey = y + Math.sin(angle) * len;
+  const bc = lerp3(p.pri, [110,100,90], dr);
+
+  // Main arm with architectural curve
+  X.strokeStyle = rgb(bc, 0.5 - dr * 0.28);
+  X.lineWidth = w;
+  const cp = 0.15 * side;
+  X.beginPath();
+  X.moveTo(x, y);
+  X.quadraticCurveTo(
+    x + Math.cos(angle - cp) * len * 0.55,
+    y + Math.sin(angle - cp) * len * 0.55,
+    ex, ey
+  );
+  X.stroke();
+
+  // Supporting arch underneath
+  if (len > 12) {
+    X.strokeStyle = rgb(bc, 0.2 - dr * 0.1);
+    X.lineWidth = w * 0.4;
+    const mx = (x + ex) / 2, my = (y + ey) / 2;
+    const off = len * 0.18 * side;
+    X.beginPath();
+    X.moveTo(x, y);
+    X.quadraticCurveTo(mx + Math.cos(angle - Math.PI/2) * off,
+                        my + Math.sin(angle - Math.PI/2) * off, ex, ey);
+    X.stroke();
+  }
+
+  // Pinnacle at branch point
+  if (dep < 2 && len > 18) {
+    const ph = len * 0.12;
+    X.fillStyle = rgb(p.acc, 0.3 - dr * 0.1);
+    X.beginPath();
+    X.moveTo(ex, ey - ph);
+    X.lineTo(ex - w * 1.2, ey + ph * 0.4);
+    X.lineTo(ex + w * 1.2, ey + ph * 0.4);
+    X.closePath();
+    X.fill();
+    X.strokeStyle = rgb(bc, 0.3);
+    X.lineWidth = 0.5;
+    X.stroke();
+
+    // Crocket (decorative knob)
+    X.fillStyle = rgb(p.acc, 0.25);
+    X.beginPath(); X.arc(ex, ey - ph * 1.1, w * 0.6, 0, Math.PI*2); X.fill();
+  }
+
+  // Branch
+  const sway = Math.sin(t * 0.12 + dep * 1.3) * 0.08;
+  const bLen = len * 0.62, bW = w * 0.62;
+  drawButtress(ex, ey, bLen, angle - 0.38 + sway, bW, dep+1, maxD, side);
+  drawButtress(ex, ey, bLen, angle + 0.38 + sway, bW, dep+1, maxD, side);
+}
+
+// Fractal floor tiling (Penrose-inspired)
+function drawFloor(x, y, w, h, dep, maxD) {
+  if (dep > maxD || w < 2) return;
+  const p = pal(), t = S.t, dr = dep / maxD;
+
+  X.save();
+  X.translate(x, y);
+
+  X.strokeStyle = rgb(p.pri, 0.13 - dr * 0.06);
+  X.lineWidth = Math.max(0.2, 0.8 - dep * 0.15);
+
+  // Diamond tile
+  X.beginPath();
+  X.moveTo(0, -h/2); X.lineTo(w/2, 0);
+  X.lineTo(0, h/2); X.lineTo(-w/2, 0);
+  X.closePath();
+  X.stroke();
+
+  const shimmer = Math.sin(t * 0.18 + x * 0.008 + y * 0.012 + dep) * 0.025;
+  X.fillStyle = rgb(p.glass, 0.015 + shimmer + Math.max(0, 0.005));
+  X.fill();
+
+  if (dep < maxD) {
+    const sw = w * 0.47, sh = h * 0.47;
+    drawFloor(0, -h*0.25, sw, sh, dep+1, maxD);
+    drawFloor(w*0.25, 0, sw, sh, dep+1, maxD);
+    drawFloor(0, h*0.25, sw, sh, dep+1, maxD);
+    drawFloor(-w*0.25, 0, sw, sh, dep+1, maxD);
+  }
+
+  X.restore();
+}
+
+// === PARTICLES ===
+function initParticles() {
+  for (let i = 0; i < 100; i++) {
+    S.particles.push({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.25,
+      vy: -Math.random() * 0.4 - 0.08,
+      sz: Math.random() * 2.2 + 0.3,
+      life: Math.random() * 2,
+      spd: Math.random() * 0.4 + 0.15,
+    });
+  }
+}
+
+function updateParticles(dt) {
+  S.particles.forEach(p => {
+    p.x += p.vx + Math.sin(S.t * 0.25 + p.life * 8) * 0.15;
+    p.y += p.vy;
+    p.life += dt * 0.08 * p.spd;
+    if (p.y < -10 || p.life > 2) {
+      p.x = Math.random() * W; p.y = H + 10; p.life = 0;
+    }
+  });
+}
+
+function drawParticles() {
+  const p = pal();
+  S.particles.forEach(pt => {
+    const a = Math.sin(pt.life * Math.PI) * 0.35;
+    if (a <= 0) return;
+    const c = lerp3(p.pri, p.warm, pt.life * 0.4);
+    X.fillStyle = rgb(c, a);
+    X.beginPath(); X.arc(pt.x, pt.y, pt.sz, 0, Math.PI*2); X.fill();
+    if (pt.sz > 1.2) {
+      X.fillStyle = rgb(c, a * 0.15);
+      X.beginPath(); X.arc(pt.x, pt.y, pt.sz * 3.5, 0, Math.PI*2); X.fill();
+    }
+  });
+}
+
+// === LIGHT EFFECTS ===
+function drawLightBeams() {
+  const p = pal(), t = S.t;
+
+  // Volumetric light shafts from above
+  for (let i = 0; i < 4; i++) {
+    const bx = W * (0.2 + i * 0.2) + Math.sin(t * 0.08 + i * 1.5) * 25;
+    const ang = Math.sin(t * 0.04 + i * 2.3) * 0.12;
+    const bw = 35 + Math.sin(t * 0.15 + i * 0.8) * 12;
+    const intensity = 0.04 + 0.015 * Math.sin(t * 0.2 + i * 3);
+
+    X.save();
+    X.translate(bx, 0);
+    X.rotate(ang);
+
+    const g = X.createLinearGradient(0, -20, 0, H);
+    const bc = lerp3(p.warm, p.glass, 0.3);
+    g.addColorStop(0, rgb(bc, intensity));
+    g.addColorStop(0.3, rgb(bc, intensity * 0.6));
+    g.addColorStop(0.7, rgb(bc, intensity * 0.2));
+    g.addColorStop(1, rgb(bc, 0));
+    X.fillStyle = g;
+    X.fillRect(-bw/2, -20, bw, H + 40);
+
+    X.restore();
+  }
+
+  // Placed candles
+  S.lights.forEach((l, idx) => {
+    const flk = 0.75 + 0.25 * Math.sin(t * 4 + idx * 7.3) * Math.sin(t * 2.7 + idx * 3.1);
+    const r = 140 * flk;
+
+    // Light pool
+    const g = X.createRadialGradient(l.x, l.y, 0, l.x, l.y, r);
+    const lc = lerp3(p.warm, [255,200,100], 0.5);
+    g.addColorStop(0, rgb(lc, 0.14 * flk));
+    g.addColorStop(0.2, rgb(lc, 0.07 * flk));
+    g.addColorStop(0.6, rgb(lc, 0.02 * flk));
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    X.fillStyle = g;
+    X.fillRect(l.x - r, l.y - r, r*2, r*2);
+
+    // Candle body
+    X.fillStyle = rgb([180,170,140], 0.6);
+    X.fillRect(l.x - 1.5, l.y, 3, 12);
+
+    // Flame outer
+    X.fillStyle = rgb([255,160,40], 0.6 * flk);
+    X.beginPath();
+    X.ellipse(l.x, l.y - 2, 2.5, 6 * flk, Math.sin(t * 5 + idx) * 0.15, 0, Math.PI*2);
+    X.fill();
+
+    // Flame inner
+    X.fillStyle = rgb([255,240,180], 0.9);
+    X.beginPath();
+    X.ellipse(l.x, l.y, 1.2, 3 * flk, 0, 0, Math.PI*2);
+    X.fill();
+
+    // Flame tip
+    X.fillStyle = rgb([255,255,220], 0.7 * flk);
+    X.beginPath(); X.arc(l.x, l.y - 1, 0.8, 0, Math.PI*2); X.fill();
+  });
+}
+
+// === MAIN COMPOSITION ===
+function drawCathedral() {
+  const p = pal(), t = S.t, z = S.zoom;
+
+  X.save();
+  X.translate(W/2 + S.ox, H/2 + S.oy);
+  X.scale(z, z);
+
+  const bw = W * 0.72, bh = H * 0.88;
+
+  // Background lancet windows (far wall depth)
+  if (S.depth > 4) {
+    for (let i = -2; i <= 2; i++) {
+      if (i === 0) continue;
+      const lx = i * bw * 0.15;
+      const lw = bw * 0.06;
+      const lh = bh * 0.25;
+      X.strokeStyle = rgb(p.sec, 0.12);
+      X.lineWidth = 0.5;
+      X.beginPath();
+      X.moveTo(lx - lw/2, bh * 0.1);
+      X.lineTo(lx - lw/2, -bh * 0.1);
+      X.quadraticCurveTo(lx, -bh * 0.18, lx + lw/2, -bh * 0.1);
+      X.lineTo(lx + lw/2, bh * 0.1);
+      X.stroke();
+
+      // Glass fill
+      const lg = X.createLinearGradient(lx, -bh * 0.18, lx, bh * 0.1);
+      lg.addColorStop(0, rgb(p.glass, 0.04));
+      lg.addColorStop(1, rgb(p.bg, 0.02));
+      X.fillStyle = lg;
+      X.fill();
+    }
+  }
+
+  // Central nave arch
+  drawArch(0, -bh * 0.04, bw * 0.52, bh * 0.72, 0, S.depth);
+
+  // Side aisles
+  drawArch(-bw * 0.39, bh * 0.02, bw * 0.26, bh * 0.52, 1, S.depth);
+  drawArch(bw * 0.39, bh * 0.02, bw * 0.26, bh * 0.52, 1, S.depth);
+
+  // Far side aisles
+  if (S.depth > 3) {
+    drawArch(-bw * 0.6, bh * 0.06, bw * 0.16, bh * 0.36, 2, S.depth);
+    drawArch(bw * 0.6, bh * 0.06, bw * 0.16, bh * 0.36, 2, S.depth);
+  }
+
+  // Great rose window
+  drawRose(0, -bh * 0.34, bw * 0.19, 0, S.depth + 1);
+
+  // Side rose windows
+  drawRose(-bw * 0.39, -bh * 0.19, bw * 0.075, 1, S.depth);
+  drawRose(bw * 0.39, -bh * 0.19, bw * 0.075, 1, S.depth);
+
+  // Upper gallery rose windows
+  if (S.depth > 4) {
+    drawRose(-bw * 0.22, -bh * 0.32, bw * 0.04, 2, S.depth);
+    drawRose(bw * 0.22, -bh * 0.32, bw * 0.04, 2, S.depth);
+  }
+
+  // Columns
+  [-0.56, -0.31, -0.145, 0.145, 0.31, 0.56].forEach(cp => {
+    drawColumn(bw * cp, bh * 0.16, bw * 0.024, bh * 0.56, 0, S.depth);
+  });
+
+  // Inner columns (if deep enough)
+  if (S.depth > 5) {
+    [-0.42, -0.22, 0.22, 0.42].forEach(cp => {
+      drawColumn(bw * cp, bh * 0.12, bw * 0.012, bh * 0.3, 2, S.depth);
+    });
+  }
+
+  // Vault ceiling
+  drawVault(0, -bh * 0.16, bw * 0.52, bh * 0.26, 0, S.depth);
+
+  // Side vaults
+  if (S.depth > 3) {
+    drawVault(-bw * 0.35, -bh * 0.06, bw * 0.2, bh * 0.14, 1, S.depth);
+    drawVault(bw * 0.35, -bh * 0.06, bw * 0.2, bh * 0.14, 1, S.depth);
+  }
+
+  // Flying buttresses
+  drawButtress(-bw*0.54, -bh*0.12, bw*0.22, -Math.PI*0.62, 2.8, 0, S.depth, -1);
+  drawButtress(bw*0.54, -bh*0.12, bw*0.22, -Math.PI*0.38, 2.8, 0, S.depth, 1);
+  drawButtress(-bw*0.54, bh*0.08, bw*0.17, -Math.PI*0.68, 2.2, 0, S.depth, -1);
+  drawButtress(bw*0.54, bh*0.08, bw*0.17, -Math.PI*0.32, 2.2, 0, S.depth, 1);
+
+  // Spire
+  if (z > 0.6) {
+    const sc = lerp3(p.pri, p.acc, 0.3);
+    X.strokeStyle = rgb(sc, 0.45);
+    X.lineWidth = 1.8;
+    // Main spire
+    X.beginPath();
+    X.moveTo(0, -bh * 0.58);
+    X.lineTo(-bw * 0.02, -bh * 0.44);
+    X.moveTo(0, -bh * 0.58);
+    X.lineTo(bw * 0.02, -bh * 0.44);
+    X.stroke();
+
+    // Spire body
+    X.strokeStyle = rgb(sc, 0.25);
+    X.lineWidth = 0.8;
+    X.beginPath();
+    X.moveTo(-bw * 0.015, -bh * 0.47);
+    X.lineTo(bw * 0.015, -bh * 0.47);
+    X.stroke();
+    X.beginPath();
+    X.moveTo(-bw * 0.01, -bh * 0.51);
+    X.lineTo(bw * 0.01, -bh * 0.51);
+    X.stroke();
+
+    // Cross
+    X.strokeStyle = rgb(p.warm, 0.6);
+    X.lineWidth = 1.5;
+    X.beginPath();
+    X.moveTo(0, -bh * 0.62);
+    X.lineTo(0, -bh * 0.57);
+    X.moveTo(-bw * 0.012, -bh * 0.605);
+    X.lineTo(bw * 0.012, -bh * 0.605);
+    X.stroke();
+
+    // Side pinnacles
+    [-0.56, 0.56].forEach(px => {
+      X.strokeStyle = rgb(sc, 0.25);
+      X.lineWidth = 1;
+      X.beginPath();
+      X.moveTo(bw * px, -bh * 0.4);
+      X.lineTo(bw * (px - 0.008), -bh * 0.33);
+      X.moveTo(bw * px, -bh * 0.4);
+      X.lineTo(bw * (px + 0.008), -bh * 0.33);
+      X.stroke();
+    });
+  }
+
+  // Floor
+  if (S.depth > 3) {
+    drawFloor(0, bh * 0.41, bw * 0.65, bh * 0.13, 0, Math.min(S.depth - 2, 4));
+  }
+
+  // Transept arches (at sides)
+  if (S.depth > 4) {
+    X.save(); X.translate(-bw * 0.31, -bh * 0.02);
+    drawArch(0, 0, bw * 0.08, bh * 0.2, 3, S.depth);
+    X.restore();
+    X.save(); X.translate(bw * 0.31, -bh * 0.02);
+    drawArch(0, 0, bw * 0.08, bh * 0.2, 3, S.depth);
+    X.restore();
+  }
+
+  X.restore();
+}
+
+// === ATMOSPHERE ===
+function drawAtmosphere() {
+  const p = pal(), t = S.t;
+
+  // Deep vignette
+  const vg = X.createRadialGradient(W/2, H*0.45, H*0.15, W/2, H*0.45, H*0.85);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(0.7, rgb(p.bg, 0.4));
+  vg.addColorStop(1, rgb(p.bg, 0.85));
+  X.fillStyle = vg;
+  X.fillRect(0, 0, W, H);
+
+  // Skylight glow
+  const sg = X.createRadialGradient(W/2 + S.ox * 0.5, H*0.1 + S.oy * 0.3, 0,
+                                     W/2 + S.ox * 0.3, H*0.2, H*0.5);
+  const sc = lerp3(p.glass, p.warm, 0.25);
+  sg.addColorStop(0, rgb(sc, 0.05 + 0.02 * Math.sin(t * 0.12)));
+  sg.addColorStop(1, 'rgba(0,0,0,0)');
+  X.fillStyle = sg;
+  X.fillRect(0, 0, W, H);
+
+  // Mouse-following ambient glow
+  const mg = X.createRadialGradient(S.mx, S.my, 0, S.mx, S.my, 180);
+  mg.addColorStop(0, rgb(p.warm, 0.03));
+  mg.addColorStop(1, 'rgba(0,0,0,0)');
+  X.fillStyle = mg;
+  X.fillRect(0, 0, W, H);
+
+  // Subtle film grain
+  if (Math.random() > 0.7) {
+    X.fillStyle = `rgba(${p.pri[0]},${p.pri[1]},${p.pri[2]},0.003)`;
+    for (let i = 0; i < 15; i++) {
+      const gx = Math.random() * W, gy = Math.random() * H;
+      X.fillRect(gx, gy, 2, 2);
+    }
+  }
+}
+
+// === EVOLUTION ===
+function updateEvolution(dt) {
+  if (!S.evolving) return;
+  S.evoP += dt * 0.25;
+  S.depth = Math.floor(3 + Math.sin(S.evoP * 0.4) * 2.5 + 2.5);
+  document.getElementById('depth').textContent = S.depth;
+
+  if (Math.sin(S.evoP * 0.15) > 0.97) {
+    S.style = (S.style + 1) % 4;
+    document.getElementById('style').textContent = S.sNames[S.style];
+  }
+  S.tox = Math.sin(S.evoP * 0.25) * 60;
+  S.toy = Math.cos(S.evoP * 0.18) * 35;
+  S.tz = 0.7 + Math.sin(S.evoP * 0.12) * 0.6 + 0.6;
+}
+
+// === MAIN LOOP ===
+let lt = 0;
+
+function loop(ts) {
+  const dt = Math.min((ts - lt) / 1000, 0.05);
+  lt = ts;
+  S.t += dt;
+
+  // Smooth interpolation
+  S.zoom += (S.tz - S.zoom) * 0.04;
+  S.ox += (S.tox - S.ox) * 0.04;
+  S.oy += (S.toy - S.oy) * 0.04;
+
+  // Background
+  const p = pal();
+  X.fillStyle = rgb(p.bg, 1);
+  X.fillRect(0, 0, W, H);
+
+  // Faint star field in background
+  X.save();
+  for (let i = 0; i < 30; i++) {
+    const sx = (Math.sin(i * 127.1 + 311) * 0.5 + 0.5) * W;
+    const sy = (Math.sin(i * 269.5 + 183) * 0.5 + 0.5) * H * 0.4;
+    const sa = 0.08 + 0.06 * Math.sin(S.t * 0.5 + i * 2);
+    X.fillStyle = rgb(p.warm, sa);
+    X.beginPath(); X.arc(sx, sy, 0.7, 0, Math.PI*2); X.fill();
+  }
+  X.restore();
+
+  drawLightBeams();
+  drawCathedral();
+  drawParticles();
+  drawAtmosphere();
+
+  updateParticles(dt);
+  updateEvolution(dt);
+  updateAudio();
+
+  requestAnimationFrame(loop);
+}
+
+// === INPUT ===
+C.addEventListener('wheel', e => {
+  e.preventDefault();
+  S.tz = Math.max(0.25, Math.min(6, S.tz * (e.deltaY > 0 ? 0.92 : 1.08)));
+  const nd = Math.max(3, Math.min(S.maxD, Math.floor(2.5 + S.tz * 1.5)));
+  if (nd !== S.depth) {
+    S.depth = nd;
+    document.getElementById('depth').textContent = nd;
+    chime([440,523,659,784,880,1047,1175][Math.min(nd-3,6)], 2.5);
+  }
+}, { passive: false });
+
+let clickMoved = false;
+C.addEventListener('mousedown', e => {
+  S.drag = true;
+  clickMoved = false;
+  S.dsx = e.clientX - S.tox;
+  S.dsy = e.clientY - S.toy;
+});
+
+C.addEventListener('mousemove', e => {
+  S.mx = e.clientX;
+  S.my = e.clientY;
+  if (S.drag) {
+    const nx = e.clientX - S.dsx, ny = e.clientY - S.dsy;
+    if (Math.abs(nx - S.tox) > 3 || Math.abs(ny - S.toy) > 3) clickMoved = true;
+    S.tox = nx; S.toy = ny;
+  }
+});
+
+C.addEventListener('mouseup', e => {
+  if (!clickMoved) {
+    // Place candle
+    S.lights.push({ x: e.clientX, y: e.clientY });
+    if (S.lights.length > 15) S.lights.shift();
+    // Musical chime - pentatonic scale
+    const scale = [261, 293, 329, 392, 440, 523, 587, 659, 784];
+    chime(scale[S.lights.length % scale.length], 3, 0.05);
+    if (S.lights.length % 3 === 0) {
+      bellChord([261, 329, 392], 4);
+    }
+  }
+  S.drag = false;
+});
+
+C.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  S.mx = t.clientX; S.my = t.clientY;
+  S.drag = true; clickMoved = false;
+  S.dsx = t.clientX - S.tox;
+  S.dsy = t.clientY - S.toy;
+}, { passive: false });
+
+C.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  S.mx = t.clientX; S.my = t.clientY;
+  if (S.drag) {
+    const nx = t.clientX - S.dsx, ny = t.clientY - S.dsy;
+    if (Math.abs(nx - S.tox) > 3 || Math.abs(ny - S.toy) > 3) clickMoved = true;
+    S.tox = nx; S.toy = ny;
+  }
+}, { passive: false });
+
+C.addEventListener('touchend', e => {
+  S.drag = false;
+  if (!clickMoved) {
+    S.lights.push({ x: S.mx, y: S.my });
+    if (S.lights.length > 15) S.lights.shift();
+  }
+});
+
+// Pinch to zoom
+let lastPinchDist = 0;
+C.addEventListener('touchmove', e => {
+  if (e.touches.length === 2) {
+    const d = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    if (lastPinchDist > 0) {
+      const scale = d / lastPinchDist;
+      S.tz = Math.max(0.25, Math.min(6, S.tz * scale));
+    }
+    lastPinchDist = d;
+    clickMoved = true;
+  }
+}, { passive: false });
+
+C.addEventListener('touchend', () => { lastPinchDist = 0; });
+
+addEventListener('keydown', e => {
+  switch(e.key) {
+    case '1': case '2': case '3': case '4':
+      S.style = parseInt(e.key) - 1;
+      document.getElementById('style').textContent = S.sNames[S.style];
+      chime([220,277,330,165][S.style], 2.5, 0.05);
+      bellChord([[220,330,440],[277,349,554],[330,440,659],[165,247,330]][S.style], 3);
+      break;
+    case ' ':
+      e.preventDefault();
+      S.evolving = !S.evolving;
+      break;
+    case 'r': case 'R':
+      S.tz = 1; S.tox = 0; S.toy = 0;
+      S.lights = []; S.depth = 5; S.evolving = false;
+      document.getElementById('depth').textContent = 5;
+      break;
+    case 'ArrowUp': e.preventDefault();
+      S.depth = Math.min(S.maxD, S.depth + 1);
+      document.getElementById('depth').textContent = S.depth;
+      chime(440 + S.depth * 50, 1.5);
+      break;
+    case 'ArrowDown': e.preventDefault();
+      S.depth = Math.max(2, S.depth - 1);
+      document.getElementById('depth').textContent = S.depth;
+      chime(440 + S.depth * 50, 1.5);
+      break;
+  }
+});
+
+// Audio init on first interaction
+function startAudio() {
+  if (!ac) initAudio();
+  else if (ac.state === 'suspended') ac.resume();
+}
+C.addEventListener('click', startAudio);
+C.addEventListener('touchstart', startAudio);
+
+// === INIT ===
+initParticles();
+
+setTimeout(() => {
+  const ld = document.getElementById('loading');
+  ld.style.opacity = '0';
+  setTimeout(() => ld.style.display = 'none', 2000);
+  requestAnimationFrame(loop);
+}, 1800);
+</script>
+</body>
+</html>
