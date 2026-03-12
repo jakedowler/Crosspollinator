@@ -381,6 +381,11 @@
 document.getElementById('start-btn').addEventListener('click', function() {
   if (window._handleStart) window._handleStart();
 });
+// Global error handler — show errors on screen
+window.onerror = function(msg, url, line) {
+  var el = document.getElementById('score-text');
+  if (el) el.textContent = 'ERR L' + line + ': ' + msg;
+};
 </script>
 <script>
 (function() {
@@ -2237,8 +2242,11 @@ document.getElementById('start-btn').addEventListener('click', function() {
 
   // --- Start ---
   function startGame() {
-    initAudio();
-    startDrone();
+    try {
+      initAudio();
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+      startDrone();
+    } catch(e) { console.warn('Audio init failed:', e); }
 
     const settings = DIFF_SETTINGS[difficulty];
     started = true;
@@ -2293,12 +2301,19 @@ document.getElementById('start-btn').addEventListener('click', function() {
 
   // --- Main loop ---
   function loop(time) {
-    if (!lastTime) lastTime = time;
-    const dt = Math.min((time - lastTime) / 1000, 0.05);
-    lastTime = time;
+    try {
+      if (!lastTime) lastTime = time;
+      const dt = Math.min((time - lastTime) / 1000, 0.05);
+      lastTime = time;
 
-    update(dt);
-    draw();
+      update(dt);
+      draw();
+    } catch(e) {
+      // Show error on screen for debugging
+      const el = document.getElementById('score-text');
+      if (el) el.textContent = 'ERR: ' + e.message;
+      console.error('Game loop error:', e);
+    }
     requestAnimationFrame(loop);
   }
 
