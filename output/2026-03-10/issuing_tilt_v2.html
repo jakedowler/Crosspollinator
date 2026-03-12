@@ -377,6 +377,12 @@
 </div>
 
 <script>
+// Failsafe: wire up start button before anything else can crash
+document.getElementById('start-btn').addEventListener('click', function() {
+  if (window._handleStart) window._handleStart();
+});
+</script>
+<script>
 (function() {
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
@@ -884,7 +890,7 @@
   let achievementTimer = 0;
 
   // Now that ACHIEVEMENTS is defined, show high scores on intro screen
-  showHighScores();
+  try { showHighScores(); } catch(e) { console.warn('showHighScores failed:', e); }
 
   function updateAchievementDisplay(dt) {
     if (achievementDisplay) {

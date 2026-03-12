@@ -195,7 +195,9 @@ canvas { display: block; position: absolute; top: 0; left: 0; }
   <button id="btn-prev" onclick="prevShape()">&larr;</button>
   <button id="btn-torch" class="active" onclick="setMode('torch')">Torch</button>
   <button id="btn-fold" onclick="setMode('fold')">Fold</button>
+  <button id="btn-foldall" onclick="foldAllHot()" style="font-size:10px">Fold Hot</button>
   <button id="btn-quench" onclick="setMode('quench')">Quench</button>
+  <button id="btn-quenchall" onclick="quenchAll()" style="font-size:10px">Lock All</button>
   <button id="btn-new" onclick="newShape()">&rarr;</button>
 </div>
 <div id="tooltip">heat a crease with the torch, then fold it</div>
@@ -625,10 +627,10 @@ function prevShape() { switchToShape((currentShape - 1 + shapeGenerators.length)
 
 function updateProgress() {
   const locked = creases.filter(c => c.locked).length;
-  const total = creases.length;
-  document.getElementById('progress-fill').style.height = (locked / total * 100) + '%';
-  document.getElementById('progress-label').textContent = locked + '/' + total;
-  document.getElementById('score-display').textContent = 'forged: ' + locked + '/' + total;
+  const threshold = Math.ceil(creases.length * 0.6);
+  document.getElementById('progress-fill').style.height = (locked / threshold * 100) + '%';
+  document.getElementById('progress-label').textContent = locked + '/' + threshold;
+  document.getElementById('score-display').textContent = 'forged: ' + locked + '/' + threshold;
 }
 
 // INIT
@@ -721,13 +723,13 @@ function performFold() {
   if (cr) attemptFold(cr);
 }
 function performClickFold() {
-  const cr = findNearestCrease(mx, my, 60);
+  const cr = findNearestCrease(mx, my, 100);
   if (cr) attemptFold(cr);
 }
 
 function attemptFold(cr) {
   if (cr.locked) return;
-  if (cr.temperature < 0.5) {
+  if (cr.temperature < 0.3) {
     // Too cold!
     showTooltip('Too cold! Heat it first.', 1.5);
     playColdClang();
@@ -752,15 +754,91 @@ function attemptFold(cr) {
     const dx=v.bx-a.bx, dy=v.by-a.by;
     const dot = dx*nx+dy*ny;
     const along = (dx*ax+dy*ay)/len;
-    if (dot > 8 && along > -len*0.15 && along < len*1.15) {
-      const inf = Math.max(0, 1-Math.abs(dot)/(len*0.7));
-      v.z += fDir*inf*35;
-      v.vy += fDir*inf*-3;
+    if (dot > 4 && along > -len*0.3 && along < len*1.3) {
+      const inf = Math.max(0, 1-Math.abs(dot)/(len*1.2));
+      v.z += fDir*inf*80;
+      v.vy += fDir*inf*-8;
+      // Push vertices outward from crease for visible deformation
+      v.ox += nx * inf * fDir * 12;
+      v.oy += ny * inf * fDir * 12;
     }
   }
 
   emitSparksAlongCrease(cr, 25);
   flashIntensity = Math.min(0.6, flashIntensity+0.3);
+}
+
+function foldAllHot() {
+  let folded = 0;
+  for (const cr of creases) {
+    if (cr.locked || cr.folded) continue;
+    if (cr.temperature >= 0.3) {
+      cr.folded = true;
+      cr.foldTime = time;
+      totalFolds++;
+      folded++;
+      emitSparksAlongCrease(cr, 10);
+      // Dramatic fold physics
+      const a = vertices[cr.a], b = vertices[cr.b];
+      const ax2 = b.bx-a.bx, ay2 = b.by-a.by;
+      const len2 = Math.hypot(ax2, ay2);
+      if (len2 < 1) continue;
+      const nx=-ay2/len2, ny=ax2/len2;
+      for (const v of vertices) {
+        const dx=v.bx-a.bx, dy=v.by-a.by;
+        const dot = dx*nx+dy*ny;
+        const along = (dx*ax2+dy*ay2)/len2;
+        if (dot > 4 && along > -len2*0.3 && along < len2*1.3) {
+          const inf = Math.max(0, 1-Math.abs(dot)/(len2*1.2));
+          v.z += inf*80;
+          v.vy += inf*-8;
+          v.ox += nx * inf * 12;
+          v.oy += ny * inf * 12;
+        }
+      }
+    }
+  }
+  if (folded > 0) {
+    playHammerSound();
+    if (navigator.vibrate) try { navigator.vibrate(30); } catch(e){}
+    flashIntensity = Math.min(0.8, flashIntensity + 0.1 * folded);
+    showTooltip(folded + ' crease' + (folded > 1 ? 's' : '') + ' folded!', 1.5);
+  } else {
+    showTooltip('Heat creases first with the torch!', 2);
+  }
+}
+
+function quenchAll() {
+  let locked = 0;
+  for (const cr of creases) {
+    if (cr.locked) continue;
+    if (cr.folded) {
+      cr.locked = true;
+      cr.temperature = 0;
+      totalQuenches++;
+      locked++;
+      // Steam burst
+      const a = vpos(cr.a), b = vpos(cr.b);
+      for (let j = 0; j < 4; j++) {
+        const t = Math.random();
+        steam.push({
+          x: a.x+(b.x-a.x)*t, y: a.y+(b.y-a.y)*t,
+          vx: (Math.random()-0.5)*2, vy: -2-Math.random()*3,
+          life: 1, decay: 0.01+Math.random()*0.015,
+          size: 10+Math.random()*20, rot: Math.random()*Math.PI*2
+        });
+      }
+    }
+  }
+  if (locked > 0) {
+    playQuenchHiss(1);
+    if (navigator.vibrate) try { navigator.vibrate([20, 40, 20]); } catch(e){}
+    showTooltip(locked + ' crease' + (locked > 1 ? 's' : '') + ' locked!', 1.5);
+    updateProgress();
+    checkCompletion();
+  } else {
+    showTooltip('Fold some hot creases first!', 2);
+  }
 }
 
 function emitSparksAlongCrease(cr, count) {
@@ -780,7 +858,8 @@ function emitSparksAlongCrease(cr, count) {
 function checkCompletion() {
   if (completed) return;
   const locked = creases.filter(c => c.locked).length;
-  if (locked === creases.length) {
+  const threshold = Math.ceil(creases.length * 0.6);
+  if (locked >= threshold) {
     completed = true;
     playForgeFanfare();
     if (navigator.vibrate) try { navigator.vibrate([30, 60, 30, 60, 30]); } catch(e){}
@@ -973,7 +1052,7 @@ function update(dt) {
 
   // TORCH mode — heat creases near cursor
   if (mode === 'torch' && mouseDown) {
-    const radius = 100;
+    const radius = 160;
     let heated = false;
     for (const cr of creases) {
       if (cr.locked) continue;
@@ -982,7 +1061,7 @@ function update(dt) {
       const d = Math.hypot(cmx-mx, cmy-my);
       if (d < radius) {
         const inf = (1-d/radius)*(1-d/radius);
-        cr.temperature = Math.min(1, cr.temperature + 0.03 * inf);
+        cr.temperature = Math.min(1, cr.temperature + 0.08 * inf);
         heated = true;
         // Spawn embers from hot creases
         if (cr.temperature > 0.3 && Math.random() < 0.05 * inf && embers.length < 300) {
@@ -1000,7 +1079,7 @@ function update(dt) {
 
   // QUENCH mode — cool and lock
   if (mode === 'quench' && mouseDown) {
-    const radius = 90;
+    const radius = 150;
     let quenched = false;
     // Spawn water drops from cursor
     if (Math.random() < 0.3) {
@@ -1019,7 +1098,7 @@ function update(dt) {
       if (d < radius) {
         const inf = (1-d/radius)*(1-d/radius);
         const wasHot = cr.temperature > 0.3;
-        cr.temperature = Math.max(0, cr.temperature - 0.06 * inf);
+        cr.temperature = Math.max(0, cr.temperature - 0.15 * inf);
         // Lock folded crease when cooled enough
         if (cr.folded && !cr.locked && cr.temperature < 0.1) {
           cr.locked = true;
@@ -1058,7 +1137,7 @@ function update(dt) {
   // Temperature decay
   for (const cr of creases) {
     if (!cr.locked) {
-      cr.temperature *= 0.997;
+      cr.temperature *= 0.9995;
     }
     cr.pulse += 0.025 + cr.temperature * 0.1;
     // Heat propagation between adjacent creases
