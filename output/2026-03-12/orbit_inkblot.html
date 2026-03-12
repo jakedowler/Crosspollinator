@@ -1,0 +1,1143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Orbit &amp; Inkblot</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #030408;
+  overflow: hidden;
+  font-family: 'Georgia', serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+canvas { display: block; position: absolute; top: 0; left: 0; }
+#trail-canvas { pointer-events: none; }
+#ui-canvas { pointer-events: none; }
+header {
+  position: fixed; top: 18px; left: 20px; z-index: 10;
+  color: #8ab4d8; pointer-events: none;
+}
+header h1 {
+  font-size: 22px; font-weight: 300; letter-spacing: 6px;
+  text-transform: uppercase;
+  text-shadow: 0 0 25px rgba(100,160,255,0.3), 0 0 50px rgba(60,100,200,0.15);
+  margin-bottom: 3px;
+}
+header p {
+  font-size: 11px; opacity: 0.45; letter-spacing: 2.5px;
+  font-style: italic;
+}
+#hud {
+  position: fixed; top: 20px; right: 20px; z-index: 10;
+  color: rgba(140,180,220,0.5); pointer-events: none;
+  font-size: 11px; letter-spacing: 2px; text-align: right;
+}
+#color-bar {
+  position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%);
+  z-index: 10; display: flex; gap: 10px; align-items: center;
+  pointer-events: all;
+}
+.color-swatch {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  cursor: pointer; transition: all 0.3s ease;
+  box-shadow: 0 0 8px rgba(0,0,0,0.5);
+}
+.color-swatch.active {
+  border-color: rgba(255,255,255,0.7);
+  box-shadow: 0 0 15px rgba(255,255,255,0.2);
+  transform: scale(1.2);
+}
+.color-swatch:hover { border-color: rgba(255,255,255,0.5); }
+#mode-toggle {
+  position: fixed; bottom: 22px; right: 20px; z-index: 10;
+  pointer-events: all;
+}
+#mode-toggle button {
+  background: rgba(40,60,100,0.15);
+  border: 1px solid rgba(140,180,220,0.2);
+  color: #8ab4d8; padding: 7px 16px;
+  font-family: 'Georgia', serif; font-size: 11px;
+  letter-spacing: 2px; cursor: pointer;
+  transition: all 0.3s ease; border-radius: 2px;
+  text-transform: uppercase;
+}
+#mode-toggle button:hover {
+  background: rgba(60,100,160,0.25);
+  border-color: rgba(140,180,220,0.5);
+}
+#mode-toggle button.active {
+  background: rgba(60,100,180,0.25);
+  border-color: rgba(140,180,220,0.6);
+  text-shadow: 0 0 10px rgba(100,160,255,0.5);
+}
+#btn-clear {
+  position: fixed; bottom: 22px; left: 20px; z-index: 10;
+  pointer-events: all;
+  background: rgba(40,60,100,0.15);
+  border: 1px solid rgba(140,180,220,0.2);
+  color: #8ab4d8; padding: 7px 16px;
+  font-family: 'Georgia', serif; font-size: 11px;
+  letter-spacing: 2px; cursor: pointer;
+  transition: all 0.3s ease; border-radius: 2px;
+  text-transform: uppercase;
+}
+#btn-clear:hover {
+  background: rgba(60,100,160,0.25);
+  border-color: rgba(140,180,220,0.5);
+}
+#intro {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 100; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #0a0e1a 0%, #030408 70%);
+  transition: opacity 0.8s ease;
+}
+#intro h1 {
+  font-size: 38px; font-weight: 300; letter-spacing: 12px;
+  text-transform: uppercase; color: #a0c8e8;
+  text-shadow: 0 0 40px rgba(100,160,255,0.4), 0 0 80px rgba(60,100,200,0.2);
+  margin-bottom: 8px;
+}
+#intro .tagline {
+  font-size: 14px; color: rgba(140,180,220,0.5);
+  letter-spacing: 4px; font-style: italic; margin-bottom: 50px;
+}
+#intro .tap-prompt {
+  font-size: 13px; color: rgba(140,180,220,0.35);
+  letter-spacing: 3px; animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.7; }
+}
+#intro .instructions {
+  font-size: 12px; color: rgba(140,180,220,0.3);
+  letter-spacing: 1.5px; line-height: 2.2; text-align: center;
+  margin-bottom: 40px; max-width: 340px;
+}
+</style>
+</head>
+<body>
+<div id="intro">
+  <h1>Orbit &amp; Inkblot</h1>
+  <p class="tagline">planetary paths meet splattered shapes</p>
+  <div class="instructions">
+    tap to place gravity wells<br>
+    swipe to fling ink drops<br>
+    hold longer for bigger wells<br>
+    watch orbital art unfold
+  </div>
+  <p class="tap-prompt">tap anywhere to begin</p>
+</div>
+<header>
+  <h1>Orbit &amp; Inkblot</h1>
+  <p>planetary paths meet splattered shapes</p>
+</header>
+<div id="hud">
+  <div id="drop-count">DROPS: 0</div>
+  <div id="well-count">WELLS: 0</div>
+</div>
+<div id="color-bar"></div>
+<div id="mode-toggle">
+  <button id="btn-zen" class="active" onclick="setGameMode('zen')">Zen</button>
+  <button id="btn-challenge" onclick="setGameMode('challenge')">Target</button>
+</div>
+<button id="btn-clear" onclick="clearCanvas()">Clear</button>
+<canvas id="main-canvas"></canvas>
+<canvas id="trail-canvas"></canvas>
+<canvas id="ui-canvas"></canvas>
+
+<script>
+// ===== SETUP =====
+const mainCanvas = document.getElementById('main-canvas');
+const trailCanvas = document.getElementById('trail-canvas');
+const uiCanvas = document.getElementById('ui-canvas');
+const ctx = mainCanvas.getContext('2d');
+const tCtx = trailCanvas.getContext('2d');
+const uCtx = uiCanvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = mainCanvas.width = trailCanvas.width = uiCanvas.width = window.innerWidth;
+  H = mainCanvas.height = trailCanvas.height = uiCanvas.height = window.innerHeight;
+  drawStarfield();
+}
+window.addEventListener('resize', resize);
+
+// ===== AUDIO =====
+let audioCtx = null;
+let masterGain = null;
+let droneOsc1 = null, droneOsc2 = null, droneGain = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.3;
+  masterGain.connect(audioCtx.destination);
+
+  // Ambient space drone
+  droneGain = audioCtx.createGain();
+  droneGain.gain.value = 0.06;
+  droneGain.connect(masterGain);
+
+  droneOsc1 = audioCtx.createOscillator();
+  droneOsc1.type = 'sine';
+  droneOsc1.frequency.value = 55;
+  const droneFilter1 = audioCtx.createBiquadFilter();
+  droneFilter1.type = 'lowpass';
+  droneFilter1.frequency.value = 200;
+  droneOsc1.connect(droneFilter1);
+  droneFilter1.connect(droneGain);
+  droneOsc1.start();
+
+  droneOsc2 = audioCtx.createOscillator();
+  droneOsc2.type = 'sine';
+  droneOsc2.frequency.value = 82.5;
+  const droneFilter2 = audioCtx.createBiquadFilter();
+  droneFilter2.type = 'lowpass';
+  droneFilter2.frequency.value = 150;
+  droneOsc2.connect(droneFilter2);
+  droneFilter2.connect(droneGain);
+  droneOsc2.start();
+}
+
+function playWhoosh(speed) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const dur = 0.3 + Math.min(0.4, speed * 0.02);
+
+  const noise = audioCtx.createBufferSource();
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.5;
+  noise.buffer = buf;
+
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 800 + speed * 20;
+  filter.Q.value = 2;
+
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.15, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+  filter.frequency.setValueAtTime(1200 + speed * 30, now);
+  filter.frequency.exponentialRampToValueAtTime(300, now + dur);
+
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  noise.start(now);
+  noise.stop(now + dur);
+}
+
+function playSplat(size) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const dur = 0.25 + size * 0.08;
+
+  const noise = audioCtx.createBufferSource();
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * dur, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+  noise.buffer = buf;
+
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.setValueAtTime(2000, now);
+  filter.frequency.exponentialRampToValueAtTime(100, now + dur);
+
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.25, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+  noise.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  noise.start(now);
+  noise.stop(now + dur);
+
+  // Sub thump
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(120, now);
+  osc.frequency.exponentialRampToValueAtTime(40, now + dur * 0.8);
+  const oscGain = audioCtx.createGain();
+  oscGain.gain.setValueAtTime(0.2, now);
+  oscGain.gain.exponentialRampToValueAtTime(0.001, now + dur * 0.8);
+  osc.connect(oscGain);
+  oscGain.connect(masterGain);
+  osc.start(now);
+  osc.stop(now + dur);
+}
+
+function playWellPlace(size) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  const baseFreq = 220 - size * 2;
+  osc.frequency.setValueAtTime(baseFreq, now);
+  osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, now + 0.6);
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+  osc.connect(gain);
+  gain.connect(masterGain);
+  osc.start(now);
+  osc.stop(now + 0.65);
+}
+
+// ===== STARFIELD =====
+const stars = [];
+function generateStars() {
+  stars.length = 0;
+  for (let i = 0; i < 300; i++) {
+    stars.push({
+      x: Math.random(), y: Math.random(),
+      size: Math.random() * 1.8 + 0.2,
+      brightness: Math.random() * 0.6 + 0.2,
+      twinkleSpeed: Math.random() * 2 + 0.5,
+      twinkleOffset: Math.random() * Math.PI * 2
+    });
+  }
+}
+generateStars();
+
+let starfieldImage = null;
+function drawStarfield() {
+  const offscreen = document.createElement('canvas');
+  offscreen.width = W; offscreen.height = H;
+  const sCtx = offscreen.getContext('2d');
+
+  // Deep space gradient
+  const bg = sCtx.createRadialGradient(W * 0.3, H * 0.4, 0, W * 0.5, H * 0.5, Math.max(W, H) * 0.8);
+  bg.addColorStop(0, '#0a0e1a');
+  bg.addColorStop(0.4, '#060a14');
+  bg.addColorStop(0.7, '#040710');
+  bg.addColorStop(1, '#020408');
+  sCtx.fillStyle = bg;
+  sCtx.fillRect(0, 0, W, H);
+
+  // Nebula hints
+  for (let i = 0; i < 3; i++) {
+    const nx = W * (0.2 + Math.random() * 0.6);
+    const ny = H * (0.2 + Math.random() * 0.6);
+    const nr = Math.min(W, H) * (0.15 + Math.random() * 0.2);
+    const ng = sCtx.createRadialGradient(nx, ny, 0, nx, ny, nr);
+    const hues = ['rgba(30,10,60,0.08)', 'rgba(10,20,50,0.06)', 'rgba(40,15,30,0.05)'];
+    ng.addColorStop(0, hues[i]);
+    ng.addColorStop(1, 'rgba(0,0,0,0)');
+    sCtx.fillStyle = ng;
+    sCtx.fillRect(0, 0, W, H);
+  }
+
+  // Static stars
+  for (const s of stars) {
+    sCtx.beginPath();
+    sCtx.arc(s.x * W, s.y * H, s.size * 0.6, 0, Math.PI * 2);
+    const b = Math.floor(s.brightness * 255);
+    sCtx.fillStyle = `rgba(${b},${b},${Math.min(255, b + 40)},${s.brightness * 0.5})`;
+    sCtx.fill();
+  }
+
+  starfieldImage = offscreen;
+}
+
+// ===== INK COLORS =====
+const inkColors = [
+  { name: 'Deep Blue', r: 30, g: 80, b: 200, a: 0.7 },
+  { name: 'Magenta', r: 180, g: 30, b: 140, a: 0.7 },
+  { name: 'Gold', r: 220, g: 170, b: 30, a: 0.7 },
+  { name: 'Teal', r: 20, g: 180, b: 170, a: 0.7 },
+  { name: 'Crimson', r: 200, g: 30, b: 50, a: 0.7 },
+  { name: 'Violet', r: 120, g: 40, b: 220, a: 0.7 },
+  { name: 'Emerald', r: 20, g: 180, b: 80, a: 0.7 },
+  { name: 'Coral', r: 240, g: 100, b: 80, a: 0.7 },
+];
+
+let currentColorIdx = 0;
+
+function buildColorBar() {
+  const bar = document.getElementById('color-bar');
+  bar.innerHTML = '';
+  inkColors.forEach((c, i) => {
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch' + (i === currentColorIdx ? ' active' : '');
+    swatch.style.background = `rgb(${c.r},${c.g},${c.b})`;
+    swatch.addEventListener('click', (e) => {
+      e.stopPropagation();
+      currentColorIdx = i;
+      document.querySelectorAll('.color-swatch').forEach((s, j) => {
+        s.classList.toggle('active', j === i);
+      });
+    });
+    swatch.addEventListener('touchstart', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      currentColorIdx = i;
+      document.querySelectorAll('.color-swatch').forEach((s, j) => {
+        s.classList.toggle('active', j === i);
+      });
+    }, { passive: false });
+    bar.appendChild(swatch);
+  });
+}
+
+// ===== STATE =====
+let gameStarted = false;
+let gameMode = 'zen'; // 'zen' or 'challenge'
+let time = 0;
+
+const gravityWells = [];
+const inkDrops = [];
+const splatParticles = [];
+const splatBlobs = [];
+
+const MAX_DROPS = 80;
+const MAX_WELLS = 12;
+const G_CONSTANT = 800;
+
+// ===== CHALLENGE MODE =====
+let targetZones = [];
+let targetFilled = [];
+let challengeScore = 0;
+
+function generateTargets() {
+  targetZones = [];
+  targetFilled = [];
+  const count = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < count; i++) {
+    const r = 30 + Math.random() * 40;
+    targetZones.push({
+      x: W * (0.15 + Math.random() * 0.7),
+      y: H * (0.15 + Math.random() * 0.7),
+      r: r,
+      filled: 0
+    });
+  }
+}
+
+// ===== INPUT =====
+let touchStartX = 0, touchStartY = 0;
+let touchStartTime = 0;
+let isSwiping = false;
+let isPlacingWell = false;
+let wellHoldTimer = 0;
+let wellHoldX = 0, wellHoldY = 0;
+let currentTouchX = 0, currentTouchY = 0;
+let pointerDown = false;
+
+function onPointerDown(x, y) {
+  if (!gameStarted) {
+    startGame();
+    return;
+  }
+  pointerDown = true;
+  touchStartX = x; touchStartY = y;
+  currentTouchX = x; currentTouchY = y;
+  touchStartTime = performance.now();
+  isSwiping = false;
+  isPlacingWell = true;
+  wellHoldTimer = 0;
+  wellHoldX = x; wellHoldY = y;
+}
+
+function onPointerMove(x, y) {
+  currentTouchX = x; currentTouchY = y;
+  if (!pointerDown) return;
+  const dx = x - touchStartX;
+  const dy = y - touchStartY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist > 20) {
+    isSwiping = true;
+    isPlacingWell = false;
+  }
+}
+
+function onPointerUp(x, y) {
+  if (!pointerDown) return;
+  pointerDown = false;
+  const dx = x - touchStartX;
+  const dy = y - touchStartY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const elapsed = (performance.now() - touchStartTime) / 1000;
+
+  if (isSwiping && dist > 20) {
+    // Fling ink drop
+    const speed = Math.min(dist / Math.max(0.05, elapsed), 600);
+    const angle = Math.atan2(dy, dx);
+    const vx = Math.cos(angle) * speed * 0.5;
+    const vy = Math.sin(angle) * speed * 0.5;
+    launchInkDrop(touchStartX, touchStartY, vx, vy);
+  } else if (isPlacingWell) {
+    // Place gravity well
+    const size = Math.min(60, 15 + wellHoldTimer * 40);
+    placeGravityWell(wellHoldX, wellHoldY, size);
+  }
+
+  isSwiping = false;
+  isPlacingWell = false;
+}
+
+// Mouse events
+mainCanvas.addEventListener('mousedown', e => onPointerDown(e.clientX, e.clientY));
+mainCanvas.addEventListener('mousemove', e => onPointerMove(e.clientX, e.clientY));
+mainCanvas.addEventListener('mouseup', e => onPointerUp(e.clientX, e.clientY));
+
+// Touch events
+mainCanvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  onPointerDown(t.clientX, t.clientY);
+}, { passive: false });
+mainCanvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  onPointerMove(t.clientX, t.clientY);
+}, { passive: false });
+mainCanvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  onPointerUp(t.clientX, t.clientY);
+}, { passive: false });
+
+// ===== GAME ACTIONS =====
+function launchInkDrop(x, y, vx, vy) {
+  if (inkDrops.length >= MAX_DROPS) inkDrops.shift();
+  const c = inkColors[currentColorIdx];
+  const speed = Math.sqrt(vx * vx + vy * vy);
+  inkDrops.push({
+    x, y, vx, vy,
+    r: c.r, g: c.g, b: c.b, a: c.a,
+    size: 3 + Math.random() * 2,
+    trail: [],
+    maxTrail: 200,
+    life: 1,
+    age: 0,
+    colorIdx: currentColorIdx
+  });
+  playWhoosh(speed);
+}
+
+function placeGravityWell(x, y, size) {
+  if (gravityWells.length >= MAX_WELLS) {
+    gravityWells.shift();
+  }
+  gravityWells.push({
+    x, y, size,
+    mass: size * size * 0.5,
+    pulse: 0,
+    birthTime: time,
+    hue: Math.random() * 360
+  });
+  playWellPlace(size);
+}
+
+function createSplat(x, y, drop, well) {
+  const count = 12 + Math.floor(well.size * 0.5);
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.6;
+    const mirrorAngle = Math.PI - angle; // Rorschach mirror
+    const speed = 2 + Math.random() * well.size * 0.15;
+    const baseVx = Math.cos(angle) * speed;
+    const baseVy = Math.sin(angle) * speed;
+
+    // Primary blob
+    splatParticles.push({
+      x, y, vx: baseVx, vy: baseVy,
+      r: drop.r, g: drop.g, b: drop.b,
+      size: 2 + Math.random() * 5,
+      life: 1, decay: 0.008 + Math.random() * 0.015
+    });
+
+    // Mirror blob (Rorschach)
+    splatParticles.push({
+      x, y,
+      vx: Math.cos(mirrorAngle) * speed,
+      vy: Math.sin(mirrorAngle) * speed,
+      r: drop.r, g: drop.g, b: drop.b,
+      size: 2 + Math.random() * 5,
+      life: 1, decay: 0.008 + Math.random() * 0.015
+    });
+  }
+
+  // Permanent splat blobs on trail canvas
+  const blobCount = 8 + Math.floor(well.size * 0.3);
+  for (let i = 0; i < blobCount; i++) {
+    const angle = (i / blobCount) * Math.PI * 2 + (Math.random() - 0.5) * 0.8;
+    const dist = well.size * 0.3 + Math.random() * well.size * 0.8;
+    const bx = x + Math.cos(angle) * dist;
+    const by = y + Math.sin(angle) * dist;
+    // Mirror
+    const mx = x + Math.cos(Math.PI - angle) * dist;
+    const my = y + Math.sin(Math.PI - angle) * dist;
+    const blobSize = 3 + Math.random() * 8;
+
+    splatBlobs.push({ x: bx, y: by, size: blobSize, r: drop.r, g: drop.g, b: drop.b, a: 0.4 + Math.random() * 0.3 });
+    splatBlobs.push({ x: mx, y: my, size: blobSize, r: drop.r, g: drop.g, b: drop.b, a: 0.4 + Math.random() * 0.3 });
+  }
+
+  // Central splat
+  splatBlobs.push({ x, y, size: well.size * 0.4 + Math.random() * 5, r: drop.r, g: drop.g, b: drop.b, a: 0.5 });
+}
+
+// ===== MODE & CLEAR =====
+function setGameMode(m) {
+  gameMode = m;
+  document.getElementById('btn-zen').classList.toggle('active', m === 'zen');
+  document.getElementById('btn-challenge').classList.toggle('active', m === 'challenge');
+  if (m === 'challenge') {
+    generateTargets();
+    challengeScore = 0;
+  } else {
+    targetZones = [];
+  }
+}
+
+function clearCanvas() {
+  inkDrops.length = 0;
+  gravityWells.length = 0;
+  splatParticles.length = 0;
+  splatBlobs.length = 0;
+  tCtx.clearRect(0, 0, W, H);
+  trailDirty = true;
+  if (gameMode === 'challenge') generateTargets();
+}
+
+function startGame() {
+  if (gameStarted) return;
+  gameStarted = true;
+  initAudio();
+  const intro = document.getElementById('intro');
+  intro.style.opacity = '0';
+  setTimeout(() => intro.style.display = 'none', 800);
+}
+
+// ===== PHYSICS UPDATE =====
+let trailDirty = false;
+
+function update(dt) {
+  time += dt;
+
+  // Well hold timer
+  if (isPlacingWell && pointerDown) {
+    wellHoldTimer += dt;
+  }
+
+  // Update gravity wells
+  for (const w of gravityWells) {
+    w.pulse += dt * 2;
+  }
+
+  // Update ink drops
+  for (let i = inkDrops.length - 1; i >= 0; i--) {
+    const drop = inkDrops[i];
+    drop.age += dt;
+
+    // Gravitational acceleration from all wells
+    let ax = 0, ay = 0;
+    for (const well of gravityWells) {
+      const dx = well.x - drop.x;
+      const dy = well.y - drop.y;
+      const distSq = dx * dx + dy * dy;
+      const dist = Math.sqrt(distSq);
+      const minDist = well.size * 0.7;
+
+      if (dist < minDist) {
+        // Collision! Splat!
+        createSplat(well.x, well.y, drop, well);
+        playSplat(well.size / 30);
+
+        // Check challenge targets
+        if (gameMode === 'challenge') {
+          for (const tz of targetZones) {
+            const td = Math.sqrt((well.x - tz.x) ** 2 + (well.y - tz.y) ** 2);
+            if (td < tz.r + well.size) {
+              tz.filled = Math.min(1, tz.filled + 0.2);
+              challengeScore += 10;
+            }
+          }
+        }
+
+        inkDrops.splice(i, 1);
+        continue;
+      }
+
+      // Gravity: F = G * m / r^2, capped for stability
+      const force = G_CONSTANT * well.mass / Math.max(distSq, 400);
+      ax += (dx / dist) * force;
+      ay += (dy / dist) * force;
+    }
+
+    // Apply acceleration
+    drop.vx += ax * dt;
+    drop.vy += ay * dt;
+
+    // Speed limit for stability
+    const speed = Math.sqrt(drop.vx * drop.vx + drop.vy * drop.vy);
+    if (speed > 800) {
+      drop.vx = (drop.vx / speed) * 800;
+      drop.vy = (drop.vy / speed) * 800;
+    }
+
+    // Move
+    drop.x += drop.vx * dt;
+    drop.y += drop.vy * dt;
+
+    // Record trail
+    drop.trail.push({
+      x: drop.x, y: drop.y,
+      speed: speed,
+      r: drop.r, g: drop.g, b: drop.b
+    });
+    if (drop.trail.length > drop.maxTrail) {
+      drop.trail.shift();
+    }
+
+    // Out of bounds check
+    const margin = 200;
+    if (drop.x < -margin || drop.x > W + margin || drop.y < -margin || drop.y > H + margin) {
+      // Only remove if no gravity wells exist or very far out
+      if (gravityWells.length === 0 || drop.x < -500 || drop.x > W + 500 || drop.y < -500 || drop.y > H + 500) {
+        inkDrops.splice(i, 1);
+      }
+    }
+
+    // Check challenge fill
+    if (gameMode === 'challenge') {
+      for (const tz of targetZones) {
+        const td = Math.sqrt((drop.x - tz.x) ** 2 + (drop.y - tz.y) ** 2);
+        if (td < tz.r) {
+          tz.filled = Math.min(1, tz.filled + dt * 0.1);
+        }
+      }
+    }
+  }
+
+  // Update splat particles
+  for (let i = splatParticles.length - 1; i >= 0; i--) {
+    const p = splatParticles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.94; p.vy *= 0.94;
+    p.life -= p.decay;
+    if (p.life <= 0) {
+      // Leave permanent mark
+      splatBlobs.push({ x: p.x, y: p.y, size: p.size * 0.8, r: p.r, g: p.g, b: p.b, a: 0.3 });
+      splatParticles.splice(i, 1);
+    }
+  }
+
+  // Update HUD
+  document.getElementById('drop-count').textContent = 'DROPS: ' + inkDrops.length;
+  document.getElementById('well-count').textContent = 'WELLS: ' + gravityWells.length;
+}
+
+// ===== DRAW =====
+function drawTrailsToTrailCanvas() {
+  // Draw new trail segments to persistent trail canvas
+  for (const drop of inkDrops) {
+    const trail = drop.trail;
+    if (trail.length < 2) continue;
+
+    // Only draw last few segments for performance
+    const start = Math.max(0, trail.length - 4);
+    for (let j = start; j < trail.length - 1; j++) {
+      const p0 = trail[j];
+      const p1 = trail[j + 1];
+      const t = j / trail.length;
+      const speed = p0.speed;
+      // Thickness varies inversely with speed
+      const thickness = Math.max(0.5, Math.min(6, 800 / (speed + 100)));
+      const alpha = 0.15 + t * 0.15;
+
+      tCtx.beginPath();
+      tCtx.moveTo(p0.x, p0.y);
+      tCtx.lineTo(p1.x, p1.y);
+      tCtx.strokeStyle = `rgba(${p0.r},${p0.g},${p0.b},${alpha})`;
+      tCtx.lineWidth = thickness;
+      tCtx.lineCap = 'round';
+      tCtx.lineJoin = 'round';
+      tCtx.stroke();
+    }
+  }
+
+  // Draw new splat blobs
+  while (splatBlobs.length > 0) {
+    const b = splatBlobs.pop();
+    tCtx.beginPath();
+    tCtx.arc(b.x, b.y, b.size, 0, Math.PI * 2);
+    const g = tCtx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.size);
+    g.addColorStop(0, `rgba(${b.r},${b.g},${b.b},${b.a})`);
+    g.addColorStop(0.6, `rgba(${b.r},${b.g},${b.b},${b.a * 0.5})`);
+    g.addColorStop(1, `rgba(${b.r},${b.g},${b.b},0)`);
+    tCtx.fillStyle = g;
+    tCtx.fill();
+  }
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Background starfield
+  if (starfieldImage) {
+    ctx.drawImage(starfieldImage, 0, 0);
+  }
+
+  // Twinkling stars overlay
+  for (let i = 0; i < stars.length; i += 3) {
+    const s = stars[i];
+    const twinkle = Math.sin(time * s.twinkleSpeed + s.twinkleOffset) * 0.3 + 0.7;
+    const alpha = s.brightness * twinkle * 0.6;
+    if (alpha < 0.1) continue;
+    ctx.beginPath();
+    ctx.arc(s.x * W, s.y * H, s.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,210,255,${alpha})`;
+    ctx.fill();
+  }
+
+  // Challenge target zones
+  if (gameMode === 'challenge') {
+    for (const tz of targetZones) {
+      ctx.beginPath();
+      ctx.arc(tz.x, tz.y, tz.r, 0, Math.PI * 2);
+      const fillAlpha = 0.05 + tz.filled * 0.15;
+      ctx.fillStyle = `rgba(255,255,255,${fillAlpha})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${0.15 + tz.filled * 0.3})`;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 6]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Fill arc
+      if (tz.filled > 0) {
+        ctx.beginPath();
+        ctx.arc(tz.x, tz.y, tz.r + 4, -Math.PI / 2, -Math.PI / 2 + tz.filled * Math.PI * 2);
+        ctx.strokeStyle = `rgba(100,255,180,0.6)`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Gravity wells
+  for (const well of gravityWells) {
+    const pulseScale = 1 + Math.sin(well.pulse) * 0.05;
+    const age = time - well.birthTime;
+    const fadeIn = Math.min(1, age * 3);
+
+    // Gravitational field rings
+    for (let ring = 3; ring >= 0; ring--) {
+      const ringR = well.size * (1.5 + ring * 0.8) * pulseScale;
+      const ringAlpha = 0.03 * fadeIn * (1 - ring * 0.2);
+      ctx.beginPath();
+      ctx.arc(well.x, well.y, ringR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(100,150,255,${ringAlpha})`;
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // Core glow
+    const glowR = well.size * 1.8;
+    const cg = ctx.createRadialGradient(well.x, well.y, 0, well.x, well.y, glowR);
+    cg.addColorStop(0, `rgba(140,180,255,${0.15 * fadeIn})`);
+    cg.addColorStop(0.3, `rgba(80,120,200,${0.08 * fadeIn})`);
+    cg.addColorStop(0.7, `rgba(40,60,150,${0.03 * fadeIn})`);
+    cg.addColorStop(1, 'rgba(20,30,80,0)');
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(well.x, well.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Solid core
+    const coreR = well.size * 0.3 * pulseScale;
+    const core = ctx.createRadialGradient(well.x, well.y, 0, well.x, well.y, coreR);
+    core.addColorStop(0, `rgba(220,230,255,${0.8 * fadeIn})`);
+    core.addColorStop(0.5, `rgba(140,170,240,${0.5 * fadeIn})`);
+    core.addColorStop(1, `rgba(60,90,180,${0.1 * fadeIn})`);
+    ctx.fillStyle = core;
+    ctx.beginPath();
+    ctx.arc(well.x, well.y, coreR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Inner bright point
+    ctx.beginPath();
+    ctx.arc(well.x, well.y, 2 + well.size * 0.04, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,255,${0.9 * fadeIn})`;
+    ctx.fill();
+  }
+
+  // Draw persistent trails from trail canvas
+  drawTrailsToTrailCanvas();
+
+  // Active trail rendering (glowing on top)
+  for (const drop of inkDrops) {
+    const trail = drop.trail;
+    if (trail.length < 2) continue;
+
+    // Glowing active trail
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    for (let j = 0; j < trail.length - 1; j++) {
+      const p0 = trail[j];
+      const p1 = trail[j + 1];
+      const t = j / trail.length;
+      const speed = p0.speed;
+      const thickness = Math.max(0.8, Math.min(5, 600 / (speed + 80)));
+      const alpha = t * 0.5;
+
+      // Outer glow
+      if (t > 0.5) {
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.strokeStyle = `rgba(${p0.r},${p0.g},${p0.b},${alpha * 0.15})`;
+        ctx.lineWidth = thickness * 4;
+        ctx.stroke();
+      }
+
+      // Core line
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.strokeStyle = `rgba(${p0.r},${p0.g},${p0.b},${alpha})`;
+      ctx.lineWidth = thickness;
+      ctx.stroke();
+
+      // Bright core for recent segments
+      if (t > 0.8) {
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        const brightAlpha = (t - 0.8) * 3;
+        ctx.strokeStyle = `rgba(${Math.min(255, p0.r + 80)},${Math.min(255, p0.g + 80)},${Math.min(255, p0.b + 80)},${brightAlpha})`;
+        ctx.lineWidth = thickness * 0.5;
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Ink drop heads
+  for (const drop of inkDrops) {
+    const speed = Math.sqrt(drop.vx * drop.vx + drop.vy * drop.vy);
+    const sz = drop.size * (1 + Math.min(1, speed / 400) * 0.5);
+
+    // Outer glow
+    const og = ctx.createRadialGradient(drop.x, drop.y, 0, drop.x, drop.y, sz * 4);
+    og.addColorStop(0, `rgba(${drop.r},${drop.g},${drop.b},0.25)`);
+    og.addColorStop(0.5, `rgba(${drop.r},${drop.g},${drop.b},0.08)`);
+    og.addColorStop(1, `rgba(${drop.r},${drop.g},${drop.b},0)`);
+    ctx.fillStyle = og;
+    ctx.beginPath();
+    ctx.arc(drop.x, drop.y, sz * 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Core
+    const cg = ctx.createRadialGradient(drop.x, drop.y, 0, drop.x, drop.y, sz);
+    cg.addColorStop(0, `rgba(${Math.min(255, drop.r + 100)},${Math.min(255, drop.g + 100)},${Math.min(255, drop.b + 100)},0.95)`);
+    cg.addColorStop(0.5, `rgba(${drop.r},${drop.g},${drop.b},0.8)`);
+    cg.addColorStop(1, `rgba(${drop.r},${drop.g},${drop.b},0.3)`);
+    ctx.fillStyle = cg;
+    ctx.beginPath();
+    ctx.arc(drop.x, drop.y, sz, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Speed-based elongation (motion blur hint)
+    if (speed > 100) {
+      const angle = Math.atan2(drop.vy, drop.vx);
+      const len = Math.min(15, speed * 0.02);
+      ctx.beginPath();
+      ctx.moveTo(drop.x - Math.cos(angle) * len, drop.y - Math.sin(angle) * len);
+      ctx.lineTo(drop.x, drop.y);
+      ctx.strokeStyle = `rgba(${Math.min(255, drop.r + 60)},${Math.min(255, drop.g + 60)},${Math.min(255, drop.b + 60)},0.4)`;
+      ctx.lineWidth = sz * 0.8;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+  }
+
+  // Splat particles (animated)
+  for (const p of splatParticles) {
+    const sz = p.size * p.life;
+    if (sz < 0.2) continue;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, sz, 0, Math.PI * 2);
+    const pg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, sz);
+    pg.addColorStop(0, `rgba(${Math.min(255, p.r + 50)},${Math.min(255, p.g + 50)},${Math.min(255, p.b + 50)},${p.life * 0.8})`);
+    pg.addColorStop(1, `rgba(${p.r},${p.g},${p.b},0)`);
+    ctx.fillStyle = pg;
+    ctx.fill();
+  }
+
+  // Well placement preview
+  if (isPlacingWell && pointerDown && !isSwiping) {
+    const previewSize = Math.min(60, 15 + wellHoldTimer * 40);
+    const previewR = previewSize * 0.3;
+    ctx.beginPath();
+    ctx.arc(wellHoldX, wellHoldY, previewR, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(140,180,255,${0.3 + Math.sin(time * 5) * 0.1})`;
+    ctx.fill();
+    ctx.strokeStyle = `rgba(180,210,255,0.4)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Size indicator ring
+    ctx.beginPath();
+    ctx.arc(wellHoldX, wellHoldY, previewSize * 0.7, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(100,150,255,0.15)`;
+    ctx.lineWidth = 0.5;
+    ctx.setLineDash([3, 5]);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Hold label
+    ctx.fillStyle = 'rgba(140,180,220,0.4)';
+    ctx.font = '10px Georgia';
+    ctx.textAlign = 'center';
+    ctx.fillText('hold for bigger', wellHoldX, wellHoldY + previewSize * 0.7 + 16);
+  }
+
+  // Swipe preview
+  if (isSwiping && pointerDown) {
+    ctx.setLineDash([4, 6]);
+    ctx.beginPath();
+    ctx.moveTo(touchStartX, touchStartY);
+    ctx.lineTo(currentTouchX, currentTouchY);
+    const c = inkColors[currentColorIdx];
+    ctx.strokeStyle = `rgba(${c.r},${c.g},${c.b},0.4)`;
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Arrow head
+    const dx = currentTouchX - touchStartX;
+    const dy = currentTouchY - touchStartY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > 20) {
+      const angle = Math.atan2(dy, dx);
+      // Small dot at start
+      ctx.beginPath();
+      ctx.arc(touchStartX, touchStartY, 4, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},0.6)`;
+      ctx.fill();
+    }
+  }
+
+  // Challenge score
+  if (gameMode === 'challenge') {
+    ctx.fillStyle = 'rgba(100,255,180,0.5)';
+    ctx.font = '14px Georgia';
+    ctx.textAlign = 'center';
+    ctx.fillText('SCORE: ' + challengeScore, W / 2, 30);
+
+    // Check all filled
+    if (targetZones.length > 0 && targetZones.every(t => t.filled >= 0.9)) {
+      challengeScore += 50;
+      generateTargets();
+    }
+  }
+
+  // Subtle vignette
+  const vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ===== INIT =====
+W = mainCanvas.width = trailCanvas.width = uiCanvas.width = window.innerWidth;
+H = mainCanvas.height = trailCanvas.height = uiCanvas.height = window.innerHeight;
+drawStarfield();
+buildColorBar();
+
+// ===== MAIN LOOP =====
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min(0.033, (now - lastTime) / 1000);
+  lastTime = now;
+  if (gameStarted) {
+    update(dt);
+    draw();
+  } else {
+    drawIntroBackground(dt);
+  }
+  requestAnimationFrame(loop);
+}
+
+function drawIntroBackground(dt) {
+  time += dt;
+  ctx.clearRect(0, 0, W, H);
+  if (starfieldImage) ctx.drawImage(starfieldImage, 0, 0);
+
+  // Animated orbit demo
+  const cx = W / 2, cy = H / 2;
+  const demoColors = [inkColors[0], inkColors[1], inkColors[3], inkColors[5]];
+  for (let i = 0; i < 4; i++) {
+    const a = time * (0.3 + i * 0.15) + i * Math.PI * 0.5;
+    const rx = 80 + i * 35;
+    const ry = 50 + i * 20;
+    const x = cx + Math.cos(a) * rx;
+    const y = cy + Math.sin(a) * ry + 30;
+    const c = demoColors[i];
+
+    // Trail
+    for (let j = 0; j < 30; j++) {
+      const ta = a - j * 0.08;
+      const tx = cx + Math.cos(ta) * rx;
+      const ty = cy + Math.sin(ta) * ry + 30;
+      const alpha = (1 - j / 30) * 0.15;
+      const sz = (1 - j / 30) * 2.5;
+      ctx.beginPath();
+      ctx.arc(tx, ty, sz, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${c.r},${c.g},${c.b},${alpha})`;
+      ctx.fill();
+    }
+
+    // Drop
+    ctx.beginPath();
+    ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+    const dg = ctx.createRadialGradient(x, y, 0, x, y, 3.5);
+    dg.addColorStop(0, `rgba(${Math.min(255, c.r + 80)},${Math.min(255, c.g + 80)},${Math.min(255, c.b + 80)},0.9)`);
+    dg.addColorStop(1, `rgba(${c.r},${c.g},${c.b},0.4)`);
+    ctx.fillStyle = dg;
+    ctx.fill();
+  }
+
+  // Central "star"
+  const pulse = Math.sin(time * 2) * 0.1 + 0.9;
+  const sg = ctx.createRadialGradient(cx, cy + 30, 0, cx, cy + 30, 20 * pulse);
+  sg.addColorStop(0, 'rgba(200,220,255,0.5)');
+  sg.addColorStop(0.5, 'rgba(100,140,220,0.15)');
+  sg.addColorStop(1, 'rgba(40,60,150,0)');
+  ctx.fillStyle = sg;
+  ctx.beginPath();
+  ctx.arc(cx, cy + 30, 20 * pulse, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy + 30, 3, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(220,230,255,0.8)';
+  ctx.fill();
+
+  // Vignette
+  const vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.2, W / 2, H / 2, Math.max(W, H) * 0.7);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.6)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

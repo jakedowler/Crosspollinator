@@ -199,6 +199,15 @@ APPS = [
   },
   {
     "date": "2026-03-12",
+    "word_a": "orbit",
+    "word_b": "inkblot",
+    "name": "Orbit &amp; Inkblot",
+    "desc": "planetary paths meet splattered shapes",
+    "path": "output/2026-03-12/orbit_inkblot.html",
+    "version": 1
+  },
+  {
+    "date": "2026-03-12",
     "word_a": "sandcastle",
     "word_b": "wind",
     "name": "Sandcastle &amp; Wind",
