@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Whispering Magnets</title>
+<meta name="theme-color" content="#f0ece4">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #f0ece4;
+  overflow: hidden;
+  font-family: 'Georgia', serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+canvas { display: block; position: fixed; top: 0; left: 0; }
+#bg-canvas { z-index: 0; }
+#main-canvas { z-index: 1; }
+
+#ui {
+  position: fixed;
+  top: env(safe-area-inset-top, 16px);
+  left: 16px;
+  z-index: 10;
+  color: #4a4068;
+  font-size: 11px;
+  pointer-events: none;
+  opacity: 0;
+  line-height: 1.8;
+  transition: opacity 1.5s ease;
+}
+#ui.visible { opacity: 0.8; }
+#ui .title {
+  font-size: 20px;
+  color: #3a3058;
+  letter-spacing: 6px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  font-weight: 300;
+}
+#ui .hint {
+  font-style: italic;
+  color: #7a6898;
+  font-size: 10px;
+  margin-top: 4px;
+  letter-spacing: 1px;
+}
+
+#polarity-btn {
+  position: fixed;
+  top: env(safe-area-inset-top, 16px);
+  right: 16px;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  pointer-events: all;
+}
+#polarity-btn.visible { opacity: 1; }
+#polarity-btn button {
+  background: rgba(80,60,120,0.08);
+  border: 1.5px solid rgba(80,60,120,0.2);
+  color: #4a3868;
+  padding: 14px 20px;
+  font-family: 'Georgia', serif;
+  font-size: 13px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 12px;
+  min-width: 48px;
+  min-height: 48px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+#polarity-btn button:active {
+  background: rgba(80,60,120,0.15);
+  transform: scale(0.95);
+}
+#polarity-btn .pole-n { color: #9a4060; border-color: rgba(154,64,96,0.3); }
+#polarity-btn .pole-s { color: #405090; border-color: rgba(64,80,144,0.3); }
+
+#whisper-text {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom, 16px) + 80px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  color: #5a4878;
+  font-size: 15px;
+  font-style: italic;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 2s ease;
+  text-align: center;
+  max-width: 85vw;
+  letter-spacing: 2px;
+}
+
+#bottom-bar {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(240,236,228,0.85);
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(80,60,120,0.12);
+  opacity: 0;
+  transition: opacity 1.5s ease;
+}
+#bottom-bar.visible { opacity: 1; }
+#bottom-bar button {
+  background: rgba(80,60,120,0.06);
+  border: 1.5px solid rgba(80,60,120,0.15);
+  color: #4a3868;
+  padding: 12px 16px;
+  font-family: 'Georgia', serif;
+  font-size: 11px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  border-radius: 10px;
+  min-width: 44px;
+  min-height: 44px;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+}
+#bottom-bar button:active {
+  background: rgba(80,60,120,0.15);
+  transform: scale(0.95);
+}
+
+#harmony-meter {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 120px;
+  background: rgba(80,60,120,0.06);
+  border: 1px solid rgba(80,60,120,0.12);
+  border-radius: 3px;
+  z-index: 10;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+}
+#harmony-meter.visible { opacity: 0.8; }
+#harmony-fill {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  height: 0%;
+  background: linear-gradient(to top, #7a5090, #9a70b0, #b090c8);
+  border-radius: 2px;
+  transition: height 0.5s ease;
+}
+#harmony-label {
+  position: fixed;
+  right: 10px;
+  top: calc(50% + 75px);
+  color: rgba(80,60,120,0.35);
+  font-size: 8px;
+  letter-spacing: 2px;
+  z-index: 10;
+  text-align: center;
+  width: 24px;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+}
+#harmony-label.visible { opacity: 0.8; }
+
+#magnet-count {
+  position: fixed;
+  bottom: env(safe-area-inset-bottom, 12px);
+  right: 16px;
+  z-index: 9;
+  color: rgba(80,60,120,0.3);
+  font-size: 10px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  letter-spacing: 1px;
+}
+#magnet-count.visible { opacity: 0.7; }
+
+#discovery-pips {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 16px) + 60px);
+  right: 16px;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+}
+#discovery-pips.visible { opacity: 0.9; }
+.pip {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  margin-left: 3px;
+  border: 1px solid rgba(80,60,120,0.25);
+  transition: background 0.5s, border-color 0.5s;
+}
+.pip.done { background: #7a5090; border-color: #7a5090; }
+
+#chapter-text {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 16px) + 85px);
+  right: 16px;
+  z-index: 10;
+  color: rgba(80,60,120,0.3);
+  font-size: 9px;
+  letter-spacing: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  text-transform: uppercase;
+}
+#chapter-text.visible { opacity: 0.6; }
+
+#start-overlay {
+  position: fixed;
+  inset: 0;
+  background: #f0ece4;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 1.5s ease;
+}
+#start-overlay .start-title {
+  font-size: 30px;
+  color: #3a3058;
+  letter-spacing: 10px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  font-weight: 200;
+}
+#start-overlay .start-sub {
+  font-size: 13px;
+  color: #6a5888;
+  letter-spacing: 4px;
+  font-style: italic;
+  margin-bottom: 24px;
+}
+#start-overlay .start-lore {
+  font-size: 11px;
+  color: rgba(80,60,120,0.45);
+  max-width: 280px;
+  text-align: center;
+  line-height: 1.9;
+  margin-bottom: 32px;
+}
+#start-overlay .start-click {
+  font-size: 11px;
+  color: rgba(80,60,120,0.3);
+  letter-spacing: 3px;
+  animation: breathe 3s ease-in-out infinite;
+}
+@keyframes breathe {
+  0%, 100% { opacity: 0.25; }
+  50% { opacity: 0.7; }
+}
+
+#constellation-popup {
+  position: fixed;
+  top: 35%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 20;
+  pointer-events: none;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 2s ease;
+}
+#constellation-popup .const-name {
+  font-size: 18px;
+  color: #5a3878;
+  letter-spacing: 6px;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+#constellation-popup .const-lore {
+  font-size: 11px;
+  color: rgba(80,60,120,0.5);
+  font-style: italic;
+  letter-spacing: 1px;
+  max-width: 250px;
+}
+</style>
+</head>
+<body>
+
+<div id="start-overlay">
+  <div class="start-title">Whispering Magnets</div>
+  <div class="start-sub">an interactive field of forces</div>
+  <div class="start-lore">
+    Every magnet holds a secret.<br>
+    Bring them close and they whisper —<br>
+    stories of attraction and resistance,<br>
+    of forces that speak without sound.
+  </div>
+  <div class="start-click">tap to enter the field</div>
+</div>
+
+<div id="ui">
+  <div class="title">Whispering Magnets</div>
+  <div>Tap to place a magnet</div>
+  <div>Drag to reposition</div>
+  <div>Double-tap to remove</div>
+  <div class="hint">Place magnets close and listen...</div>
+</div>
+
+<div id="polarity-btn">
+  <button id="pole-btn" class="pole-n" onclick="togglePolarity()">N</button>
+</div>
+
+<div id="whisper-text"></div>
+<div id="magnet-count"></div>
+
+<div id="harmony-meter"><div id="harmony-fill"></div></div>
+<div id="harmony-label" class="">HARMONY</div>
+
+<div id="discovery-pips"></div>
+<div id="chapter-text"></div>
+
+<div id="bottom-bar">
+  <button onclick="undoMagnet()">Undo</button>
+  <button onclick="clearAll()">Clear</button>
+  <button onclick="toggleMode()">Mode</button>
+</div>
+
+<div id="constellation-popup">
+  <div class="const-name"></div>
+  <div class="const-lore"></div>
+</div>
+
+<canvas id="bg-canvas"></canvas>
+<canvas id="main-canvas"></canvas>
+
+<script>
+// ==============================
+// WHISPERING MAGNETS v2
+// Enhanced interactive sonic field
+// ==============================
+
+const bgCanvas = document.getElementById('bg-canvas');
+const bgCtx = bgCanvas.getContext('2d');
+const canvas = document.getElementById('main-canvas');
+const ctx = canvas.getContext('2d');
+const whisperEl = document.getElementById('whisper-text');
+const magnetCountEl = document.getElementById('magnet-count');
+const harmonyFill = document.getElementById('harmony-fill');
+
+let W, H;
+function resize() {
+  W = bgCanvas.width = canvas.width = window.innerWidth;
+  H = bgCanvas.height = canvas.height = window.innerHeight;
+  drawBackground();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ==================
+// BACKGROUND
+// ==================
+function drawBackground() {
+  const grad = bgCtx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.75);
+  grad.addColorStop(0, '#f4f0ea');
+  grad.addColorStop(0.4, '#ede8e0');
+  grad.addColorStop(0.7, '#e8e2d8');
+  grad.addColorStop(1, '#e0d8cc');
+  bgCtx.fillStyle = grad;
+  bgCtx.fillRect(0, 0, W, H);
+
+  // Subtle texture dots
+  for (let i = 0; i < 300; i++) {
+    const x = Math.random() * W;
+    const y = Math.random() * H;
+    const r = Math.random() * 1;
+    const a = 0.015 + Math.random() * 0.025;
+    bgCtx.beginPath();
+    bgCtx.arc(x, y, r, 0, Math.PI * 2);
+    bgCtx.fillStyle = `rgba(100, 80, 140, ${a})`;
+    bgCtx.fill();
+  }
+}
+
+// ==================
+// AUDIO ENGINE
+// ==================
+let audioCtx = null;
+let masterGain = null;
+let reverbNode = null;
+let compressor = null;
+
+const WHISPER_CHAPTERS = [
+  // Chapter 1: First Contact (0-3 magnets)
+  {
+    name: "awakening",
+    attraction: [
+      "come closer...",
+      "I feel you near...",
+      "the field remembers...",
+      "can you feel it too?",
+      "closer... closer...",
+      "invisible threads bind us...",
+    ],
+    repulsion: [
+      "not yet...",
+      "too alike to touch...",
+      "we mirror each other...",
+    ]
+  },
+  // Chapter 2: Growing Field (4-7 magnets)
+  {
+    name: "resonance",
+    attraction: [
+      "attraction is memory...",
+      "polarity shifts like breath...",
+      "the space between us hums...",
+      "north seeks south, always...",
+      "we orbit endlessly...",
+      "drawn together by unseen hands...",
+      "convergence is not collision...",
+      "magnetism is desire...",
+    ],
+    repulsion: [
+      "the same charge pushes...",
+      "like repels like, but listens still...",
+      "parallel lines never meet...",
+      "reflection, not rejection...",
+    ]
+  },
+  // Chapter 3: Complex Fields (8-14 magnets)
+  {
+    name: "entanglement",
+    attraction: [
+      "the field lines sing your name...",
+      "resonance between worlds...",
+      "flux and flow and forever...",
+      "we are dipoles dreaming of unity...",
+      "the whisper is the force itself...",
+      "what attracts you, shapes you...",
+      "every field remembers its source...",
+      "the quiet force moves mountains...",
+      "opposites entangle in the dark...",
+    ],
+    repulsion: [
+      "we push, and in pushing, acknowledge...",
+      "the space between grows taut...",
+      "same polarity, same loneliness...",
+      "repulsion is longing inverted...",
+    ]
+  },
+  // Chapter 4: Harmony (15+ magnets)
+  {
+    name: "transcendence",
+    attraction: [
+      "aligned at last...",
+      "the force speaks in silence...",
+      "listen to the field...",
+      "the void whispers back...",
+      "entropy resists, but we persist...",
+      "distance is an illusion of poles...",
+      "all forces converge in stillness...",
+      "the field is the song, the song is the field...",
+    ],
+    repulsion: [
+      "in resistance, there is music too...",
+      "the push reveals the shape of yearning...",
+    ]
+  }
+];
+
+// Constellation patterns and lore
+const CONSTELLATIONS = [
+  { name: "The Arch", desc: "a gateway between polarities", minMagnets: 3, check: checkArch },
+  { name: "The Ring", desc: "an eternal cycle of attraction", minMagnets: 4, check: checkRing },
+  { name: "The Cross", desc: "where four forces meet in balance", minMagnets: 4, check: checkCross },
+  { name: "The Chain", desc: "linked by invisible bonds", minMagnets: 5, check: checkChain },
+  { name: "The Star", desc: "radiance from the center outward", minMagnets: 5, check: checkStar },
+  { name: "The Embrace", desc: "opposites holding each other close", minMagnets: 2, check: checkEmbrace },
+];
+
+function checkArch(mags) {
+  // 3+ magnets in a rough arc
+  if (mags.length < 3) return false;
+  for (let i = 0; i < mags.length - 2; i++) {
+    for (let j = i+1; j < mags.length - 1; j++) {
+      for (let k = j+1; k < mags.length; k++) {
+        const a = mags[i], b = mags[j], c = mags[k];
+        // Check if b is roughly between a and c and above
+        const mx = (a.x + c.x) / 2;
+        const my = (a.y + c.y) / 2;
+        const dist = Math.hypot(b.x - mx, b.y - my);
+        const span = Math.hypot(a.x - c.x, a.y - c.y);
+        if (span > 80 && dist < span * 0.5 && b.y < my - 20) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function checkRing(mags) {
+  if (mags.length < 4) return false;
+  // Find 4+ magnets roughly equidistant from their centroid
+  const cx = mags.reduce((s,m) => s+m.x, 0) / mags.length;
+  const cy = mags.reduce((s,m) => s+m.y, 0) / mags.length;
+  const dists = mags.map(m => Math.hypot(m.x-cx, m.y-cy));
+  const avg = dists.reduce((s,d) => s+d, 0) / dists.length;
+  if (avg < 40) return false;
+  const variance = dists.reduce((s,d) => s + (d-avg)*(d-avg), 0) / dists.length;
+  return Math.sqrt(variance) / avg < 0.35;
+}
+
+function checkCross(mags) {
+  if (mags.length < 4) return false;
+  // Find 4 magnets forming a rough cross shape
+  for (let i = 0; i < mags.length; i++) {
+    const center = mags[i];
+    const others = mags.filter((m,j) => j !== i);
+    let up=false, down=false, left=false, right=false;
+    for (const m of others) {
+      const dx = m.x - center.x, dy = m.y - center.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 50 || d > 250) continue;
+      const angle = Math.atan2(dy, dx);
+      if (Math.abs(angle + Math.PI/2) < 0.5) up = true;
+      if (Math.abs(angle - Math.PI/2) < 0.5) down = true;
+      if (Math.abs(angle) < 0.5) right = true;
+      if (Math.abs(Math.abs(angle) - Math.PI) < 0.5) left = true;
+    }
+    if (up && down && left && right) return true;
+  }
+  return false;
+}
+
+function checkChain(mags) {
+  if (mags.length < 5) return false;
+  // Check for alternating N/S in a line
+  const sorted = [...mags].sort((a,b) => a.x - b.x);
+  let alternating = 0;
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].polarity !== sorted[i-1].polarity) alternating++;
+  }
+  return alternating >= 4;
+}
+
+function checkStar(mags) {
+  if (mags.length < 5) return false;
+  // One center magnet with 4+ around it at similar distances
+  for (const center of mags) {
+    const others = mags.filter(m => m !== center);
+    const dists = others.map(m => Math.hypot(m.x - center.x, m.y - center.y));
+    const close = dists.filter(d => d > 40 && d < 200);
+    if (close.length >= 4) {
+      const avg = close.reduce((s,d) => s+d, 0) / close.length;
+      const var2 = close.reduce((s,d) => s + (d-avg)*(d-avg), 0) / close.length;
+      if (Math.sqrt(var2) / avg < 0.4) return true;
+    }
+  }
+  return false;
+}
+
+function checkEmbrace(mags) {
+  // Two opposite-polarity magnets very close
+  for (let i = 0; i < mags.length; i++) {
+    for (let j = i+1; j < mags.length; j++) {
+      if (mags[i].polarity !== mags[j].polarity) {
+        const d = Math.hypot(mags[i].x - mags[j].x, mags[i].y - mags[j].y);
+        if (d < 60) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  compressor = audioCtx.createDynamicsCompressor();
+  compressor.threshold.value = -24;
+  compressor.knee.value = 12;
+  compressor.ratio.value = 4;
+  compressor.attack.value = 0.005;
+  compressor.release.value = 0.1;
+  compressor.connect(audioCtx.destination);
+
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.5;
+
+  // Reverb
+  const sampleRate = audioCtx.sampleRate;
+  const length = sampleRate * 3;
+  const impulse = audioCtx.createBuffer(2, length, sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < length; i++) {
+      const t = i / length;
+      const decay = Math.pow(1 - t, 2) * 0.4 + Math.pow(1 - t, 4) * 0.6;
+      data[i] = (Math.random() * 2 - 1) * decay;
+    }
+  }
+  reverbNode = audioCtx.createConvolver();
+  reverbNode.buffer = impulse;
+
+  const reverbGain = audioCtx.createGain();
+  reverbGain.gain.value = 0.3;
+
+  const reverbFilter = audioCtx.createBiquadFilter();
+  reverbFilter.type = 'lowpass';
+  reverbFilter.frequency.value = 2500;
+
+  masterGain.connect(compressor);
+  masterGain.connect(reverbNode);
+  reverbNode.connect(reverbFilter);
+  reverbFilter.connect(reverbGain);
+  reverbGain.connect(compressor);
+}
+
+function createWhisperSound(frequency, intensity, pan, type) {
+  if (!audioCtx || audioCtx.state !== 'running') return;
+  const now = audioCtx.currentTime;
+  const duration = 0.2 + Math.random() * 0.6;
+  const bufLen = Math.floor(audioCtx.sampleRate * duration);
+  const noiseBuffer = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const noiseData = noiseBuffer.getChannelData(0);
+  const isConsonant = type === 'consonant';
+  const isSibilant = type === 'sibilant';
+
+  for (let i = 0; i < bufLen; i++) {
+    const t = i / audioCtx.sampleRate;
+    const tNorm = i / bufLen;
+    let env;
+    if (tNorm < 0.05) env = tNorm / 0.05;
+    else if (tNorm < 0.3) env = 1;
+    else env = Math.pow(1 - (tNorm - 0.3) / 0.7, 1.5);
+    const breathMod = 1 + 0.2 * Math.sin(t * 12 * Math.PI)
+                        + 0.15 * Math.sin(t * 7.3 * Math.PI)
+                        + 0.1 * Math.sin(t * 23 * Math.PI);
+    let consonantMod = 1;
+    if (isConsonant) consonantMod = tNorm < 0.1 ? 3 : 0.5;
+    if (isSibilant) consonantMod = 1.5;
+    noiseData[i] = (Math.random() * 2 - 1) * env * breathMod * consonantMod * 0.12;
+  }
+
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer;
+  const f1 = audioCtx.createBiquadFilter();
+  f1.type = 'bandpass';
+  f1.frequency.value = isSibilant ? 5000 + Math.random() * 2000 : 600 + frequency * 0.4;
+  f1.Q.value = isSibilant ? 1 : 5;
+  const f2 = audioCtx.createBiquadFilter();
+  f2.type = 'bandpass';
+  f2.frequency.value = 1800 + frequency * 0.3 + Math.random() * 300;
+  f2.Q.value = 3;
+  const f3 = audioCtx.createBiquadFilter();
+  f3.type = 'bandpass';
+  f3.frequency.value = 3200 + Math.random() * 800;
+  f3.Q.value = 2;
+  const airFilter = audioCtx.createBiquadFilter();
+  airFilter.type = 'highshelf';
+  airFilter.frequency.value = 4000;
+  airFilter.gain.value = isSibilant ? 10 : 4;
+  const gainNode = audioCtx.createGain();
+  const vol = intensity * (isSibilant ? 0.06 : isConsonant ? 0.08 : 0.1);
+  gainNode.gain.setValueAtTime(0, now);
+  gainNode.gain.linearRampToValueAtTime(vol, now + 0.02);
+  gainNode.gain.setValueAtTime(vol, now + duration * 0.4);
+  gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = Math.max(-1, Math.min(1, pan));
+  const mix = audioCtx.createGain();
+  mix.gain.value = 1;
+  src.connect(f1); src.connect(f2); src.connect(f3);
+  f1.connect(mix); f2.connect(mix); f3.connect(mix);
+  mix.connect(airFilter);
+  airFilter.connect(gainNode);
+  gainNode.connect(panner);
+  panner.connect(masterGain);
+  src.start(now);
+  src.stop(now + duration);
+}
+
+// Harmonic resonance sound when constellation found
+function playResonanceChord(x) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const pan = (x / W) * 2 - 1;
+  const notes = [261.63, 329.63, 392, 523.25, 659.25];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = i < 2 ? 'sine' : 'triangle';
+    osc.frequency.value = freq;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now + i * 0.08);
+    g.gain.linearRampToValueAtTime(0.025, now + i * 0.08 + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 2.5);
+    const p = audioCtx.createStereoPanner();
+    p.pan.value = Math.max(-1, Math.min(1, pan + (i - 2) * 0.15));
+    osc.connect(g); g.connect(p); p.connect(masterGain);
+    osc.start(now + i * 0.08);
+    osc.stop(now + i * 0.08 + 3);
+  });
+}
+
+function createFieldTone(freq, pan) {
+  if (!audioCtx) return null;
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.value = freq;
+  const osc2 = audioCtx.createOscillator();
+  osc2.type = 'sine';
+  osc2.frequency.value = freq * 1.002;
+  const gainNode = audioCtx.createGain();
+  gainNode.gain.value = 0;
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = pan;
+  const lfo = audioCtx.createOscillator();
+  lfo.type = 'triangle';
+  lfo.frequency.value = 0.3 + Math.random() * 1.5;
+  const lfoGain = audioCtx.createGain();
+  lfoGain.gain.value = 2;
+  lfo.connect(lfoGain);
+  lfoGain.connect(osc.frequency);
+  const tremolo = audioCtx.createOscillator();
+  tremolo.type = 'sine';
+  tremolo.frequency.value = 0.1 + Math.random() * 0.4;
+  const tremoloGain = audioCtx.createGain();
+  tremoloGain.gain.value = 0.002;
+  tremolo.connect(tremoloGain);
+  tremoloGain.connect(gainNode.gain);
+  osc.connect(gainNode);
+  osc2.connect(gainNode);
+  gainNode.connect(panner);
+  panner.connect(masterGain);
+  osc.start(); osc2.start(); lfo.start(); tremolo.start();
+  return { osc, osc2, gainNode, panner, lfo, lfoGain, tremolo, tremoloGain };
+}
+
+function createDrone() {
+  if (!audioCtx) return;
+  [55, 82.5, 110, 146.83].forEach((f, idx) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = idx < 2 ? 'sine' : 'triangle';
+    osc.frequency.value = f;
+    const g = audioCtx.createGain();
+    g.gain.value = idx < 2 ? 0.005 : 0.002;
+    const lfo = audioCtx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = 0.05 + Math.random() * 0.15;
+    const lfoG = audioCtx.createGain();
+    lfoG.gain.value = 0.003;
+    lfo.connect(lfoG); lfoG.connect(g.gain);
+    const pitchLfo = audioCtx.createOscillator();
+    pitchLfo.type = 'sine';
+    pitchLfo.frequency.value = 0.02 + Math.random() * 0.05;
+    const pitchLfoG = audioCtx.createGain();
+    pitchLfoG.gain.value = 0.5;
+    pitchLfo.connect(pitchLfoG); pitchLfoG.connect(osc.frequency);
+    osc.connect(g); g.connect(masterGain);
+    osc.start(); lfo.start(); pitchLfo.start();
+  });
+}
+
+function playPlacementChime(polarity, x) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const notes = polarity > 0 ? [523.25, 659.25, 783.99] : [392, 493.88, 587.33];
+  const pan = (x / W) * 2 - 1;
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now + i * 0.06);
+    g.gain.linearRampToValueAtTime(0.03, now + i * 0.06 + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.8);
+    const p = audioCtx.createStereoPanner();
+    p.pan.value = pan;
+    osc.connect(g); g.connect(p); p.connect(masterGain);
+    osc.start(now + i * 0.06);
+    osc.stop(now + i * 0.06 + 1);
+  });
+}
+
+// Removal sound
+function playRemoveSound(x) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(400, now);
+  osc.frequency.exponentialRampToValueAtTime(100, now + 0.4);
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.04, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  const p = audioCtx.createStereoPanner();
+  p.pan.value = (x / W) * 2 - 1;
+  osc.connect(g); g.connect(p); p.connect(masterGain);
+  osc.start(now); osc.stop(now + 0.6);
+}
+
+// ==================
+// MAGNETS
+// ==================
+const magnets = [];
+let nextPolarity = 1;
+let dragMagnet = null;
+let dragOffset = { x: 0, y: 0 };
+let viewMode = 'field'; // 'field' or 'lines'
+
+class Magnet {
+  constructor(x, y, polarity) {
+    this.x = x;
+    this.y = y;
+    this.vx = 0;
+    this.vy = 0;
+    this.polarity = polarity;
+    this.radius = 18;
+    this.fieldRadius = 280;
+    this.pulsePhase = Math.random() * Math.PI * 2;
+    this.whisperCooldown = 0;
+    this.tone = null;
+    this.toneFreq = polarity > 0 ? 220 + Math.random() * 80 : 155 + Math.random() * 50;
+    this.glowIntensity = 0;
+    this.trail = [];
+    this.id = Math.random();
+    this.birthed = performance.now();
+    this.breathPhase = Math.random() * Math.PI * 2;
+    this.orbitAngle = Math.random() * Math.PI * 2;
+    const pan = (x / W) * 2 - 1;
+    this.tone = createFieldTone(this.toneFreq, pan);
+  }
+  updateTone() {
+    if (!this.tone) return;
+    this.tone.panner.pan.value = Math.max(-1, Math.min(1, (this.x / W) * 2 - 1));
+  }
+  destroy() {
+    if (this.tone && audioCtx) {
+      const now = audioCtx.currentTime;
+      this.tone.gainNode.gain.cancelScheduledValues(now);
+      this.tone.gainNode.gain.linearRampToValueAtTime(0, now + 0.15);
+      const tone = this.tone;
+      setTimeout(() => {
+        try { tone.osc.stop(); tone.osc2.stop(); tone.lfo.stop(); tone.tremolo.stop(); } catch(e){}
+      }, 200);
+    }
+  }
+}
+
+// ==================
+// PARTICLES
+// ==================
+const particles = [];
+const MAX_PARTICLES = 600;
+
+class Particle {
+  constructor(x, y, color) {
+    this.x = x; this.y = y;
+    this.vx = 0; this.vy = 0;
+    this.life = 1;
+    this.maxLife = 0.5 + Math.random() * 2.5;
+    this.size = 0.5 + Math.random() * 2;
+    this.alpha = 0;
+    this.color = color || '100, 80, 140';
+  }
+  update(dt) {
+    let fx = 0, fy = 0;
+    for (const m of magnets) {
+      const dx = this.x - m.x;
+      const dy = this.y - m.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) + 1;
+      if (dist < m.fieldRadius) {
+        const strength = m.polarity * 6000 / (dist * dist);
+        fx += (dx / dist) * strength;
+        fy += (dy / dist) * strength;
+      }
+    }
+    this.vx = this.vx * 0.92 + fx * dt;
+    this.vy = this.vy * 0.92 + fy * dt;
+    const speed = Math.sqrt(this.vx * this.vx + this.vy * this.vy);
+    if (speed > 120) {
+      this.vx = (this.vx / speed) * 120;
+      this.vy = (this.vy / speed) * 120;
+    }
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt / this.maxLife;
+    this.alpha = Math.max(0, Math.min(0.5, this.life * 0.5 * Math.min(1, speed / 20)));
+    return this.life > 0 && this.x > -50 && this.x < W + 50 && this.y > -50 && this.y < H + 50;
+  }
+}
+
+// ==================
+// FIELD MATH
+// ==================
+function getFieldAt(x, y) {
+  let fx = 0, fy = 0;
+  for (const m of magnets) {
+    const dx = x - m.x;
+    const dy = y - m.y;
+    const distSq = dx * dx + dy * dy + 200;
+    const dist = Math.sqrt(distSq);
+    const strength = m.polarity * 40000 / distSq;
+    fx += (dx / dist) * strength;
+    fy += (dy / dist) * strength;
+  }
+  return { x: fx, y: fy };
+}
+
+function traceFieldLine(startX, startY, steps, stepSize) {
+  const points = [];
+  let x = startX, y = startY;
+  for (let i = 0; i < steps; i++) {
+    points.push({ x, y, i });
+    const f = getFieldAt(x, y);
+    const mag = Math.sqrt(f.x * f.x + f.y * f.y) + 0.001;
+    x += (f.x / mag) * stepSize;
+    y += (f.y / mag) * stepSize;
+    if (x < -30 || x > W + 30 || y < -30 || y > H + 30) break;
+    let tooClose = false;
+    for (const m of magnets) {
+      const dx = x - m.x;
+      const dy = y - m.y;
+      if (dx * dx + dy * dy < m.radius * m.radius * 0.8) { tooClose = true; break; }
+    }
+    if (tooClose) { points.push({ x, y, i: i+1 }); break; }
+  }
+  return points;
+}
+
+// ==================
+// WHISPER DISPLAY
+// ==================
+let whisperTimeout = null;
+
+function getChapterIndex() {
+  const n = magnets.length;
+  if (n <= 3) return 0;
+  if (n <= 7) return 1;
+  if (n <= 14) return 2;
+  return 3;
+}
+
+function showWhisper(text) {
+  whisperEl.textContent = '\u201C' + text + '\u201D';
+  whisperEl.style.opacity = 1;
+  if (whisperTimeout) clearTimeout(whisperTimeout);
+  whisperTimeout = setTimeout(() => {
+    whisperEl.style.opacity = 0;
+  }, 3500);
+}
+
+function updateChapterDisplay() {
+  const ch = WHISPER_CHAPTERS[getChapterIndex()];
+  const el = document.getElementById('chapter-text');
+  el.textContent = ch.name;
+}
+
+// ==================
+// CONSTELLATION DETECTION
+// ==================
+let discoveredConstellations = [];
+let lastConstellationCheck = 0;
+
+function loadDiscoveries() {
+  try {
+    discoveredConstellations = JSON.parse(localStorage.getItem('wm_discoveries') || '[]');
+  } catch(e) { discoveredConstellations = []; }
+  updateDiscoveryPips();
+}
+
+function saveDiscoveries() {
+  localStorage.setItem('wm_discoveries', JSON.stringify(discoveredConstellations));
+  updateDiscoveryPips();
+}
+
+function updateDiscoveryPips() {
+  const el = document.getElementById('discovery-pips');
+  el.innerHTML = CONSTELLATIONS.map((c, i) =>
+    '<span class="pip' + (discoveredConstellations.includes(i) ? ' done' : '') + '"></span>'
+  ).join('');
+}
+
+function showConstellationPopup(constellation) {
+  const popup = document.getElementById('constellation-popup');
+  popup.querySelector('.const-name').textContent = constellation.name;
+  popup.querySelector('.const-lore').textContent = constellation.desc;
+  popup.style.opacity = 1;
+  setTimeout(() => { popup.style.opacity = 0; }, 4000);
+}
+
+function checkConstellations() {
+  if (magnets.length < 2) return;
+  for (let i = 0; i < CONSTELLATIONS.length; i++) {
+    if (discoveredConstellations.includes(i)) continue;
+    const c = CONSTELLATIONS[i];
+    if (magnets.length < c.minMagnets) continue;
+    if (c.check(magnets)) {
+      discoveredConstellations.push(i);
+      saveDiscoveries();
+      showConstellationPopup(c);
+      playResonanceChord(W/2);
+      if (navigator.vibrate) try { navigator.vibrate([30, 50, 30]); } catch(e){}
+      break; // One at a time
+    }
+  }
+}
+
+// ==================
+// HARMONY CALCULATION
+// ==================
+function computeHarmony() {
+  if (magnets.length < 2) return 0;
+  let totalAttraction = 0;
+  let totalRepulsion = 0;
+  let pairs = 0;
+  for (let i = 0; i < magnets.length; i++) {
+    for (let j = i+1; j < magnets.length; j++) {
+      const dist = Math.hypot(magnets[i].x - magnets[j].x, magnets[i].y - magnets[j].y);
+      if (dist > 350) continue;
+      pairs++;
+      const intensity = Math.pow(1 - dist/350, 1.5);
+      if (magnets[i].polarity * magnets[j].polarity < 0) {
+        totalAttraction += intensity;
+      } else {
+        totalRepulsion += intensity;
+      }
+    }
+  }
+  if (pairs === 0) return 0;
+  const balance = 1 - Math.abs(totalAttraction - totalRepulsion) / Math.max(0.01, totalAttraction + totalRepulsion);
+  const activity = Math.min(1, (totalAttraction + totalRepulsion) / Math.max(1, pairs) * 2);
+  return balance * activity;
+}
+
+// ==================
+// INTERACTION
+// ==================
+let touchX = 0, touchY = 0;
+let started = false;
+let lastTapTime = 0;
+let lastTapX = 0, lastTapY = 0;
+let touchStartTime = 0;
+let touchStartMagnet = null;
+let longPressTimer = null;
+
+function togglePolarity() {
+  nextPolarity *= -1;
+  const btn = document.getElementById('pole-btn');
+  btn.textContent = nextPolarity > 0 ? 'N' : 'S';
+  btn.className = nextPolarity > 0 ? 'pole-n' : 'pole-s';
+  if (navigator.vibrate) try { navigator.vibrate(10); } catch(e){}
+}
+
+function undoMagnet() {
+  if (magnets.length > 0) {
+    const m = magnets.pop();
+    m.destroy();
+    playRemoveSound(m.x);
+    updateMagnetCount();
+    if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){}
+  }
+}
+
+function clearAll() {
+  magnets.forEach(m => m.destroy());
+  magnets.length = 0;
+  particles.length = 0;
+  updateMagnetCount();
+  if (navigator.vibrate) try { navigator.vibrate([10, 30, 10]); } catch(e){}
+}
+
+function toggleMode() {
+  viewMode = viewMode === 'field' ? 'lines' : 'field';
+  if (navigator.vibrate) try { navigator.vibrate(10); } catch(e){}
+}
+
+document.getElementById('start-overlay').addEventListener('click', () => {
+  started = true;
+  const overlay = document.getElementById('start-overlay');
+  overlay.style.opacity = 0;
+  setTimeout(() => { overlay.style.display = 'none'; }, 1500);
+  setTimeout(() => {
+    document.getElementById('ui').classList.add('visible');
+    document.getElementById('polarity-btn').classList.add('visible');
+    document.getElementById('magnet-count').classList.add('visible');
+    document.getElementById('bottom-bar').classList.add('visible');
+    document.getElementById('harmony-meter').classList.add('visible');
+    document.getElementById('harmony-label').classList.add('visible');
+    document.getElementById('discovery-pips').classList.add('visible');
+    document.getElementById('chapter-text').classList.add('visible');
+  }, 500);
+  initAudio();
+  createDrone();
+  loadDiscoveries();
+  updateChapterDisplay();
+});
+
+function findMagnetAt(x, y) {
+  for (const m of magnets) {
+    const dx = x - m.x;
+    const dy = y - m.y;
+    if (dx * dx + dy * dy < (m.radius + 16) * (m.radius + 16)) return m;
+  }
+  return null;
+}
+
+function placeMagnet(x, y) {
+  if (magnets.length >= 24) return;
+  const m = new Magnet(x, y, nextPolarity);
+  magnets.push(m);
+  updateMagnetCount();
+  updateChapterDisplay();
+  playPlacementChime(nextPolarity, x);
+  createWhisperSound(m.toneFreq, 0.7, (x / W) * 2 - 1, 'sibilant');
+  if (navigator.vibrate) try { navigator.vibrate(20); } catch(e){}
+
+  // Burst particles
+  const burstCount = 35;
+  for (let i = 0; i < burstCount; i++) {
+    const angle = (i / burstCount) * Math.PI * 2 + Math.random() * 0.2;
+    const speed = 30 + Math.random() * 50;
+    const p = new Particle(
+      x + Math.cos(angle) * m.radius,
+      y + Math.sin(angle) * m.radius,
+      nextPolarity > 0 ? '160, 80, 110' : '80, 100, 160'
+    );
+    p.vx = Math.cos(angle) * speed * nextPolarity;
+    p.vy = Math.sin(angle) * speed * nextPolarity;
+    p.size = 1 + Math.random() * 2;
+    if (particles.length < MAX_PARTICLES) particles.push(p);
+  }
+}
+
+function removeMagnet(m) {
+  const idx = magnets.indexOf(m);
+  if (idx !== -1) {
+    magnets.splice(idx, 1);
+    m.destroy();
+    playRemoveSound(m.x);
+    updateMagnetCount();
+    if (navigator.vibrate) try { navigator.vibrate([15, 30, 15]); } catch(e){}
+  }
+}
+
+// Touch/mouse handlers
+function onPointerDown(x, y) {
+  if (!started) return;
+  touchX = x; touchY = y;
+  touchStartTime = performance.now();
+  touchStartMagnet = findMagnetAt(x, y);
+
+  if (touchStartMagnet) {
+    // Start drag
+    dragMagnet = touchStartMagnet;
+    dragOffset.x = x - touchStartMagnet.x;
+    dragOffset.y = y - touchStartMagnet.y;
+  }
+
+  // Double-tap detection for removal
+  const now = performance.now();
+  if (now - lastTapTime < 350 && Math.hypot(x - lastTapX, y - lastTapY) < 40) {
+    const m = findMagnetAt(x, y);
+    if (m) {
+      removeMagnet(m);
+      dragMagnet = null;
+      lastTapTime = 0;
+      return;
+    }
+  }
+  lastTapTime = now;
+  lastTapX = x; lastTapY = y;
+}
+
+function onPointerMove(x, y) {
+  touchX = x; touchY = y;
+  if (dragMagnet) {
+    dragMagnet.x = x - dragOffset.x;
+    dragMagnet.y = y - dragOffset.y;
+    dragMagnet.vx = 0;
+    dragMagnet.vy = 0;
+  }
+}
+
+function onPointerUp(x, y) {
+  if (!started) return;
+  const elapsed = performance.now() - touchStartTime;
+
+  if (dragMagnet) {
+    if (elapsed < 200 && !touchStartMagnet) {
+      // Quick tap on empty space - place magnet
+      placeMagnet(x, y);
+    }
+    dragMagnet = null;
+  } else if (elapsed < 300) {
+    // Tap on empty space
+    if (!findMagnetAt(x, y)) {
+      placeMagnet(x, y);
+    }
+  }
+}
+
+// Mouse
+canvas.addEventListener('mousedown', (e) => onPointerDown(e.clientX, e.clientY));
+canvas.addEventListener('mousemove', (e) => {
+  touchX = e.clientX; touchY = e.clientY;
+  onPointerMove(e.clientX, e.clientY);
+});
+canvas.addEventListener('mouseup', (e) => onPointerUp(e.clientX, e.clientY));
+
+// Touch
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  onPointerDown(t.clientX, t.clientY);
+}, { passive: false });
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const t = e.touches[0];
+  onPointerMove(t.clientX, t.clientY);
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  onPointerUp(touchX, touchY);
+}, { passive: false });
+
+// Keyboard
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space') { e.preventDefault(); togglePolarity(); }
+  if (e.code === 'KeyC') clearAll();
+  if (e.code === 'KeyX') undoMagnet();
+  if (e.code === 'KeyM') toggleMode();
+});
+
+function updateMagnetCount() {
+  const n = magnets.filter(m => m.polarity > 0).length;
+  const s = magnets.filter(m => m.polarity < 0).length;
+  magnetCountEl.textContent = `${n}N / ${s}S`;
+}
+
+// ==================
+// MAIN LOOP
+// ==================
+let lastTime = performance.now();
+let time = 0;
+let lastWhisperSoundTime = 0;
+let frameCount = 0;
+
+function update(now) {
+  requestAnimationFrame(update);
+
+  const rawDt = (now - lastTime) / 1000;
+  const dt = Math.min(rawDt, 0.04);
+  lastTime = now;
+  time += dt;
+  frameCount++;
+
+  // Spawn field particles
+  if (magnets.length > 0 && frameCount % 2 === 0) {
+    const spawnCount = Math.min(magnets.length * 2, 8);
+    for (let i = 0; i < spawnCount; i++) {
+      const m = magnets[Math.floor(Math.random() * magnets.length)];
+      const angle = Math.random() * Math.PI * 2;
+      const dist = m.radius * 1.5 + Math.random() * m.fieldRadius * 0.5;
+      const color = m.polarity > 0 ? '140, 90, 120' : '90, 110, 160';
+      const p = new Particle(
+        m.x + Math.cos(angle) * dist,
+        m.y + Math.sin(angle) * dist,
+        color
+      );
+      if (particles.length < MAX_PARTICLES) particles.push(p);
+    }
+  }
+
+  // Ambient floating particles
+  if (frameCount % 10 === 0 && particles.length < MAX_PARTICLES) {
+    const p = new Particle(Math.random() * W, Math.random() * H, '100, 80, 130');
+    p.size = 0.3 + Math.random() * 0.7;
+    p.maxLife = 2 + Math.random() * 3;
+    particles.push(p);
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    if (!particles[i].update(dt)) particles.splice(i, 1);
+  }
+
+  // Update magnets
+  for (let i = 0; i < magnets.length; i++) {
+    const a = magnets[i];
+    if (a === dragMagnet) {
+      a.glowIntensity *= 0.92;
+      a.pulsePhase += dt * 3;
+      a.breathPhase += dt;
+      a.updateTone();
+      continue;
+    }
+
+    let totalInteraction = 0;
+
+    for (let j = i + 1; j < magnets.length; j++) {
+      const b = magnets[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distSq = dx * dx + dy * dy + 1;
+      const dist = Math.sqrt(distSq);
+
+      const polProduct = a.polarity * b.polarity;
+      const forceMag = -polProduct * 12000 / distSq;
+
+      const minDist = a.radius + b.radius + 4;
+      let repulsion = 0;
+      if (dist < minDist) repulsion = (minDist - dist) * 30;
+
+      const fx = (dx / dist) * (forceMag + repulsion);
+      const fy = (dy / dist) * (forceMag + repulsion);
+
+      if (b !== dragMagnet) { b.vx += fx * dt; b.vy += fy * dt; }
+      a.vx -= fx * dt;
+      a.vy -= fy * dt;
+
+      // Audio interactions
+      const interactionDist = 320;
+      if (dist < interactionDist) {
+        const intensity = Math.pow(1 - dist / interactionDist, 1.5);
+        totalInteraction += intensity;
+
+        const toneVol = intensity * intensity * 0.015;
+        if (a.tone) {
+          const now2 = audioCtx.currentTime;
+          a.tone.gainNode.gain.cancelScheduledValues(now2);
+          a.tone.gainNode.gain.linearRampToValueAtTime(Math.min(0.03, toneVol), now2 + 0.05);
+          a.tone.lfoGain.gain.linearRampToValueAtTime(2 + intensity * 8, now2 + 0.1);
+        }
+        if (b.tone) {
+          const now2 = audioCtx.currentTime;
+          b.tone.gainNode.gain.cancelScheduledValues(now2);
+          b.tone.gainNode.gain.linearRampToValueAtTime(Math.min(0.03, toneVol), now2 + 0.05);
+        }
+
+        // Whisper sounds
+        a.whisperCooldown -= dt;
+        if (intensity > 0.2 && a.whisperCooldown <= 0 && time - lastWhisperSoundTime > 0.3) {
+          const pan = ((a.x + b.x) / 2 / W) * 2 - 1;
+          const freq = 150 + (1 - intensity) * 500;
+          const types = ['vowel', 'consonant', 'sibilant'];
+          createWhisperSound(freq, intensity * 0.8, pan, types[Math.floor(Math.random() * 3)]);
+
+          if (intensity > 0.5 && Math.random() < 0.4) {
+            setTimeout(() => {
+              createWhisperSound(freq * 1.3, intensity * 0.4, pan + 0.2, 'sibilant');
+            }, 50 + Math.random() * 100);
+          }
+
+          a.whisperCooldown = 0.3 + Math.random() * (1.5 - intensity);
+          lastWhisperSoundTime = time;
+
+          // Text whisper from current chapter
+          if (intensity > 0.55 && Math.random() < 0.1) {
+            const chapter = WHISPER_CHAPTERS[getChapterIndex()];
+            if (polProduct < 0) {
+              showWhisper(chapter.attraction[Math.floor(Math.random() * chapter.attraction.length)]);
+            } else {
+              showWhisper(chapter.repulsion[Math.floor(Math.random() * chapter.repulsion.length)]);
+            }
+          }
+        }
+
+        a.glowIntensity = Math.max(a.glowIntensity, intensity);
+        b.glowIntensity = Math.max(b.glowIntensity, intensity);
+      }
+    }
+
+    a.vx *= 0.965;
+    a.vy *= 0.965;
+    a.x += a.vx * dt;
+    a.y += a.vy * dt;
+
+    // Boundary
+    const margin = a.radius + 5;
+    const bounce = -0.4;
+    if (a.x < margin) { a.x = margin; a.vx *= bounce; }
+    if (a.x > W - margin) { a.x = W - margin; a.vx *= bounce; }
+    if (a.y < margin) { a.y = margin; a.vy *= bounce; }
+    if (a.y > H - margin) { a.y = H - margin; a.vy *= bounce; }
+
+    a.glowIntensity *= 0.94;
+    a.pulsePhase += dt * (2 + totalInteraction * 3);
+    a.breathPhase += dt * 0.7;
+
+    if (a.tone && totalInteraction < 0.01) {
+      const now2 = audioCtx.currentTime;
+      a.tone.gainNode.gain.cancelScheduledValues(now2);
+      a.tone.gainNode.gain.linearRampToValueAtTime(0, now2 + 0.5);
+    }
+    a.updateTone();
+
+    // Trail
+    if (frameCount % 2 === 0) {
+      const speed = Math.sqrt(a.vx * a.vx + a.vy * a.vy);
+      if (speed > 2) {
+        a.trail.push({ x: a.x, y: a.y, alpha: Math.min(1, speed / 50) });
+        if (a.trail.length > 40) a.trail.shift();
+      }
+    }
+    for (const t of a.trail) t.alpha *= 0.94;
+  }
+
+  // Harmony meter
+  if (frameCount % 10 === 0) {
+    const h = computeHarmony();
+    harmonyFill.style.height = (h * 100) + '%';
+  }
+
+  // Constellation check
+  if (frameCount % 60 === 0 && time - lastConstellationCheck > 3) {
+    checkConstellations();
+    lastConstellationCheck = time;
+  }
+
+  render();
+}
+
+// ==================
+// RENDER
+// ==================
+function render() {
+  // Light theme fade
+  ctx.fillStyle = 'rgba(240, 236, 228, 0.2)';
+  ctx.fillRect(0, 0, W, H);
+
+  if (magnets.length === 0) return;
+
+  // Field lines
+  ctx.lineCap = 'round';
+  for (const m of magnets) {
+    const numLines = 14;
+    for (let i = 0; i < numLines; i++) {
+      const baseAngle = (i / numLines) * Math.PI * 2;
+      const angle = baseAngle + time * 0.04;
+      const startDist = m.radius + 2;
+      const sx = m.x + Math.cos(angle) * startDist;
+      const sy = m.y + Math.sin(angle) * startDist;
+
+      const dir = m.polarity > 0 ? 1 : -1;
+      const points = traceFieldLine(sx, sy, 50, 5 * dir);
+      if (points.length < 3) continue;
+
+      for (let j = 1; j < points.length; j++) {
+        const progress = j / points.length;
+        const alpha = (0.06 + m.glowIntensity * 0.15) * (1 - progress * 0.7);
+        if (alpha < 0.005) break;
+        ctx.beginPath();
+        ctx.moveTo(points[j-1].x, points[j-1].y);
+        ctx.lineTo(points[j].x, points[j].y);
+        if (m.polarity > 0) {
+          ctx.strokeStyle = `rgba(160, 80, 110, ${alpha})`;
+        } else {
+          ctx.strokeStyle = `rgba(80, 100, 170, ${alpha})`;
+        }
+        ctx.lineWidth = Math.max(0.3, (1 - progress) * 1.5);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // Connection lines (wavy whisper paths)
+  for (let i = 0; i < magnets.length; i++) {
+    for (let j = i + 1; j < magnets.length; j++) {
+      const a = magnets[i];
+      const b = magnets[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > 350) continue;
+
+      const intensity = Math.pow(1 - dist / 350, 1.5);
+      if (intensity < 0.01) continue;
+
+      const polProduct = a.polarity * b.polarity;
+
+      const lineCount = Math.ceil(intensity * 3);
+      for (let l = 0; l < lineCount; l++) {
+        ctx.beginPath();
+        const segments = 40;
+        const waveOffset = l * 1.5 + time * 2;
+        const waveAmp = intensity * (12 + l * 5) * (polProduct < 0 ? 1 : 1.5);
+        const waveFreq = polProduct < 0 ? 3 + l : 5 + l;
+
+        for (let s = 0; s <= segments; s++) {
+          const t = s / segments;
+          const x = a.x + dx * t;
+          const y = a.y + dy * t;
+          const perpX = -dy / (dist + 1);
+          const perpY = dx / (dist + 1);
+          const env = Math.sin(t * Math.PI);
+          const wave = Math.sin(t * Math.PI * waveFreq + waveOffset) * waveAmp * env;
+          const px = x + perpX * wave;
+          const py = y + perpY * wave;
+          if (s === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+
+        let r, g, bl;
+        if (polProduct < 0) {
+          r = 140; g = 80; bl = 150;
+        } else {
+          r = 80; g = 120; bl = 160;
+        }
+        const lineAlpha = intensity * (0.2 - l * 0.04);
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${bl}, ${lineAlpha})`;
+        ctx.lineWidth = Math.max(0.5, (1.5 - l * 0.3) * intensity);
+        ctx.stroke();
+      }
+
+      // Connection particles
+      if (Math.random() < intensity * 0.35) {
+        const t = 0.2 + Math.random() * 0.6;
+        const perpX = -dy / (dist + 1);
+        const perpY = dx / (dist + 1);
+        const wavePos = Math.sin(t * Math.PI * 4 + time * 2) * intensity * 15;
+        const p = new Particle(
+          a.x + dx * t + perpX * wavePos + (Math.random() - 0.5) * 10,
+          a.y + dy * t + perpY * wavePos + (Math.random() - 0.5) * 10,
+          polProduct < 0 ? '130, 90, 160' : '90, 120, 150'
+        );
+        p.size = 0.5 + intensity * 2;
+        if (particles.length < MAX_PARTICLES) particles.push(p);
+      }
+    }
+  }
+
+  // Particles
+  for (const p of particles) {
+    if (p.alpha < 0.005) continue;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(${p.color}, ${p.alpha})`;
+    ctx.fill();
+  }
+
+  // Magnets
+  for (const m of magnets) {
+    const age = (performance.now() - m.birthed) / 1000;
+    const spawnScale = Math.min(1, age * 4);
+    const breathScale = 1 + 0.03 * Math.sin(m.breathPhase * Math.PI * 2);
+    const r = m.radius * spawnScale * breathScale;
+
+    // Trail
+    if (m.trail.length > 1) {
+      ctx.lineCap = 'round';
+      for (let ti = 1; ti < m.trail.length; ti++) {
+        const t = m.trail[ti];
+        const prev = m.trail[ti - 1];
+        if (t.alpha < 0.01) continue;
+        ctx.beginPath();
+        ctx.moveTo(prev.x, prev.y);
+        ctx.lineTo(t.x, t.y);
+        const col = m.polarity > 0 ? '150, 80, 110' : '80, 100, 160';
+        ctx.strokeStyle = `rgba(${col}, ${t.alpha * 0.3})`;
+        ctx.lineWidth = r * 0.3 * t.alpha;
+        ctx.stroke();
+      }
+    }
+
+    // Outer glow
+    const pulse = 0.85 + 0.15 * Math.sin(m.pulsePhase);
+    const glowR = (r * 3 + m.glowIntensity * 45) * pulse;
+    const outerGlow = ctx.createRadialGradient(m.x, m.y, r * 0.5, m.x, m.y, glowR);
+    if (m.polarity > 0) {
+      outerGlow.addColorStop(0, `rgba(180, 100, 130, ${(0.08 + m.glowIntensity * 0.2) * spawnScale})`);
+      outerGlow.addColorStop(0.4, `rgba(150, 60, 90, ${(0.03 + m.glowIntensity * 0.08) * spawnScale})`);
+      outerGlow.addColorStop(1, 'rgba(120, 40, 70, 0)');
+    } else {
+      outerGlow.addColorStop(0, `rgba(100, 120, 180, ${(0.08 + m.glowIntensity * 0.2) * spawnScale})`);
+      outerGlow.addColorStop(0.4, `rgba(60, 80, 150, ${(0.03 + m.glowIntensity * 0.08) * spawnScale})`);
+      outerGlow.addColorStop(1, 'rgba(40, 50, 120, 0)');
+    }
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, glowR, 0, Math.PI * 2);
+    ctx.fillStyle = outerGlow;
+    ctx.fill();
+
+    // Core body with shadow for depth on light background
+    ctx.save();
+    ctx.shadowColor = 'rgba(60, 40, 80, 0.15)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetY = 2;
+    const coreGrad = ctx.createRadialGradient(
+      m.x - r * 0.2, m.y - r * 0.2, 0,
+      m.x, m.y, r
+    );
+    if (m.polarity > 0) {
+      coreGrad.addColorStop(0, '#d09aaa');
+      coreGrad.addColorStop(0.5, '#a05570');
+      coreGrad.addColorStop(1, '#703848');
+    } else {
+      coreGrad.addColorStop(0, '#9aaad0');
+      coreGrad.addColorStop(0.5, '#5568a0');
+      coreGrad.addColorStop(1, '#384070');
+    }
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = coreGrad;
+    ctx.fill();
+    ctx.restore();
+
+    // Inner ring
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, r * 0.65, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 255, 255, ${0.12 * spawnScale})`;
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Outer ring
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, r + 1.5, 0, Math.PI * 2);
+    const ringBright = 0.3 + m.glowIntensity * 0.5;
+    ctx.strokeStyle = m.polarity > 0
+      ? `rgba(200, 100, 140, ${ringBright * spawnScale})`
+      : `rgba(100, 130, 200, ${ringBright * spawnScale})`;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+
+    // Polarity label
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * spawnScale})`;
+    ctx.font = `${Math.round(11 * spawnScale)}px Georgia`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(m.polarity > 0 ? 'N' : 'S', m.x, m.y);
+
+    // Whisper ripples
+    if (m.glowIntensity > 0.08) {
+      const ringCount = 4;
+      for (let ri = 0; ri < ringCount; ri++) {
+        const phase = (m.pulsePhase * 0.8 + ri * 1.6) % (Math.PI * 2);
+        const ringDist = r + 4 + (phase / (Math.PI * 2)) * 45;
+        const ringAlpha = (1 - phase / (Math.PI * 2)) * m.glowIntensity * 0.2;
+        if (ringAlpha < 0.005) continue;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, ringDist, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(120, 100, 160, ${ringAlpha})`;
+        ctx.lineWidth = 0.6;
+        ctx.stroke();
+      }
+    }
+
+    // Orbiting micro-particles
+    if (m.glowIntensity > 0.15) {
+      m.orbitAngle += dt * 2;
+      const orbitCount = 3;
+      for (let oi = 0; oi < orbitCount; oi++) {
+        const oAngle = m.orbitAngle + (oi / orbitCount) * Math.PI * 2;
+        const oDist = r + 8 + m.glowIntensity * 15;
+        const ox = m.x + Math.cos(oAngle) * oDist;
+        const oy = m.y + Math.sin(oAngle) * oDist;
+        const oAlpha = m.glowIntensity * 0.5;
+        ctx.beginPath();
+        ctx.arc(ox, oy, 1.5, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(120, 100, 170, ${oAlpha})`;
+        ctx.fill();
+      }
+    }
+  }
+
+  // Cursor field indicator (desktop)
+  if (magnets.length > 0 && !dragMagnet) {
+    const field = getFieldAt(touchX, touchY);
+    const mag = Math.sqrt(field.x * field.x + field.y * field.y);
+    if (mag > 0.3) {
+      const len = Math.min(25, mag * 0.04);
+      const alpha = Math.min(0.35, mag * 0.007);
+      const nx = field.x / mag;
+      const ny = field.y / mag;
+      const ex = touchX + nx * len;
+      const ey = touchY + ny * len;
+      ctx.beginPath();
+      ctx.moveTo(touchX, touchY);
+      ctx.lineTo(ex, ey);
+      ctx.strokeStyle = `rgba(100, 80, 150, ${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      const headLen = 4;
+      ctx.beginPath();
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - nx * headLen + ny * headLen * 0.4, ey - ny * headLen - nx * headLen * 0.4);
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex - nx * headLen - ny * headLen * 0.4, ey - ny * headLen + nx * headLen * 0.4);
+      ctx.strokeStyle = `rgba(100, 80, 150, ${alpha * 0.7})`;
+      ctx.stroke();
+    }
+  }
+}
+
+requestAnimationFrame(update);
+</script>
+</body>
+</html>
