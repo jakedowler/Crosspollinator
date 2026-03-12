@@ -196,5 +196,14 @@ APPS = [
     "desc": "",
     "path": "output/2026-03-11/whispering_magnets_v2.html",
     "version": 2
+  },
+  {
+    "date": "2026-03-12",
+    "word_a": "sandcastle",
+    "word_b": "wind",
+    "name": "Sandcastle &amp; Wind",
+    "desc": "building against erosion",
+    "path": "output/2026-03-12/sandcastle_wind.html",
+    "version": 1
   }
 ];

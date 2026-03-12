@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Sandcastle &amp; Wind</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #1a1408;
+  overflow: hidden;
+  font-family: 'Georgia', serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+canvas { display: block; }
+header {
+  position: fixed; top: 16px; left: 16px; z-index: 10;
+  color: #e8c878; pointer-events: none;
+}
+header h1 {
+  font-size: 22px; font-weight: 300; letter-spacing: 6px;
+  text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(232,200,120,0.3);
+  margin-bottom: 2px;
+}
+header p {
+  font-size: 11px; opacity: 0.5; letter-spacing: 2px;
+  font-style: italic;
+}
+#hud {
+  position: fixed; top: 16px; right: 16px; z-index: 10;
+  color: #e8c878; text-align: right; pointer-events: none;
+}
+#hud .stat {
+  font-size: 13px; letter-spacing: 2px; margin-bottom: 4px;
+  text-shadow: 0 0 10px rgba(232,200,120,0.2);
+}
+#hud .stat span { font-size: 18px; font-weight: bold; }
+#wind-indicator {
+  position: fixed; bottom: 16px; left: 16px; z-index: 10;
+  color: rgba(232,200,120,0.5); font-size: 11px; letter-spacing: 2px;
+  pointer-events: none;
+}
+#intro {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 100; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: linear-gradient(180deg, #2a5080 0%, #60a8d0 35%, #e8c878 65%, #c8a050 100%);
+  transition: opacity 0.8s ease;
+}
+#intro h1 {
+  font-size: 36px; font-weight: 300; letter-spacing: 10px;
+  text-transform: uppercase; color: #fff;
+  text-shadow: 0 2px 20px rgba(0,0,0,0.3);
+  margin-bottom: 8px;
+}
+#intro .tagline {
+  font-size: 14px; color: rgba(255,255,255,0.7); letter-spacing: 3px;
+  font-style: italic; margin-bottom: 40px;
+}
+#intro .tap-msg {
+  font-size: 16px; color: rgba(255,255,255,0.8); letter-spacing: 4px;
+  animation: pulse 2s ease-in-out infinite;
+}
+#intro .instructions {
+  margin-top: 30px; font-size: 12px; color: rgba(255,255,255,0.5);
+  letter-spacing: 1px; text-align: center; line-height: 1.8;
+  max-width: 300px;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+#wave-warning {
+  position: fixed; bottom: 50%; left: 50%; transform: translate(-50%, 50%);
+  z-index: 20; color: #4af; font-size: 20px; letter-spacing: 6px;
+  text-transform: uppercase; opacity: 0; pointer-events: none;
+  text-shadow: 0 0 20px rgba(80,180,255,0.6);
+  transition: opacity 0.4s;
+}
+</style>
+</head>
+<body>
+<div id="intro">
+  <h1>Sandcastle &amp; Wind</h1>
+  <div class="tagline">building against erosion</div>
+  <div class="tap-msg">TAP TO START</div>
+  <div class="instructions">
+    TAP to place sand blocks<br>
+    DRAG to sculpt and carve<br>
+    TAP near water to wet the sand<br>
+    Build tall &mdash; survive the wind
+  </div>
+</div>
+<header>
+  <h1>Sandcastle &amp; Wind</h1>
+  <p>building against erosion</p>
+</header>
+<div id="hud">
+  <div class="stat">HEIGHT <span id="height-val">0</span></div>
+  <div class="stat">TIME <span id="time-val">0:00</span></div>
+  <div class="stat">SCORE <span id="score-val">0</span></div>
+</div>
+<div id="wind-indicator">WIND &rarr;</div>
+<div id="wave-warning">WAVE INCOMING</div>
+<canvas id="c"></canvas>
+
+<script>
+// ===== SETUP =====
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  GROUND_Y = Math.floor(H * 0.72);
+  WATER_Y = Math.floor(H * 0.88);
+  GRID_COLS = Math.floor(W / CELL_SIZE);
+  GRID_ROWS = Math.floor((H - GROUND_Y + 200) / CELL_SIZE);
+  if (grid.length) rebuildGrid();
+}
+
+// ===== CONSTANTS =====
+const CELL_SIZE = 6;
+let GROUND_Y, WATER_Y, GRID_COLS, GRID_ROWS;
+
+// ===== AUDIO =====
+let audioCtx = null;
+let masterGain = null;
+
+function initAudio() {
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.3;
+  masterGain.connect(audioCtx.destination);
+}
+
+function playNoise(duration, freq, vol, type) {
+  if (!audioCtx) return;
+  const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * duration, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = type || 'lowpass';
+  filter.frequency.value = freq;
+  const gain = audioCtx.createGain();
+  gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(masterGain);
+  src.start();
+}
+
+function playSandPlace() { playNoise(0.15, 2000, 0.4, 'highpass'); }
+function playSandCrumble() { playNoise(0.3, 800, 0.15, 'bandpass'); }
+function playWaveSound() { playNoise(1.5, 400, 0.5, 'lowpass'); }
+function playWindGust() { playNoise(0.8, 300, 0.08, 'lowpass'); }
+
+let windNoiseNode = null;
+let windGainNode = null;
+
+function startWindLoop() {
+  if (!audioCtx) return;
+  const bufLen = audioCtx.sampleRate * 2;
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  let val = 0;
+  for (let i = 0; i < bufLen; i++) {
+    val += (Math.random() * 2 - 1) * 0.1;
+    val *= 0.99;
+    data[i] = val;
+  }
+  windNoiseNode = audioCtx.createBufferSource();
+  windNoiseNode.buffer = buf;
+  windNoiseNode.loop = true;
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 250;
+  filter.Q.value = 0.5;
+  windGainNode = audioCtx.createGain();
+  windGainNode.gain.value = 0.02;
+  windNoiseNode.connect(filter);
+  filter.connect(windGainNode);
+  windGainNode.connect(masterGain);
+  windNoiseNode.start();
+}
+
+// ===== STATE =====
+let gameStarted = false;
+let gameTime = 0;
+let score = 0;
+let maxHeight = 0;
+let grid = [];
+let windAngle = 0; // radians, 0 = right
+let windStrength = 0.3;
+let windTarget = 0;
+let windChangeTimer = 0;
+let waveTimer = 0;
+let waveActive = false;
+let waveX = 0;
+let waveWarningTime = 0;
+let difficulty = 1;
+let mouseDown = false;
+let mouseX = 0, mouseY = 0;
+let pmouseX = 0, pmouseY = 0;
+let isDragging = false;
+let dragStartX = 0, dragStartY = 0;
+
+// Particles
+const windParticles = [];
+const sandParticles = [];
+const splashParticles = [];
+
+// Grid cell types: 0=empty, 1=dry sand, 2=wet sand, 3=water
+function rebuildGrid() {
+  const newGrid = [];
+  for (let c = 0; c < GRID_COLS; c++) {
+    newGrid[c] = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      if (grid[c] && grid[c][r] !== undefined) {
+        newGrid[c][r] = grid[c][r];
+      } else {
+        newGrid[c][r] = 0;
+      }
+    }
+  }
+  grid = newGrid;
+}
+
+function initGrid() {
+  grid = [];
+  for (let c = 0; c < GRID_COLS; c++) {
+    grid[c] = [];
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const worldY = GROUND_Y + r * CELL_SIZE;
+      if (worldY >= WATER_Y) {
+        grid[c][r] = 3; // water
+      } else if (worldY >= GROUND_Y) {
+        grid[c][r] = 1; // sand base
+      } else {
+        grid[c][r] = 0;
+      }
+    }
+  }
+}
+
+function gridToWorld(c, r) {
+  return { x: c * CELL_SIZE, y: GROUND_Y + r * CELL_SIZE };
+}
+
+function worldToGrid(x, y) {
+  return { c: Math.floor(x / CELL_SIZE), r: Math.floor((y - GROUND_Y) / CELL_SIZE) };
+}
+
+function getCell(c, r) {
+  if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) return -1;
+  return grid[c][r];
+}
+
+function setCell(c, r, v) {
+  if (c < 0 || c >= GRID_COLS || r < 0 || r >= GRID_ROWS) return;
+  grid[c][r] = v;
+}
+
+// ===== INIT =====
+W = canvas.width = window.innerWidth;
+H = canvas.height = window.innerHeight;
+GROUND_Y = Math.floor(H * 0.72);
+WATER_Y = Math.floor(H * 0.88);
+GRID_COLS = Math.floor(W / CELL_SIZE);
+GRID_ROWS = Math.floor((H - GROUND_Y + 200) / CELL_SIZE);
+initGrid();
+window.addEventListener('resize', resize);
+
+// ===== INPUT =====
+function onDown(x, y) {
+  if (!gameStarted) {
+    startGame();
+    return;
+  }
+  mouseDown = true;
+  dragStartX = x; dragStartY = y;
+  mouseX = x; mouseY = y;
+  isDragging = false;
+  placeSand(x, y);
+}
+
+function onMove(x, y) {
+  pmouseX = mouseX; pmouseY = mouseY;
+  mouseX = x; mouseY = y;
+  if (mouseDown) {
+    if (Math.hypot(x - dragStartX, y - dragStartY) > 10) isDragging = true;
+    if (isDragging) {
+      sculptSand(x, y);
+    } else {
+      placeSand(x, y);
+    }
+  }
+}
+
+function onUp() {
+  mouseDown = false;
+  isDragging = false;
+}
+
+canvas.addEventListener('mousedown', e => onDown(e.clientX, e.clientY));
+canvas.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+canvas.addEventListener('mouseup', onUp);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); onDown(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+canvas.addEventListener('touchend', e => { e.preventDefault(); onUp(); }, {passive:false});
+
+document.getElementById('intro').addEventListener('click', () => { if (!gameStarted) startGame(); });
+document.getElementById('intro').addEventListener('touchstart', e => { e.preventDefault(); if (!gameStarted) startGame(); }, {passive:false});
+
+function startGame() {
+  gameStarted = true;
+  initAudio();
+  startWindLoop();
+  document.getElementById('intro').style.opacity = '0';
+  setTimeout(() => { document.getElementById('intro').style.display = 'none'; }, 800);
+  initGrid();
+  gameTime = 0;
+  score = 0;
+  maxHeight = 0;
+  windStrength = 0.3;
+  waveTimer = 25;
+}
+
+// ===== SAND PLACEMENT =====
+function placeSand(x, y) {
+  const g = worldToGrid(x, y);
+  const radius = 3;
+  let placed = false;
+
+  // Check if near water line for wet sand
+  const nearWater = y > WATER_Y - CELL_SIZE * 8;
+
+  for (let dc = -radius; dc <= radius; dc++) {
+    for (let dr = -radius; dr <= radius; dr++) {
+      if (dc*dc + dr*dr > radius*radius) continue;
+      const c = g.c + dc;
+      const r = g.r + dr;
+      if (getCell(c, r) === 0) {
+        // Only place if there's support below or it's at ground level
+        const below = getCell(c, r + 1);
+        if (below === 1 || below === 2 || below === 3 || below === -1 || r >= GRID_ROWS - 1) {
+          setCell(c, r, nearWater ? 2 : 1);
+          placed = true;
+        }
+      }
+    }
+  }
+
+  // Also place floating blocks that will fall via gravity
+  if (!placed) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      for (let dr = -radius; dr <= radius; dr++) {
+        if (dc*dc + dr*dr > radius*radius) continue;
+        const c = g.c + dc;
+        const r = g.r + dr;
+        if (getCell(c, r) === 0) {
+          setCell(c, r, nearWater ? 2 : 1);
+          placed = true;
+        }
+      }
+    }
+  }
+
+  if (placed) {
+    playSandPlace();
+    // Sand burst particles
+    for (let i = 0; i < 8; i++) {
+      sandParticles.push({
+        x: x + (Math.random()-0.5)*20,
+        y: y + (Math.random()-0.5)*20,
+        vx: (Math.random()-0.5)*4,
+        vy: -Math.random()*4 - 1,
+        life: 1,
+        size: 1 + Math.random()*2.5,
+        color: nearWater ? '#a0885a' : '#e8c878'
+      });
+    }
+  }
+}
+
+function sculptSand(x, y) {
+  const g = worldToGrid(x, y);
+  const radius = 2;
+  let removed = false;
+
+  for (let dc = -radius; dc <= radius; dc++) {
+    for (let dr = -radius; dr <= radius; dr++) {
+      if (dc*dc + dr*dr > radius*radius) continue;
+      const c = g.c + dc;
+      const r = g.r + dr;
+      const cell = getCell(c, r);
+      if (cell === 1 || cell === 2) {
+        setCell(c, r, 0);
+        removed = true;
+        // Sculpt particles
+        const wp = gridToWorld(c, r);
+        sandParticles.push({
+          x: wp.x, y: wp.y,
+          vx: (Math.random()-0.5)*3 + (mouseX - pmouseX)*0.3,
+          vy: (Math.random()-0.5)*3 + (mouseY - pmouseY)*0.3,
+          life: 1, size: 1.5 + Math.random()*2,
+          color: cell === 2 ? '#a0885a' : '#dab860'
+        });
+      }
+    }
+  }
+
+  if (removed) playSandCrumble();
+}
+
+// ===== SAND PHYSICS =====
+function updateSandPhysics() {
+  // Process from bottom to top so gravity works correctly
+  for (let r = GRID_ROWS - 2; r >= 0; r--) {
+    // Alternate left-right sweep to avoid bias
+    const leftToRight = Math.random() > 0.5;
+    for (let i = 0; i < GRID_COLS; i++) {
+      const c = leftToRight ? i : GRID_COLS - 1 - i;
+      const cell = grid[c][r];
+      if (cell !== 1 && cell !== 2) continue;
+
+      // Gravity: fall down
+      if (getCell(c, r+1) === 0) {
+        setCell(c, r+1, cell);
+        setCell(c, r, 0);
+        continue;
+      }
+
+      // Fall into water
+      if (cell === 1 && getCell(c, r+1) === 3) {
+        setCell(c, r+1, 2); // becomes wet sand
+        setCell(c, r, 0);
+        continue;
+      }
+
+      // Slide to sides (dry sand is more prone)
+      if (cell === 1) {
+        const slideChance = 0.4;
+        if (Math.random() < slideChance) {
+          const dir = Math.random() > 0.5 ? 1 : -1;
+          if (getCell(c+dir, r+1) === 0 && getCell(c+dir, r) === 0) {
+            setCell(c+dir, r+1, cell);
+            setCell(c, r, 0);
+          } else if (getCell(c-dir, r+1) === 0 && getCell(c-dir, r) === 0) {
+            setCell(c-dir, r+1, cell);
+            setCell(c, r, 0);
+          }
+        }
+      } else if (cell === 2) {
+        // Wet sand slides much less
+        if (Math.random() < 0.05) {
+          const dir = Math.random() > 0.5 ? 1 : -1;
+          if (getCell(c+dir, r+1) === 0 && getCell(c+dir, r) === 0) {
+            setCell(c+dir, r+1, cell);
+            setCell(c, r, 0);
+          }
+        }
+      }
+    }
+  }
+}
+
+// ===== WIND EROSION =====
+function updateWindErosion(dt) {
+  const windDx = Math.cos(windAngle);
+  const erodeChance = windStrength * dt * 2.0 * difficulty;
+
+  for (let r = 0; r < GRID_ROWS; r++) {
+    for (let c = 0; c < GRID_COLS; c++) {
+      const cell = grid[c][r];
+      if (cell !== 1 && cell !== 2) continue;
+
+      // Check if exposed to wind (has empty space on windward side)
+      const windC = c - Math.round(windDx * 2);
+      const isExposed = getCell(windC, r) === 0 || getCell(c, r-1) === 0;
+
+      if (!isExposed) continue;
+
+      let chance = erodeChance;
+      if (cell === 2) chance *= 0.15; // Wet sand resists erosion greatly
+
+      // Higher blocks erode faster
+      const height = GRID_ROWS - r;
+      chance *= (1 + height * 0.02);
+
+      if (Math.random() < chance) {
+        setCell(c, r, 0);
+        // Blow sand particle
+        const wp = gridToWorld(c, r);
+        windParticles.push({
+          x: wp.x, y: wp.y,
+          vx: windDx * (3 + Math.random()*4) * windStrength,
+          vy: -Math.random()*2 - 0.5,
+          life: 1,
+          size: 1 + Math.random()*2.5,
+          type: 'grain'
+        });
+      }
+    }
+  }
+}
+
+// ===== WAVE EVENTS =====
+function triggerWave() {
+  waveActive = true;
+  waveX = -50;
+  playWaveSound();
+}
+
+function updateWave(dt) {
+  if (!waveActive) return;
+  waveX += dt * 250;
+
+  const waveCol = Math.floor(waveX / CELL_SIZE);
+  const waveWidth = 6;
+
+  for (let c = waveCol - waveWidth; c <= waveCol + waveWidth; c++) {
+    if (c < 0 || c >= GRID_COLS) continue;
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const worldY = GROUND_Y + r * CELL_SIZE;
+      // Wave only affects blocks near water level and below
+      if (worldY < WATER_Y - CELL_SIZE * 6) continue;
+
+      const cell = getCell(c, r);
+      if (cell === 1) {
+        // Check if this sand has moat protection (wet sand below/around)
+        let protected_ = false;
+        for (let dc = -2; dc <= 2; dc++) {
+          for (let dr = -2; dr <= 2; dr++) {
+            if (getCell(c+dc, r+dr) === 2) protected_ = true;
+          }
+        }
+        if (!protected_ && Math.random() < 0.5) {
+          setCell(c, r, 0);
+          const wp = gridToWorld(c, r);
+          splashParticles.push({
+            x: wp.x, y: wp.y,
+            vx: (Math.random()-0.5)*4 + 2,
+            vy: -Math.random()*6 - 2,
+            life: 1, size: 2 + Math.random()*3
+          });
+        }
+      }
+    }
+  }
+
+  if (waveX > W + 100) waveActive = false;
+}
+
+// ===== WIND PARTICLES (ambient blowing sand) =====
+function spawnWindParticles(dt) {
+  const count = Math.floor(windStrength * 40 * dt * difficulty);
+  const windDx = Math.cos(windAngle);
+  const windDy = Math.sin(windAngle);
+
+  for (let i = 0; i < count; i++) {
+    const startX = windDx > 0 ? -10 : W + 10;
+    windParticles.push({
+      x: startX + Math.random() * W * 0.3 * (windDx > 0 ? 1 : -1),
+      y: Math.random() * GROUND_Y,
+      vx: windDx * (2 + Math.random()*5) * windStrength * difficulty,
+      vy: windDy * (1 + Math.random()*2) + (Math.random()-0.5)*0.5,
+      life: 1,
+      size: 0.5 + Math.random()*1.8,
+      type: 'ambient'
+    });
+  }
+}
+
+// ===== MEASURE CASTLE =====
+function measureCastle() {
+  let minR = GRID_ROWS;
+  let blockCount = 0;
+
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const cell = grid[c][r];
+      if (cell === 1 || cell === 2) {
+        // Only count blocks above ground baseline
+        const worldY = GROUND_Y + r * CELL_SIZE;
+        if (worldY < GROUND_Y + CELL_SIZE * 2) {
+          if (r < minR) minR = r;
+        }
+        if (r < Math.floor((GROUND_Y - (GROUND_Y - 200)) / CELL_SIZE)) {
+          blockCount++;
+        }
+      }
+    }
+  }
+
+  // Find highest sand block above ground
+  let highestR = GRID_ROWS;
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      if ((grid[c][r] === 1 || grid[c][r] === 2) && r < highestR) {
+        highestR = r;
+      }
+    }
+  }
+
+  const groundRow = Math.floor((WATER_Y - GROUND_Y) / CELL_SIZE);
+  const heightInCells = Math.max(0, groundRow - highestR);
+  maxHeight = Math.max(maxHeight, heightInCells);
+
+  return { height: heightInCells, blocks: blockCount };
+}
+
+// ===== UPDATE =====
+function update(dt) {
+  if (!gameStarted) return;
+
+  gameTime += dt;
+  difficulty = 1 + gameTime / 60; // ramps up every minute
+
+  // Wind changes
+  windChangeTimer -= dt;
+  if (windChangeTimer <= 0) {
+    windTarget = (Math.random() - 0.3) * Math.PI * 0.6; // mostly blows right-ish
+    windChangeTimer = 5 + Math.random() * 10;
+    windStrength = Math.min(1.0, 0.2 + Math.random() * 0.4 * difficulty);
+    playWindGust();
+  }
+  windAngle += (windTarget - windAngle) * dt * 0.5;
+
+  // Update wind audio
+  if (windGainNode) {
+    windGainNode.gain.value = 0.01 + windStrength * 0.08 * difficulty;
+  }
+
+  // Sand physics (multiple passes for faster settling)
+  const passes = 3;
+  for (let i = 0; i < passes; i++) updateSandPhysics();
+
+  // Wind erosion
+  updateWindErosion(dt);
+
+  // Ambient wind particles
+  spawnWindParticles(dt);
+
+  // Wave timer
+  waveTimer -= dt;
+  if (waveTimer <= 0 && !waveActive) {
+    waveWarningTime = 3;
+    waveTimer = Math.max(12, 30 - gameTime * 0.2);
+  }
+  if (waveWarningTime > 0) {
+    waveWarningTime -= dt;
+    document.getElementById('wave-warning').style.opacity = Math.sin(waveWarningTime * 5) > 0 ? '1' : '0.3';
+    if (waveWarningTime <= 0) {
+      document.getElementById('wave-warning').style.opacity = '0';
+      triggerWave();
+    }
+  }
+
+  updateWave(dt);
+
+  // Update particles
+  for (let i = windParticles.length - 1; i >= 0; i--) {
+    const p = windParticles[i];
+    p.x += p.vx; p.y += p.vy;
+    if (p.type === 'grain') p.vy += 0.15;
+    else p.vy += 0.02;
+    p.life -= dt * 0.8;
+    if (p.life <= 0 || p.x < -50 || p.x > W + 50 || p.y > H + 20) {
+      windParticles.splice(i, 1);
+    }
+  }
+
+  for (let i = sandParticles.length - 1; i >= 0; i--) {
+    const p = sandParticles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.2;
+    p.life -= dt * 2;
+    if (p.life <= 0) sandParticles.splice(i, 1);
+  }
+
+  for (let i = splashParticles.length - 1; i >= 0; i--) {
+    const p = splashParticles[i];
+    p.x += p.vx; p.y += p.vy;
+    p.vy += 0.15;
+    p.life -= dt * 1.5;
+    if (p.life <= 0) splashParticles.splice(i, 1);
+  }
+
+  // Score
+  const castle = measureCastle();
+  score = Math.floor(castle.height * gameTime * 0.5 + castle.height * castle.height);
+
+  // Update HUD
+  document.getElementById('height-val').textContent = castle.height;
+  const mins = Math.floor(gameTime / 60);
+  const secs = Math.floor(gameTime % 60);
+  document.getElementById('time-val').textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+  document.getElementById('score-val').textContent = score;
+
+  // Wind indicator
+  const windDir = windAngle < -0.3 ? '\u2190' : windAngle > 0.3 ? '\u2192' : windAngle < -0.1 ? '\u2196' : windAngle > 0.1 ? '\u2197' : '\u2192';
+  const bars = Math.ceil(windStrength * difficulty * 3);
+  document.getElementById('wind-indicator').textContent = 'WIND ' + windDir + ' ' + '\u2588'.repeat(Math.min(5, bars));
+}
+
+// ===== DRAW =====
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Sky gradient
+  const skyG = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+  skyG.addColorStop(0, '#2a5080');
+  skyG.addColorStop(0.4, '#4a80b8');
+  skyG.addColorStop(0.7, '#70a8d0');
+  skyG.addColorStop(1, '#a0d0e8');
+  ctx.fillStyle = skyG;
+  ctx.fillRect(0, 0, W, GROUND_Y);
+
+  // Sun
+  const sunX = W * 0.8;
+  const sunY = H * 0.15;
+  const sunG = ctx.createRadialGradient(sunX, sunY, 0, sunX, sunY, 120);
+  sunG.addColorStop(0, 'rgba(255,240,200,0.9)');
+  sunG.addColorStop(0.3, 'rgba(255,220,150,0.4)');
+  sunG.addColorStop(0.7, 'rgba(255,180,80,0.1)');
+  sunG.addColorStop(1, 'rgba(255,180,80,0)');
+  ctx.fillStyle = sunG;
+  ctx.fillRect(sunX - 120, sunY - 120, 240, 240);
+
+  // Distant clouds (simple)
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  const t = gameStarted ? gameTime : 0;
+  for (let i = 0; i < 5; i++) {
+    const cx = ((i * 200 + t * 8 * (0.5 + i * 0.1)) % (W + 200)) - 100;
+    const cy = 40 + i * 30;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 60 + i*10, 15 + i*3, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Ocean/water background
+  const waterG = ctx.createLinearGradient(0, WATER_Y - 20, 0, H);
+  waterG.addColorStop(0, '#40a0c0');
+  waterG.addColorStop(0.3, '#2888a8');
+  waterG.addColorStop(1, '#186888');
+  ctx.fillStyle = waterG;
+  ctx.fillRect(0, WATER_Y - 10, W, H - WATER_Y + 10);
+
+  // Water surface shimmer
+  ctx.strokeStyle = 'rgba(120,220,255,0.2)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    const wy = WATER_Y + i * 12;
+    for (let x = 0; x < W; x += 4) {
+      const wave = Math.sin(x * 0.015 + t * 1.5 + i * 2) * 3;
+      if (x === 0) ctx.moveTo(x, wy + wave);
+      else ctx.lineTo(x, wy + wave);
+    }
+    ctx.stroke();
+  }
+
+  // Beach/ground base
+  const beachG = ctx.createLinearGradient(0, GROUND_Y, 0, WATER_Y);
+  beachG.addColorStop(0, '#e8c878');
+  beachG.addColorStop(0.6, '#d4b060');
+  beachG.addColorStop(1, '#b09048');
+  ctx.fillStyle = beachG;
+  ctx.fillRect(0, GROUND_Y, W, WATER_Y - GROUND_Y);
+
+  // Draw sand grid
+  for (let c = 0; c < GRID_COLS; c++) {
+    for (let r = 0; r < GRID_ROWS; r++) {
+      const cell = grid[c][r];
+      if (cell === 0) continue;
+
+      const wx = c * CELL_SIZE;
+      const wy = GROUND_Y + r * CELL_SIZE;
+
+      if (cell === 1) {
+        // Dry sand - warm golden tones with subtle variation
+        const shade = 0.85 + ((c * 17 + r * 31) % 10) * 0.015;
+        const rr = Math.floor(232 * shade);
+        const gg = Math.floor(200 * shade);
+        const bb = Math.floor(120 * shade);
+        ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
+        ctx.fillRect(wx, wy, CELL_SIZE, CELL_SIZE);
+
+        // Shadow on windward side
+        if (getCell(c-1, r) === 0) {
+          ctx.fillStyle = 'rgba(0,0,0,0.08)';
+          ctx.fillRect(wx, wy, 1, CELL_SIZE);
+        }
+        // Highlight on top
+        if (getCell(c, r-1) === 0) {
+          ctx.fillStyle = 'rgba(255,255,200,0.15)';
+          ctx.fillRect(wx, wy, CELL_SIZE, 1);
+        }
+      } else if (cell === 2) {
+        // Wet sand - darker, brownish
+        const shade = 0.8 + ((c * 13 + r * 29) % 10) * 0.015;
+        const rr = Math.floor(160 * shade);
+        const gg = Math.floor(136 * shade);
+        const bb = Math.floor(90 * shade);
+        ctx.fillStyle = `rgb(${rr},${gg},${bb})`;
+        ctx.fillRect(wx, wy, CELL_SIZE, CELL_SIZE);
+
+        // Wet sheen
+        if (getCell(c, r-1) === 0) {
+          ctx.fillStyle = 'rgba(150,200,220,0.12)';
+          ctx.fillRect(wx, wy, CELL_SIZE, 1);
+        }
+      } else if (cell === 3) {
+        // Water cells in grid (shallow)
+        const a = 0.3 + Math.sin(t * 2 + c * 0.3) * 0.1;
+        ctx.fillStyle = `rgba(40,140,180,${a})`;
+        ctx.fillRect(wx, wy, CELL_SIZE, CELL_SIZE);
+      }
+    }
+  }
+
+  // Wave visual
+  if (waveActive) {
+    const waveGrad = ctx.createLinearGradient(waveX - 40, 0, waveX + 40, 0);
+    waveGrad.addColorStop(0, 'rgba(60,180,220,0)');
+    waveGrad.addColorStop(0.3, 'rgba(80,200,240,0.5)');
+    waveGrad.addColorStop(0.5, 'rgba(200,240,255,0.8)');
+    waveGrad.addColorStop(0.7, 'rgba(80,200,240,0.5)');
+    waveGrad.addColorStop(1, 'rgba(60,180,220,0)');
+    ctx.fillStyle = waveGrad;
+    ctx.fillRect(waveX - 40, WATER_Y - 30, 80, H - WATER_Y + 30);
+
+    // Foam
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    for (let i = 0; i < 12; i++) {
+      const fx = waveX - 15 + Math.sin(i * 3 + t * 8) * 20;
+      const fy = WATER_Y - 15 + Math.sin(i * 2.3 + t * 5) * 10;
+      ctx.beginPath();
+      ctx.arc(fx, fy, 3 + Math.random()*4, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  // Wind particles
+  for (const p of windParticles) {
+    const a = Math.min(1, p.life * 1.5);
+    if (p.type === 'grain') {
+      ctx.fillStyle = `rgba(220,190,120,${a})`;
+    } else {
+      ctx.fillStyle = `rgba(200,180,130,${a * 0.5})`;
+    }
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * a, 0, Math.PI*2);
+    ctx.fill();
+
+    // Trail for grains
+    if (p.type === 'grain' && a > 0.3) {
+      ctx.strokeStyle = `rgba(220,190,120,${a * 0.3})`;
+      ctx.lineWidth = p.size * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx * 2, p.y - p.vy * 2);
+      ctx.stroke();
+    }
+  }
+
+  // Sand placement particles
+  for (const p of sandParticles) {
+    const a = Math.min(1, p.life * 2);
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = a;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * a, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // Splash particles
+  for (const p of splashParticles) {
+    const a = p.life;
+    ctx.fillStyle = `rgba(100,200,240,${a})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * a, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // Wind streaks (visual direction indicator)
+  if (gameStarted) {
+    const windDx = Math.cos(windAngle);
+    const windDy = Math.sin(windAngle);
+    ctx.strokeStyle = `rgba(200,180,130,${windStrength * 0.08})`;
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 15; i++) {
+      const sx = Math.random() * W;
+      const sy = Math.random() * GROUND_Y;
+      const len = 20 + windStrength * 40;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(sx + windDx * len, sy + windDy * len * 0.5);
+      ctx.stroke();
+    }
+  }
+
+  // Tap indicator when mouse is down
+  if (mouseDown && gameStarted) {
+    ctx.strokeStyle = 'rgba(255,255,200,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, CELL_SIZE * 3.5, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Vignette
+  const vig = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.35, W/2, H/2, Math.max(W,H)*0.75);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,0.25)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+}
+
+// ===== MAIN LOOP =====
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
