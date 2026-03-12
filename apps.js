@@ -199,6 +199,15 @@ APPS = [
   },
   {
     "date": "2026-03-12",
+    "word_a": "glacier",
+    "word_b": "hummingbird",
+    "name": "Glacier &amp; Hummingbird",
+    "desc": "slow ice meets fast wings",
+    "path": "output/2026-03-12/glacier_hummingbird.html",
+    "version": 1
+  },
+  {
+    "date": "2026-03-12",
     "word_a": "orbit",
     "word_b": "inkblot",
     "name": "Orbit &amp; Inkblot",

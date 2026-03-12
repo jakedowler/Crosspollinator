@@ -1,0 +1,1287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Glacier &amp; Hummingbird</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #0a1520;
+  overflow: hidden;
+  font-family: 'Georgia', serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+canvas { display: block; }
+header {
+  position: fixed; top: 16px; left: 16px; z-index: 10;
+  color: #a0d4e8; pointer-events: none;
+}
+header h1 {
+  font-size: 20px; font-weight: 300; letter-spacing: 6px;
+  text-transform: uppercase;
+  text-shadow: 0 0 20px rgba(100,200,255,0.3);
+  margin-bottom: 2px;
+}
+header p {
+  font-size: 11px; opacity: 0.5; letter-spacing: 2px;
+  font-style: italic;
+}
+#hud {
+  position: fixed; top: 16px; right: 16px; z-index: 10;
+  color: #a0d4e8; text-align: right; pointer-events: none;
+}
+#hud .score { font-size: 18px; letter-spacing: 4px; font-weight: 300; }
+#hud .nectar { font-size: 13px; opacity: 0.7; letter-spacing: 2px; }
+#energy-bar {
+  position: fixed; left: 16px; bottom: 16px; z-index: 10;
+  width: 120px; height: 8px;
+  background: rgba(10,30,50,0.7);
+  border: 1px solid rgba(100,180,220,0.2);
+  border-radius: 4px; overflow: hidden;
+  pointer-events: none;
+}
+#energy-fill {
+  height: 100%; width: 80%;
+  background: linear-gradient(to right, #2288cc, #44ddff, #88ffcc);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 8px rgba(68,221,255,0.4);
+}
+#energy-label {
+  position: fixed; left: 16px; bottom: 28px; z-index: 10;
+  color: rgba(100,180,220,0.5); font-size: 9px; letter-spacing: 3px;
+  pointer-events: none;
+}
+#intro {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at center, #0c1e2e 0%, #060e18 70%);
+}
+#intro h1 {
+  font-size: 32px; font-weight: 300; letter-spacing: 10px;
+  color: #a0d4e8; text-transform: uppercase;
+  text-shadow: 0 0 30px rgba(100,200,255,0.4);
+  margin-bottom: 8px;
+}
+#intro .tagline {
+  font-size: 13px; color: rgba(160,212,232,0.5);
+  letter-spacing: 3px; font-style: italic;
+  margin-bottom: 40px;
+}
+#intro .tap {
+  font-size: 14px; color: rgba(160,212,232,0.6);
+  letter-spacing: 4px; animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+#game-over {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(6,14,24,0.9);
+}
+#game-over h2 {
+  font-size: 28px; font-weight: 300; letter-spacing: 8px;
+  color: #6ab8d4; text-transform: uppercase;
+  margin-bottom: 16px;
+}
+#game-over .final-score {
+  font-size: 16px; color: rgba(160,212,232,0.7);
+  letter-spacing: 3px; margin-bottom: 6px;
+}
+#game-over .tap {
+  font-size: 14px; color: rgba(160,212,232,0.5);
+  letter-spacing: 4px; margin-top: 30px;
+  animation: pulse 2s ease-in-out infinite;
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Glacier &amp; Hummingbird</h1>
+  <p>slow ice meets fast wings</p>
+</header>
+<div id="hud">
+  <div class="score" id="score-display">0m</div>
+  <div class="nectar" id="nectar-display">0 nectar</div>
+</div>
+<div id="energy-label">ENERGY</div>
+<div id="energy-bar"><div id="energy-fill"></div></div>
+<div id="intro">
+  <h1>Glacier &amp; Hummingbird</h1>
+  <div class="tagline">slow ice meets fast wings</div>
+  <div class="tap">TAP TO FLY</div>
+</div>
+<div id="game-over">
+  <h2>Frozen</h2>
+  <div class="final-score" id="final-distance">0m</div>
+  <div class="final-score" id="final-nectar">0 nectar</div>
+  <div class="tap">TAP TO RETRY</div>
+</div>
+<canvas id="canvas"></canvas>
+
+<script>
+// ===== SETUP =====
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ===== AUDIO ENGINE =====
+let audioCtx = null;
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playWingHum() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.value = 180 + Math.random() * 40;
+  gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+  gain.gain.exponentialDecayToValueAtTime?.(0.001, audioCtx.currentTime + 0.1);
+  gain.gain.setValueAtTime(0.02, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.08);
+}
+
+function playIceCrack() {
+  if (!audioCtx) return;
+  const bufSize = audioCtx.sampleRate * 0.15;
+  const buf = audioCtx.createBuffer(1, bufSize, audioCtx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < bufSize; i++) {
+    const env = Math.exp(-i / (bufSize * 0.15));
+    data[i] = (Math.random() * 2 - 1) * env * 0.3;
+  }
+  const src = audioCtx.createBufferSource();
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'highpass'; filter.frequency.value = 2000 + Math.random() * 3000;
+  src.buffer = buf;
+  src.connect(filter).connect(audioCtx.destination);
+  src.start();
+}
+
+function playWaterDrip() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(1200 + Math.random() * 600, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.12);
+  gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+}
+
+function playNectarChime() {
+  if (!audioCtx) return;
+  const freqs = [523, 659, 784, 1047];
+  freqs.forEach((f, i) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    const t = audioCtx.currentTime + i * 0.06;
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(0.07, t + 0.02);
+    gain.gain.linearRampToValueAtTime(0, t + 0.3);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t); osc.stop(t + 0.3);
+  });
+}
+
+function playMeltSound() {
+  if (!audioCtx) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sawtooth';
+  osc.frequency.value = 80 + Math.random() * 40;
+  gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+  const filter = audioCtx.createBiquadFilter();
+  filter.type = 'lowpass'; filter.frequency.value = 400;
+  osc.connect(filter).connect(gain).connect(audioCtx.destination);
+  osc.start(); osc.stop(audioCtx.currentTime + 0.2);
+}
+
+// ===== GAME STATE =====
+const STATE = { INTRO: 0, PLAYING: 1, DEAD: 2 };
+let gameState = STATE.INTRO;
+let time = 0;
+let distance = 0;
+let nectarCount = 0;
+let energy = 0.8;
+let difficulty = 0;
+let cameraX = 0;
+let lastWingSound = 0;
+let lastCrackSound = 0;
+
+// ===== BIRD =====
+const bird = {
+  x: 0, y: 0,
+  vx: 0, vy: 0,
+  targetX: 0, targetY: 0,
+  wingPhase: 0,
+  wingSpeed: 25,
+  hue: 160,
+  hueShift: 0,
+  trail: [],
+  shimmerParticles: [],
+  isHovering: false,
+  hoverHeat: 0,
+  size: 14
+};
+
+// ===== ICE STRUCTURES =====
+let iceWalls = [];
+let flowers = [];
+let waterDroplets = [];
+let particles = [];
+let bgLayers = [];
+
+// ===== INPUT =====
+let touchActive = false;
+let inputX = 0, inputY = 0;
+
+function onInputStart(x, y) {
+  if (gameState === STATE.INTRO) {
+    initAudio();
+    startGame();
+    return;
+  }
+  if (gameState === STATE.DEAD) {
+    startGame();
+    return;
+  }
+  touchActive = true;
+  inputX = x; inputY = y;
+}
+
+function onInputMove(x, y) {
+  if (gameState !== STATE.PLAYING) return;
+  touchActive = true;
+  inputX = x; inputY = y;
+}
+
+function onInputEnd() {
+  touchActive = false;
+}
+
+// Bind input to both canvas and overlay screens
+[canvas, document.getElementById('intro'), document.getElementById('game-over')].forEach(el => {
+  el.addEventListener('mousedown', e => onInputStart(e.clientX, e.clientY));
+  el.addEventListener('touchstart', e => { e.preventDefault(); onInputStart(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+});
+canvas.addEventListener('mousemove', e => {
+  if (e.buttons) onInputMove(e.clientX, e.clientY);
+  else if (gameState === STATE.PLAYING) { inputX = e.clientX; inputY = e.clientY; touchActive = true; }
+  else if (touchActive) onInputEnd();
+});
+canvas.addEventListener('mouseup', onInputEnd);
+canvas.addEventListener('touchmove', e => { e.preventDefault(); onInputMove(e.touches[0].clientX, e.touches[0].clientY); }, {passive:false});
+canvas.addEventListener('touchend', e => { e.preventDefault(); onInputEnd(); }, {passive:false});
+
+// ===== GAME INIT =====
+function startGame() {
+  gameState = STATE.PLAYING;
+  document.getElementById('intro').style.display = 'none';
+  document.getElementById('game-over').style.display = 'none';
+  time = 0;
+  distance = 0;
+  nectarCount = 0;
+  energy = 0.8;
+  difficulty = 0;
+  cameraX = 0;
+
+  bird.x = W * 0.3;
+  bird.y = H * 0.5;
+  bird.vx = 0; bird.vy = 0;
+  bird.targetX = bird.x; bird.targetY = bird.y;
+  bird.trail = [];
+  bird.shimmerParticles = [];
+  bird.hoverHeat = 0;
+
+  inputX = bird.x; inputY = bird.y;
+
+  iceWalls = [];
+  flowers = [];
+  waterDroplets = [];
+  particles = [];
+
+  // Generate initial ice formations
+  generateIce(0, W * 2);
+  generateBgLayers();
+}
+
+function gameOver() {
+  gameState = STATE.DEAD;
+  document.getElementById('game-over').style.display = 'flex';
+  document.getElementById('final-distance').textContent = Math.floor(distance) + 'm';
+  document.getElementById('final-nectar').textContent = nectarCount + ' nectar';
+}
+
+// ===== BACKGROUND LAYERS =====
+function generateBgLayers() {
+  bgLayers = [];
+  for (let layer = 0; layer < 3; layer++) {
+    const mountains = [];
+    const count = 12 + layer * 5;
+    for (let i = 0; i < count; i++) {
+      mountains.push({
+        x: (i / count) * W * 3 - W * 0.5,
+        h: 60 + Math.random() * (120 - layer * 30),
+        w: 80 + Math.random() * (200 - layer * 40),
+        jagged: Math.random() * 0.6
+      });
+    }
+    bgLayers.push({ depth: 0.1 + layer * 0.15, mountains, color: layer });
+  }
+}
+
+// ===== ICE GENERATION =====
+function generateIce(fromX, toX) {
+  const spacing = 180 + Math.random() * 120;
+  let x = fromX;
+
+  while (x < toX) {
+    const wallType = Math.random();
+
+    if (wallType < 0.4) {
+      // Tall wall with gap
+      const gapY = H * 0.2 + Math.random() * H * 0.6;
+      const gapSize = Math.max(80, 160 - difficulty * 8);
+      iceWalls.push({
+        x: x, y: 0, w: 40 + Math.random() * 30,
+        h: gapY - gapSize / 2,
+        type: 'wall', cracked: false, meltProgress: 0
+      });
+      iceWalls.push({
+        x: x, y: gapY + gapSize / 2,
+        w: 40 + Math.random() * 30,
+        h: H - (gapY + gapSize / 2),
+        type: 'wall', cracked: false, meltProgress: 0
+      });
+    } else if (wallType < 0.7) {
+      // Ice block cluster
+      const count = 2 + Math.floor(Math.random() * 3);
+      for (let i = 0; i < count; i++) {
+        iceWalls.push({
+          x: x + Math.random() * 80 - 40,
+          y: Math.random() * (H - 80),
+          w: 30 + Math.random() * 50,
+          h: 30 + Math.random() * 60,
+          type: 'block', cracked: false, meltProgress: 0
+        });
+      }
+    } else {
+      // Crevasse (moving wall)
+      iceWalls.push({
+        x: x, y: 0, w: 25 + Math.random() * 20,
+        h: H,
+        type: 'crevasse', cracked: false, meltProgress: 0,
+        gapY: H * 0.2 + Math.random() * H * 0.5,
+        gapH: Math.max(90, 180 - difficulty * 10)
+      });
+    }
+
+    // Spawn flowers near ice formations
+    if (Math.random() < 0.6) {
+      const fy = H * 0.15 + Math.random() * H * 0.7;
+      flowers.push({
+        x: x + spacing * 0.3 + Math.random() * spacing * 0.4,
+        y: fy,
+        size: 8 + Math.random() * 6,
+        phase: Math.random() * Math.PI * 2,
+        alive: true,
+        bloomTime: 0,
+        hue: Math.random() < 0.5 ? 340 + Math.random() * 30 : 30 + Math.random() * 30,
+        petals: 5 + Math.floor(Math.random() * 3)
+      });
+    }
+
+    x += spacing - difficulty * 3;
+    if (x < fromX + 100) x = fromX + 100;
+  }
+}
+
+// ===== UPDATE =====
+function update(dt) {
+  if (gameState !== STATE.PLAYING) return;
+
+  time += dt;
+  difficulty = Math.min(15, time * 0.08);
+
+  // Glacier advance speed
+  const glacierSpeed = 30 + difficulty * 8;
+  cameraX += glacierSpeed * dt;
+  distance = cameraX * 0.1;
+
+  // Generate more ice ahead
+  const furthestIce = iceWalls.reduce((max, w) => Math.max(max, w.x), 0);
+  if (furthestIce < cameraX + W * 2) {
+    generateIce(furthestIce + 100, cameraX + W * 3);
+  }
+
+  // Generate more flowers
+  const furthestFlower = flowers.reduce((max, f) => Math.max(max, f.x), 0);
+  if (furthestFlower < cameraX + W * 2) {
+    for (let i = 0; i < 3; i++) {
+      flowers.push({
+        x: furthestFlower + 150 + Math.random() * 200,
+        y: H * 0.15 + Math.random() * H * 0.7,
+        size: 8 + Math.random() * 6,
+        phase: Math.random() * Math.PI * 2,
+        alive: true,
+        bloomTime: 0,
+        hue: Math.random() < 0.5 ? 340 + Math.random() * 30 : 30 + Math.random() * 30,
+        petals: 5 + Math.floor(Math.random() * 3)
+      });
+    }
+  }
+
+  // Bird physics
+  const birdScreenX = bird.x - cameraX;
+
+  if (touchActive) {
+    bird.targetX = inputX + cameraX;
+    bird.targetY = inputY;
+  }
+
+  const dx = bird.targetX - bird.x;
+  const dy = bird.targetY - bird.y;
+  const dist = Math.hypot(dx, dy);
+
+  // Zippy responsive movement with easing
+  const accel = 12;
+  const maxSpeed = 600;
+
+  if (dist > 2) {
+    bird.vx += (dx / dist) * accel * dt * 60;
+    bird.vy += (dy / dist) * accel * dt * 60;
+  }
+
+  // Damping
+  bird.vx *= Math.pow(0.92, dt * 60);
+  bird.vy *= Math.pow(0.92, dt * 60);
+
+  // Speed cap
+  const speed = Math.hypot(bird.vx, bird.vy);
+  if (speed > maxSpeed) {
+    bird.vx *= maxSpeed / speed;
+    bird.vy *= maxSpeed / speed;
+  }
+
+  // Keep bird moving forward with glacier
+  bird.x += bird.vx * dt + glacierSpeed * dt;
+  bird.y += bird.vy * dt;
+
+  // Slight gravity
+  bird.vy += 40 * dt;
+
+  // Screen bounds
+  if (bird.y < bird.size) { bird.y = bird.size; bird.vy = Math.abs(bird.vy) * 0.3; }
+  if (bird.y > H - bird.size) { bird.y = H - bird.size; bird.vy = -Math.abs(bird.vy) * 0.3; }
+
+  // Prevent bird from going off left side
+  if (birdScreenX < 30) {
+    bird.x = cameraX + 30;
+    bird.vx = Math.max(bird.vx, 50);
+  }
+  if (birdScreenX > W - 30) {
+    bird.x = cameraX + W - 30;
+    bird.vx = Math.min(bird.vx, -20);
+  }
+
+  // Wing animation
+  bird.wingPhase += bird.wingSpeed * dt;
+  bird.wingSpeed = 20 + speed * 0.02;
+
+  // Iridescent hue shift
+  bird.hueShift += dt * 30;
+  bird.hue = 140 + Math.sin(bird.hueShift * 0.1) * 40;
+
+  // Trail
+  bird.trail.push({ x: bird.x, y: bird.y, life: 1 });
+  if (bird.trail.length > 20) bird.trail.shift();
+  for (const t of bird.trail) t.life -= dt * 3;
+
+  // Wing shimmer particles
+  if (Math.random() < 0.5) {
+    const wingOffset = Math.sin(bird.wingPhase) * 10;
+    bird.shimmerParticles.push({
+      x: bird.x - 6 + (Math.random() - 0.5) * 8,
+      y: bird.y + wingOffset + (Math.random() - 0.5) * 6,
+      vx: -speed * 0.1 * dt + (Math.random() - 0.5) * 20,
+      vy: (Math.random() - 0.5) * 20,
+      life: 1, size: 1 + Math.random() * 2,
+      hue: bird.hue + Math.random() * 40
+    });
+  }
+  for (let i = bird.shimmerParticles.length - 1; i >= 0; i--) {
+    const p = bird.shimmerParticles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.life -= dt * 3;
+    if (p.life <= 0) bird.shimmerParticles.splice(i, 1);
+  }
+
+  // Wing hum sound
+  if (time - lastWingSound > 0.15 && speed > 50) {
+    playWingHum();
+    lastWingSound = time;
+  }
+
+  // Energy depletion
+  energy -= dt * (0.03 + difficulty * 0.003);
+  energy = Math.max(0, Math.min(1, energy));
+  if (energy <= 0) gameOver();
+
+  // Check hover near ice (melting mechanic)
+  bird.isHovering = false;
+  bird.hoverHeat = Math.max(0, bird.hoverHeat - dt * 2);
+
+  for (let i = iceWalls.length - 1; i >= 0; i--) {
+    const wall = iceWalls[i];
+    const wx = wall.x - cameraX;
+
+    // Remove off-screen walls
+    if (wx < -200) { iceWalls.splice(i, 1); continue; }
+
+    // Collision check
+    let collides = false;
+    if (wall.type === 'crevasse') {
+      const inX = birdScreenX + bird.size > wx && birdScreenX - bird.size < wx + wall.w;
+      const inGap = bird.y > wall.gapY && bird.y < wall.gapY + wall.gapH;
+      collides = inX && !inGap && wall.meltProgress < 0.8;
+    } else {
+      collides = birdScreenX + bird.size > wx &&
+                 birdScreenX - bird.size < wx + wall.w &&
+                 bird.y + bird.size > wall.y &&
+                 bird.y - bird.size < wall.y + wall.h &&
+                 wall.meltProgress < 0.8;
+    }
+
+    if (collides) {
+      // Hit ice - game over if moving fast, bounce if slow
+      if (speed > 150) {
+        // Emit ice crack particles
+        for (let j = 0; j < 15; j++) {
+          particles.push({
+            x: bird.x, y: bird.y,
+            vx: (Math.random() - 0.5) * 200,
+            vy: (Math.random() - 0.5) * 200,
+            life: 1, decay: 0.02,
+            size: 2 + Math.random() * 4,
+            type: 'ice'
+          });
+        }
+        playIceCrack();
+        energy -= 0.15;
+        if (energy <= 0) { gameOver(); return; }
+      }
+      // Bounce
+      if (birdScreenX < wx + wall.w / 2) {
+        bird.vx = -Math.abs(bird.vx) * 0.5 - 50;
+      } else {
+        bird.vx = Math.abs(bird.vx) * 0.5 + 50;
+      }
+      bird.vy *= -0.5;
+    }
+
+    // Hover melt detection
+    const nearDist = 60;
+    let nearIce = false;
+    if (wall.type === 'crevasse') {
+      nearIce = Math.abs(birdScreenX - wx) < nearDist + wall.w;
+    } else {
+      const cx = wx + wall.w / 2;
+      const cy = wall.y + wall.h / 2;
+      nearIce = Math.hypot(birdScreenX - cx, bird.y - cy) < nearDist + Math.max(wall.w, wall.h) / 2;
+    }
+
+    if (nearIce) {
+      bird.isHovering = true;
+      bird.hoverHeat = Math.min(1, bird.hoverHeat + dt * 3);
+      wall.meltProgress += dt * 0.15 * bird.hoverHeat;
+
+      // Melt particles
+      if (Math.random() < 0.3 * bird.hoverHeat) {
+        const mx = wx + Math.random() * wall.w;
+        const my = wall.type === 'crevasse' ?
+          (Math.random() < 0.5 ? wall.gapY : wall.gapY + wall.gapH) :
+          wall.y + Math.random() * wall.h;
+
+        waterDroplets.push({
+          x: mx + cameraX, y: my,
+          vx: (Math.random() - 0.5) * 20,
+          vy: 30 + Math.random() * 60,
+          life: 1, size: 2 + Math.random() * 3
+        });
+      }
+
+      if (wall.meltProgress > 0.3 && Math.random() < 0.05) {
+        playMeltSound();
+      }
+
+      // Widen gaps when melting crevasses
+      if (wall.type === 'crevasse' && wall.meltProgress > 0) {
+        wall.gapH = Math.min(H * 0.8, wall.gapH + dt * 20 * bird.hoverHeat);
+      }
+    }
+
+    // Remove fully melted
+    if (wall.meltProgress >= 1) {
+      // Burst of water
+      for (let j = 0; j < 8; j++) {
+        waterDroplets.push({
+          x: wall.x, y: wall.y + Math.random() * wall.h,
+          vx: (Math.random() - 0.5) * 60,
+          vy: 20 + Math.random() * 80,
+          life: 1, size: 3 + Math.random() * 4
+        });
+      }
+      playIceCrack();
+      iceWalls.splice(i, 1);
+    }
+  }
+
+  // Water droplet collection
+  for (let i = waterDroplets.length - 1; i >= 0; i--) {
+    const w = waterDroplets[i];
+    w.x += w.vx * dt; w.y += w.vy * dt;
+    w.vy += 100 * dt;
+    w.life -= dt * 0.8;
+
+    // Collect
+    const wsx = w.x - cameraX;
+    if (Math.hypot(birdScreenX - wsx, bird.y - w.y) < 20) {
+      energy = Math.min(1, energy + 0.02);
+      playWaterDrip();
+      // Sparkle
+      for (let j = 0; j < 4; j++) {
+        particles.push({
+          x: w.x, y: w.y,
+          vx: (Math.random() - 0.5) * 80,
+          vy: (Math.random() - 0.5) * 80,
+          life: 1, decay: 0.04, size: 2, type: 'water'
+        });
+      }
+      waterDroplets.splice(i, 1);
+      continue;
+    }
+
+    if (w.life <= 0 || w.y > H + 20) {
+      waterDroplets.splice(i, 1);
+    }
+  }
+
+  // Flower collection
+  for (let i = flowers.length - 1; i >= 0; i--) {
+    const f = flowers[i];
+    const fsx = f.x - cameraX;
+
+    // Remove off-screen
+    if (fsx < -100) { flowers.splice(i, 1); continue; }
+
+    f.bloomTime += dt;
+    f.phase += dt * 2;
+
+    if (f.alive && Math.hypot(birdScreenX - fsx, bird.y - f.y) < f.size + bird.size) {
+      f.alive = false;
+      nectarCount++;
+      energy = Math.min(1, energy + 0.08);
+      playNectarChime();
+
+      // Petal burst
+      for (let j = 0; j < 12; j++) {
+        const angle = (j / 12) * Math.PI * 2;
+        particles.push({
+          x: f.x, y: f.y,
+          vx: Math.cos(angle) * (40 + Math.random() * 60),
+          vy: Math.sin(angle) * (40 + Math.random() * 60) - 20,
+          life: 1, decay: 0.015,
+          size: 3 + Math.random() * 3,
+          type: 'petal',
+          hue: f.hue, rot: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 5
+        });
+      }
+    }
+  }
+
+  // Update particles
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt; p.y += p.vy * dt;
+    p.life -= p.decay || (dt * 2);
+
+    if (p.type === 'petal') {
+      p.vy += 30 * dt;
+      p.vx *= 0.98;
+      p.rot += (p.rotSpeed || 0) * dt;
+    } else if (p.type === 'ice') {
+      p.vy += 80 * dt;
+      p.vx *= 0.97;
+    } else if (p.type === 'water') {
+      p.vy += 50 * dt;
+    }
+
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // Ambient ice crystal particles
+  if (Math.random() < 0.3 + difficulty * 0.05) {
+    particles.push({
+      x: cameraX + W + Math.random() * 50,
+      y: Math.random() * H,
+      vx: -(40 + Math.random() * 60 + difficulty * 5),
+      vy: (Math.random() - 0.5) * 20,
+      life: 1, decay: 0.005 + Math.random() * 0.005,
+      size: 1 + Math.random() * 3,
+      type: 'crystal',
+      rot: Math.random() * Math.PI * 2,
+      rotSpeed: (Math.random() - 0.5) * 3
+    });
+  }
+
+  // Update HUD
+  document.getElementById('score-display').textContent = Math.floor(distance) + 'm';
+  document.getElementById('nectar-display').textContent = nectarCount + ' nectar';
+  document.getElementById('energy-fill').style.width = (energy * 100) + '%';
+
+  // Ice crack sound periodically
+  if (time - lastCrackSound > 3 + Math.random() * 5) {
+    playIceCrack();
+    lastCrackSound = time;
+  }
+}
+
+// ===== DRAW =====
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Sky gradient
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, '#0a1525');
+  skyGrad.addColorStop(0.4, '#0d1f35');
+  skyGrad.addColorStop(0.7, '#122840');
+  skyGrad.addColorStop(1, '#0a1a2a');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Parallax mountain layers
+  const layerColors = [
+    ['rgba(15,30,50,0.9)', 'rgba(12,25,42,0.8)'],
+    ['rgba(18,38,58,0.7)', 'rgba(14,30,48,0.6)'],
+    ['rgba(22,44,66,0.5)', 'rgba(18,36,54,0.4)']
+  ];
+
+  for (let li = bgLayers.length - 1; li >= 0; li--) {
+    const layer = bgLayers[li];
+    const parallax = cameraX * layer.depth;
+    const colors = layerColors[li] || layerColors[0];
+
+    ctx.fillStyle = colors[0];
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+
+    for (const m of layer.mountains) {
+      const sx = m.x - parallax % (W * 3) + W;
+      const normalizedX = ((sx % (W * 2)) + W * 2) % (W * 2) - W * 0.5;
+      if (normalizedX < -200 || normalizedX > W + 200) continue;
+
+      const baseY = H - 20 - li * 40;
+      ctx.lineTo(normalizedX - m.w / 2, baseY);
+      // Jagged peaks
+      if (m.jagged > 0.3) {
+        ctx.lineTo(normalizedX - m.w * 0.2, baseY - m.h * 0.7);
+        ctx.lineTo(normalizedX, baseY - m.h);
+        ctx.lineTo(normalizedX + m.w * 0.15, baseY - m.h * 0.8);
+        ctx.lineTo(normalizedX + m.w * 0.3, baseY - m.h * 0.6);
+      } else {
+        ctx.lineTo(normalizedX, baseY - m.h);
+      }
+      ctx.lineTo(normalizedX + m.w / 2, baseY);
+    }
+
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Draw ice walls
+  for (const wall of iceWalls) {
+    const wx = wall.x - cameraX;
+    if (wx < -100 || wx > W + 100) continue;
+
+    const melt = wall.meltProgress;
+    const alpha = 1 - melt * 0.8;
+
+    if (wall.type === 'crevasse') {
+      // Draw wall with gap
+      const grad1 = ctx.createLinearGradient(wx, 0, wx + wall.w, 0);
+      grad1.addColorStop(0, `rgba(140,200,230,${alpha * 0.6})`);
+      grad1.addColorStop(0.5, `rgba(180,230,250,${alpha * 0.8})`);
+      grad1.addColorStop(1, `rgba(120,180,210,${alpha * 0.5})`);
+
+      ctx.fillStyle = grad1;
+      // Top part
+      ctx.fillRect(wx, 0, wall.w, wall.gapY);
+      // Bottom part
+      ctx.fillRect(wx, wall.gapY + wall.gapH, wall.w, H - wall.gapY - wall.gapH);
+
+      // Ice edge detail
+      ctx.strokeStyle = `rgba(200,240,255,${alpha * 0.4})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      // Top edge
+      for (let y = 0; y < wall.gapY; y += 12) {
+        const offset = Math.sin(y * 0.1 + time) * 2;
+        if (y === 0) ctx.moveTo(wx + offset, y);
+        else ctx.lineTo(wx + offset, y);
+      }
+      ctx.stroke();
+
+      // Crack lines
+      if (melt > 0.1) {
+        ctx.strokeStyle = `rgba(100,180,220,${melt * 0.6})`;
+        ctx.lineWidth = 1;
+        for (let c = 0; c < 3; c++) {
+          ctx.beginPath();
+          const startY = wall.gapY - 20 + c * 10;
+          ctx.moveTo(wx + wall.w * 0.3, startY);
+          ctx.lineTo(wx + wall.w * 0.7, startY + (Math.random() - 0.5) * 15);
+          ctx.stroke();
+        }
+      }
+    } else {
+      // Regular wall or block
+      const grad = ctx.createLinearGradient(wx, wall.y, wx + wall.w, wall.y + wall.h);
+      grad.addColorStop(0, `rgba(120,190,220,${alpha * 0.5})`);
+      grad.addColorStop(0.3, `rgba(160,220,240,${alpha * 0.7})`);
+      grad.addColorStop(0.6, `rgba(180,235,250,${alpha * 0.8})`);
+      grad.addColorStop(1, `rgba(100,170,200,${alpha * 0.4})`);
+
+      ctx.fillStyle = grad;
+
+      // Draw with slight rounding for blocks
+      if (wall.type === 'block') {
+        const r = 4;
+        ctx.beginPath();
+        ctx.moveTo(wx + r, wall.y);
+        ctx.lineTo(wx + wall.w - r, wall.y);
+        ctx.quadraticCurveTo(wx + wall.w, wall.y, wx + wall.w, wall.y + r);
+        ctx.lineTo(wx + wall.w, wall.y + wall.h - r);
+        ctx.quadraticCurveTo(wx + wall.w, wall.y + wall.h, wx + wall.w - r, wall.y + wall.h);
+        ctx.lineTo(wx + r, wall.y + wall.h);
+        ctx.quadraticCurveTo(wx, wall.y + wall.h, wx, wall.y + wall.h - r);
+        ctx.lineTo(wx, wall.y + r);
+        ctx.quadraticCurveTo(wx, wall.y, wx + r, wall.y);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.fillRect(wx, wall.y, wall.w, wall.h);
+      }
+
+      // Inner ice texture lines
+      ctx.strokeStyle = `rgba(200,240,255,${alpha * 0.15})`;
+      ctx.lineWidth = 0.5;
+      for (let ly = wall.y + 8; ly < wall.y + wall.h - 8; ly += 14) {
+        ctx.beginPath();
+        ctx.moveTo(wx + 3, ly + Math.sin(ly * 0.2 + time * 0.5) * 2);
+        ctx.lineTo(wx + wall.w - 3, ly + Math.sin(ly * 0.2 + time * 0.5 + 1) * 2);
+        ctx.stroke();
+      }
+
+      // Edge highlight
+      ctx.strokeStyle = `rgba(220,245,255,${alpha * 0.3})`;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(wx + 0.5, wall.y + 0.5, wall.w - 1, wall.h - 1);
+
+      // Melting glow
+      if (melt > 0.1) {
+        const meltGrad = ctx.createRadialGradient(
+          wx + wall.w / 2, wall.y + wall.h / 2, 0,
+          wx + wall.w / 2, wall.y + wall.h / 2, Math.max(wall.w, wall.h)
+        );
+        meltGrad.addColorStop(0, `rgba(100,200,255,${melt * 0.2})`);
+        meltGrad.addColorStop(1, `rgba(60,150,200,0)`);
+        ctx.fillStyle = meltGrad;
+        ctx.fillRect(wx - 10, wall.y - 10, wall.w + 20, wall.h + 20);
+      }
+    }
+  }
+
+  // Draw water droplets
+  for (const w of waterDroplets) {
+    const wsx = w.x - cameraX;
+    if (wsx < -20 || wsx > W + 20) continue;
+    const a = w.life;
+    const grad = ctx.createRadialGradient(wsx, w.y, 0, wsx, w.y, w.size);
+    grad.addColorStop(0, `rgba(130,210,255,${a * 0.9})`);
+    grad.addColorStop(0.6, `rgba(80,180,240,${a * 0.5})`);
+    grad.addColorStop(1, `rgba(60,140,200,0)`);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(wsx, w.y, w.size, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Highlight dot
+    ctx.fillStyle = `rgba(220,250,255,${a * 0.7})`;
+    ctx.beginPath();
+    ctx.arc(wsx - w.size * 0.25, w.y - w.size * 0.25, w.size * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Draw flowers
+  for (const f of flowers) {
+    const fsx = f.x - cameraX;
+    if (fsx < -30 || fsx > W + 30) continue;
+    if (!f.alive) continue;
+
+    const bloom = Math.min(1, f.bloomTime * 0.5);
+    const sway = Math.sin(f.phase) * 3;
+    const sz = f.size * bloom;
+
+    ctx.save();
+    ctx.translate(fsx + sway, f.y);
+
+    // Glow
+    const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, sz * 2.5);
+    glow.addColorStop(0, `hsla(${f.hue},80%,60%,0.15)`);
+    glow.addColorStop(1, `hsla(${f.hue},80%,60%,0)`);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, sz * 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Petals
+    for (let p = 0; p < f.petals; p++) {
+      const angle = (p / f.petals) * Math.PI * 2 + f.phase * 0.2;
+      ctx.save();
+      ctx.rotate(angle);
+      ctx.fillStyle = `hsla(${f.hue + p * 5},75%,65%,0.85)`;
+      ctx.beginPath();
+      ctx.ellipse(sz * 0.5, 0, sz * 0.6, sz * 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // Center
+    ctx.fillStyle = `hsla(${f.hue + 40},90%,75%,0.9)`;
+    ctx.beginPath();
+    ctx.arc(0, 0, sz * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  // Draw particles
+  for (const p of particles) {
+    const psx = p.x - cameraX;
+    if (psx < -20 || psx > W + 20) continue;
+
+    const a = Math.max(0, p.life);
+
+    if (p.type === 'crystal') {
+      ctx.save();
+      ctx.translate(psx, p.y);
+      ctx.rotate(p.rot || 0);
+      ctx.fillStyle = `rgba(180,220,255,${a * 0.4})`;
+      // Diamond shape
+      const s = p.size;
+      ctx.beginPath();
+      ctx.moveTo(0, -s); ctx.lineTo(s * 0.6, 0);
+      ctx.lineTo(0, s); ctx.lineTo(-s * 0.6, 0);
+      ctx.closePath();
+      ctx.fill();
+      // Sparkle
+      ctx.fillStyle = `rgba(220,240,255,${a * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (p.type === 'petal') {
+      ctx.save();
+      ctx.translate(psx, p.y);
+      ctx.rotate(p.rot || 0);
+      ctx.fillStyle = `hsla(${p.hue || 340},70%,65%,${a * 0.8})`;
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.size, p.size * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    } else if (p.type === 'ice') {
+      ctx.fillStyle = `rgba(180,230,255,${a * 0.8})`;
+      ctx.beginPath();
+      ctx.arc(psx, p.y, p.size * a, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.type === 'water') {
+      ctx.fillStyle = `rgba(100,200,255,${a * 0.7})`;
+      ctx.beginPath();
+      ctx.arc(psx, p.y, p.size * a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Draw bird shimmer trail
+  for (const s of bird.shimmerParticles) {
+    const sx = s.x - cameraX;
+    if (sx < -20 || sx > W + 20) continue;
+    ctx.fillStyle = `hsla(${s.hue},80%,70%,${s.life * 0.4})`;
+    ctx.beginPath();
+    ctx.arc(sx, s.y, s.size * s.life, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Draw bird trail
+  if (bird.trail.length > 1) {
+    ctx.beginPath();
+    const first = bird.trail[0];
+    ctx.moveTo(first.x - cameraX, first.y);
+    for (let i = 1; i < bird.trail.length; i++) {
+      const t = bird.trail[i];
+      ctx.lineTo(t.x - cameraX, t.y);
+    }
+    ctx.strokeStyle = `hsla(${bird.hue},60%,60%,0.15)`;
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // Draw the hummingbird
+  if (gameState === STATE.PLAYING) {
+    drawBird(bird.x - cameraX, bird.y);
+  }
+
+  // Hover heat glow around bird
+  if (bird.hoverHeat > 0.1) {
+    const hg = ctx.createRadialGradient(
+      bird.x - cameraX, bird.y, 0,
+      bird.x - cameraX, bird.y, 50
+    );
+    hg.addColorStop(0, `rgba(255,180,100,${bird.hoverHeat * 0.15})`);
+    hg.addColorStop(0.5, `rgba(255,120,50,${bird.hoverHeat * 0.08})`);
+    hg.addColorStop(1, `rgba(255,80,20,0)`);
+    ctx.fillStyle = hg;
+    ctx.beginPath();
+    ctx.arc(bird.x - cameraX, bird.y, 50, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Glacier edge (left side advancing wall)
+  const glacierEdge = -cameraX + cameraX * 0.02;
+  if (glacierEdge > -50) {
+    const gGrad = ctx.createLinearGradient(glacierEdge, 0, glacierEdge + 60, 0);
+    gGrad.addColorStop(0, 'rgba(100,160,200,0.6)');
+    gGrad.addColorStop(0.5, 'rgba(140,200,230,0.3)');
+    gGrad.addColorStop(1, 'rgba(160,220,240,0)');
+    ctx.fillStyle = gGrad;
+    ctx.fillRect(glacierEdge, 0, 60, H);
+  }
+
+  // Vignette
+  const vig = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,8,16,0.5)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  // Low energy warning
+  if (energy < 0.25 && gameState === STATE.PLAYING) {
+    const pulse = Math.sin(time * 6) * 0.5 + 0.5;
+    ctx.fillStyle = `rgba(255,60,30,${(0.25 - energy) * pulse * 0.3})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawBird(x, y) {
+  const wingAngle = Math.sin(bird.wingPhase) * 0.8;
+  const wingAngle2 = Math.sin(bird.wingPhase + 0.3) * 0.6;
+  const speed = Math.hypot(bird.vx, bird.vy);
+  const tilt = Math.atan2(bird.vy, Math.max(20, bird.vx)) * 0.3;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(tilt);
+
+  const sz = bird.size;
+
+  // Body glow
+  const bodyGlow = ctx.createRadialGradient(0, 0, 0, 0, 0, sz * 2);
+  bodyGlow.addColorStop(0, `hsla(${bird.hue},70%,50%,0.15)`);
+  bodyGlow.addColorStop(1, `hsla(${bird.hue},70%,50%,0)`);
+  ctx.fillStyle = bodyGlow;
+  ctx.beginPath();
+  ctx.arc(0, 0, sz * 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Wings (upper)
+  ctx.save();
+  ctx.translate(-2, -2);
+  ctx.rotate(-0.3 + wingAngle * 1.2);
+  const wingGrad1 = ctx.createLinearGradient(0, 0, -sz * 1.5, -sz);
+  wingGrad1.addColorStop(0, `hsla(${bird.hue + 20},80%,55%,0.9)`);
+  wingGrad1.addColorStop(0.5, `hsla(${bird.hue + 40},75%,60%,0.7)`);
+  wingGrad1.addColorStop(1, `hsla(${bird.hue + 60},70%,65%,0.3)`);
+  ctx.fillStyle = wingGrad1;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-sz * 0.8, -sz * 0.8 - wingAngle2 * sz, -sz * 1.4, -sz * 0.3);
+  ctx.quadraticCurveTo(-sz * 0.9, -sz * 0.2, 0, 0);
+  ctx.fill();
+  ctx.restore();
+
+  // Wings (lower)
+  ctx.save();
+  ctx.translate(-2, 2);
+  ctx.rotate(0.3 - wingAngle * 1.2);
+  const wingGrad2 = ctx.createLinearGradient(0, 0, -sz * 1.5, sz);
+  wingGrad2.addColorStop(0, `hsla(${bird.hue + 20},80%,55%,0.9)`);
+  wingGrad2.addColorStop(0.5, `hsla(${bird.hue + 40},75%,60%,0.7)`);
+  wingGrad2.addColorStop(1, `hsla(${bird.hue + 60},70%,65%,0.3)`);
+  ctx.fillStyle = wingGrad2;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.quadraticCurveTo(-sz * 0.8, sz * 0.8 + wingAngle2 * sz, -sz * 1.4, sz * 0.3);
+  ctx.quadraticCurveTo(-sz * 0.9, sz * 0.2, 0, 0);
+  ctx.fill();
+  ctx.restore();
+
+  // Body
+  const bodyGrad = ctx.createLinearGradient(-sz * 0.5, -sz * 0.3, sz * 0.5, sz * 0.3);
+  bodyGrad.addColorStop(0, `hsla(${bird.hue},75%,40%,0.95)`);
+  bodyGrad.addColorStop(0.5, `hsla(${bird.hue + 15},80%,50%,0.95)`);
+  bodyGrad.addColorStop(1, `hsla(${bird.hue + 30},70%,45%,0.9)`);
+  ctx.fillStyle = bodyGrad;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, sz * 0.6, sz * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Breast (warm accent)
+  ctx.fillStyle = `hsla(${bird.hue - 80},85%,55%,0.6)`;
+  ctx.beginPath();
+  ctx.ellipse(sz * 0.15, sz * 0.05, sz * 0.25, sz * 0.2, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Head
+  ctx.fillStyle = `hsla(${bird.hue + 10},70%,35%,0.95)`;
+  ctx.beginPath();
+  ctx.arc(sz * 0.45, -sz * 0.1, sz * 0.22, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Eye
+  ctx.fillStyle = 'rgba(255,255,255,0.9)';
+  ctx.beginPath();
+  ctx.arc(sz * 0.52, -sz * 0.15, sz * 0.06, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(10,10,10,0.95)';
+  ctx.beginPath();
+  ctx.arc(sz * 0.54, -sz * 0.15, sz * 0.035, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Beak
+  ctx.fillStyle = 'rgba(40,40,40,0.9)';
+  ctx.beginPath();
+  ctx.moveTo(sz * 0.6, -sz * 0.1);
+  ctx.lineTo(sz * 1.1, -sz * 0.05);
+  ctx.lineTo(sz * 0.6, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Tail feathers
+  ctx.fillStyle = `hsla(${bird.hue + 50},65%,45%,0.7)`;
+  ctx.beginPath();
+  ctx.moveTo(-sz * 0.5, 0);
+  ctx.quadraticCurveTo(-sz * 0.9, -sz * 0.15, -sz * 1.1, -sz * 0.1);
+  ctx.quadraticCurveTo(-sz * 0.8, 0, -sz * 1.0, sz * 0.15);
+  ctx.quadraticCurveTo(-sz * 0.7, sz * 0.05, -sz * 0.5, 0);
+  ctx.fill();
+
+  // Iridescent highlight on body
+  const iridPhase = Math.sin(time * 3) * 0.5 + 0.5;
+  ctx.fillStyle = `hsla(${bird.hue + iridPhase * 60},90%,75%,${0.15 + iridPhase * 0.15})`;
+  ctx.beginPath();
+  ctx.ellipse(sz * 0.1, -sz * 0.1, sz * 0.3, sz * 0.12, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ===== INTRO DRAW =====
+function drawIntro() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Animated background
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, '#0a1525');
+  skyGrad.addColorStop(0.5, '#0d1f35');
+  skyGrad.addColorStop(1, '#0a1a2a');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Floating ice crystals
+  const t = performance.now() * 0.001;
+  for (let i = 0; i < 30; i++) {
+    const x = (Math.sin(t * 0.3 + i * 1.7) * 0.5 + 0.5) * W;
+    const y = (Math.cos(t * 0.2 + i * 2.3) * 0.5 + 0.5) * H;
+    const sz = 2 + Math.sin(t + i) * 1;
+    const a = 0.1 + Math.sin(t * 0.5 + i) * 0.08;
+    ctx.fillStyle = `rgba(150,210,240,${a})`;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(t * 0.5 + i);
+    ctx.beginPath();
+    ctx.moveTo(0, -sz); ctx.lineTo(sz * 0.6, 0);
+    ctx.lineTo(0, sz); ctx.lineTo(-sz * 0.6, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Demo hummingbird flying in circles
+  const birdX = W / 2 + Math.sin(t * 1.2) * 80;
+  const birdY = H / 2 + 60 + Math.cos(t * 0.9) * 40;
+  bird.wingPhase += 0.5;
+  bird.hueShift += 0.02;
+  bird.hue = 140 + Math.sin(bird.hueShift) * 40;
+  drawBird(birdX, birdY);
+}
+
+// ===== MAIN LOOP =====
+let lastTime = performance.now();
+
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+
+  if (gameState === STATE.INTRO) {
+    drawIntro();
+  } else {
+    update(dt);
+    draw();
+  }
+
+  requestAnimationFrame(loop);
+}
+
+generateBgLayers();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
