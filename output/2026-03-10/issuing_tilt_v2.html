@@ -738,8 +738,6 @@
         unlocked.length + '/' + total + ' ' + icons;
     }
   }
-  showHighScores();
-
   // --- Difficulty ---
   let difficulty = 0; // 0=calm, 1=flow, 2=torrent
   const DIFF_SETTINGS = [
@@ -884,6 +882,9 @@
   let achievementQueue = [];
   let achievementDisplay = null;
   let achievementTimer = 0;
+
+  // Now that ACHIEVEMENTS is defined, show high scores on intro screen
+  showHighScores();
 
   function updateAchievementDisplay(dt) {
     if (achievementDisplay) {
@@ -2320,26 +2321,6 @@
     const total = Object.values(collected).reduce((a, b) => a + b, 0);
     const fullVessels = vessels.filter(v => v.fill >= v.capacity).length;
     const diffLabel = DIFF_SETTINGS[difficulty].label;
-    const text = 'TILT \u2014 What Issues Forth\n'
-      + score + ' pts \u00b7 ' + diffLabel + ' mode\n'
-      + fullVessels + '/4 vessels filled \u00b7 ' + maxCombo + 'x max combo\n'
-      + 'Can you beat my flow?';
-    if (navigator.share) {
-      navigator.share({ title: 'TILT', text: text, url: location.href }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text).then(() => {
-        document.getElementById('share-btn').textContent = 'copied!';
-        setTimeout(() => { document.getElementById('share-btn').textContent = 'share'; }, 2000);
-      }).catch(() => {});
-    }
-  }
-  document.getElementById('share-btn').addEventListener('click', shareScore);
-  document.getElementById('share-btn').addEventListener('touchend', (e) => { e.preventDefault(); shareScore(); });
-
-  function shareScore() {
-    const total = Object.values(collected).reduce((a, b) => a + b, 0);
-    const fullVessels = vessels.filter(v => v.fill >= v.capacity).length;
-    const diffLabel = DIFF_SETTINGS[difficulty].label;
     const text = `TILT \u2014 What Issues Forth\n\n${score} pts \u00B7 ${diffLabel} mode\n${total} caught \u00B7 ${fullVessels}/4 vessels full \u00B7 ${maxCombo}x max combo\n\nCan you beat my score?`;
 
     if (navigator.share) {
@@ -2352,7 +2333,6 @@
       }).catch(() => {});
     }
   }
-
   document.getElementById('share-btn').addEventListener('click', shareScore);
   document.getElementById('share-btn').addEventListener('touchend', (e) => { e.preventDefault(); shareScore(); });
 
