@@ -251,7 +251,7 @@
     tilt to steer them into matching vessels<br>
     particles that leave the screen are lost
   </div>
-  <button class="start-btn" id="start-btn">begin</button>
+  <button class="start-btn" id="start-btn" onclick="if(window._handleStart)window._handleStart()">begin</button>
 </div>
 
 <div id="endcard">
@@ -1319,13 +1319,22 @@
     requestAnimationFrame(loop);
   }
 
-  document.getElementById('start-btn').addEventListener('click', () => {
+  function handleStart() {
+    if (started && !gameOver) return;
     startGame();
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
       DeviceOrientationEvent.requestPermission().catch(() => {});
     }
-  });
+  }
+
+  // Expose globally as fallback for inline onclick
+  window._handleStart = handleStart;
+
+  const startBtn = document.getElementById('start-btn');
+  startBtn.addEventListener('click', handleStart);
+  startBtn.addEventListener('pointerup', (e) => { e.preventDefault(); handleStart(); });
+  startBtn.addEventListener('touchend', (e) => { e.preventDefault(); handleStart(); });
 
   document.getElementById('again-btn').addEventListener('click', () => {
     startGame();

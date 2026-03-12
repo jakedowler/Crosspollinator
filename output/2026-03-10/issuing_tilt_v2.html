@@ -360,7 +360,7 @@
     <button class="diff-btn active" id="mode-timed" data-mode="timed">Timed</button>
     <button class="diff-btn" id="mode-endless" data-mode="endless">Endless</button>
   </div>
-  <button class="start-btn" id="start-btn">Begin</button>
+  <button class="start-btn" id="start-btn" onclick="if(window._handleStart)window._handleStart()">Begin</button>
   <div class="high-score" id="high-score-display"></div>
   <div class="high-score" id="achievement-count" style="margin-top:4px"></div>
 </div>
@@ -2304,8 +2304,14 @@
     }
   }
 
-  document.getElementById('start-btn').addEventListener('click', handleStart);
-  document.getElementById('start-btn').addEventListener('touchend', (e) => { e.preventDefault(); handleStart(); });
+  // Expose globally as fallback for inline onclick
+  window._handleStart = handleStart;
+
+  // Use multiple event types for maximum compatibility
+  const startBtn = document.getElementById('start-btn');
+  startBtn.addEventListener('click', handleStart);
+  startBtn.addEventListener('pointerup', (e) => { e.preventDefault(); handleStart(); });
+  startBtn.addEventListener('touchend', (e) => { e.preventDefault(); handleStart(); });
 
   document.getElementById('again-btn').addEventListener('click', () => startGame());
   document.getElementById('again-btn').addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });
