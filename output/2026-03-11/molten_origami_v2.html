@@ -157,6 +157,11 @@ canvas { display: block; position: absolute; top: 0; left: 0; }
 </div>
 <div id="tooltip">tap a crease to fold &bull; swipe to cycle shapes</div>
 <div id="transform-text"></div>
+<div id="achievement-popup" style="position:fixed;top:30%;left:50%;transform:translate(-50%,-50%);z-index:25;pointer-events:none;text-align:center;opacity:0;transition:opacity 1s;">
+  <div class="ach-name" style="font-size:16px;color:#8b2a0a;letter-spacing:4px;text-transform:uppercase;margin-bottom:4px;"></div>
+  <div class="ach-desc" style="font-size:11px;color:rgba(107,58,26,0.5);font-style:italic;letter-spacing:1px;"></div>
+</div>
+<div id="score-display" style="position:fixed;bottom:env(safe-area-inset-bottom,16px);left:16px;z-index:10;color:rgba(107,58,26,0.3);font-size:10px;letter-spacing:1px;pointer-events:none;"></div>
 <canvas id="main-canvas"></canvas>
 <canvas id="glow-canvas"></canvas>
 
@@ -266,6 +271,157 @@ function playFoldSound(heat) {
   filt.type = 'highpass'; filt.frequency.value = 2000;
   src.connect(filt); filt.connect(fg); fg.connect(masterGain);
   src.start(now);
+}
+
+// Sizzle sound when melting
+let lastSizzle = 0;
+function playSizzleSound(intensity) {
+  if (!audioCtx || time - lastSizzle < 0.15) return;
+  lastSizzle = time;
+  const now = audioCtx.currentTime;
+  const dur = 0.1 + Math.random() * 0.2;
+  const bufLen = Math.floor(audioCtx.sampleRate * dur);
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) {
+    const t = i / bufLen;
+    const env = t < 0.05 ? t / 0.05 : Math.pow(1 - t, 2);
+    d[i] = (Math.random() * 2 - 1) * env * 0.15 * intensity;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'bandpass'; filt.frequency.value = 3000 + Math.random() * 4000; filt.Q.value = 2;
+  const sg = audioCtx.createGain();
+  sg.gain.value = 0.06 * intensity;
+  src.connect(filt); filt.connect(sg); sg.connect(masterGain);
+  src.start(now);
+}
+
+// Hiss sound when cooling
+let lastHiss = 0;
+function playCoolHiss(intensity) {
+  if (!audioCtx || time - lastHiss < 0.3) return;
+  lastHiss = time;
+  const now = audioCtx.currentTime;
+  const dur = 0.2 + Math.random() * 0.3;
+  const bufLen = Math.floor(audioCtx.sampleRate * dur);
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) {
+    const t = i / bufLen;
+    const env = Math.sin(t * Math.PI) * 0.12 * intensity;
+    d[i] = (Math.random() * 2 - 1) * env;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const filt = audioCtx.createBiquadFilter();
+  filt.type = 'highpass'; filt.frequency.value = 5000; filt.Q.value = 0.5;
+  const hg = audioCtx.createGain();
+  hg.gain.value = 0.04;
+  src.connect(filt); filt.connect(hg); hg.connect(masterGain);
+  src.start(now);
+}
+
+// Transformation fanfare
+function playTransformFanfare() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const notes = [392, 440, 523.25, 659.25, 783.99, 1046.5];
+  notes.forEach((freq, i) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = i < 3 ? 'sine' : 'triangle';
+    osc.frequency.value = freq;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, now + i * 0.12);
+    g.gain.linearRampToValueAtTime(0.04, now + i * 0.12 + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 2);
+    osc.connect(g); g.connect(masterGain);
+    osc.start(now + i * 0.12);
+    osc.stop(now + i * 0.12 + 2.5);
+  });
+}
+
+// Ambient fire crackle loop
+let crackleCooldown = 0;
+function ambientCrackle(dt) {
+  if (!audioCtx || globalHeat < 0.2) return;
+  crackleCooldown -= dt;
+  if (crackleCooldown > 0) return;
+  crackleCooldown = 0.5 + Math.random() * 1.5 / globalHeat;
+  const now = audioCtx.currentTime;
+  const dur = 0.03 + Math.random() * 0.06;
+  const bufLen = Math.floor(audioCtx.sampleRate * dur);
+  const buf = audioCtx.createBuffer(1, bufLen, audioCtx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < bufLen; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i/bufLen, 3) * 0.4;
+  }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buf;
+  const cg = audioCtx.createGain();
+  cg.gain.value = 0.02 * globalHeat;
+  const p = audioCtx.createStereoPanner();
+  p.pan.value = (Math.random() - 0.5) * 1.5;
+  src.connect(cg); cg.connect(p); p.connect(masterGain);
+  src.start(now);
+}
+
+// ACHIEVEMENTS
+const ACHIEVEMENTS = [
+  { id: 'first_fold', name: 'First Crease', desc: 'Fold your first crease', check: () => totalFolds >= 1 },
+  { id: 'ten_folds', name: 'Paper Master', desc: 'Fold 10 creases', check: () => totalFolds >= 10 },
+  { id: 'fifty_folds', name: 'Origami Sage', desc: 'Fold 50 creases', check: () => totalFolds >= 50 },
+  { id: 'first_melt', name: 'First Flame', desc: 'Reach 50% heat', check: () => peakHeat >= 0.5 },
+  { id: 'full_melt', name: 'Inferno', desc: 'Reach maximum heat', check: () => peakHeat >= 0.95 },
+  { id: 'all_shapes', name: 'Form Seeker', desc: 'Discover all 4 shapes', check: () => getDiscoveries().length >= 4 },
+  { id: 'first_transform', name: 'Metamorphosis', desc: 'Complete your first transformation', check: () => totalTransforms >= 1 },
+  { id: 'all_transforms', name: 'Alchemist', desc: 'Transform all 4 shapes', check: () => totalTransforms >= 4 },
+];
+
+let totalFolds = 0;
+let totalTransforms = 0;
+let peakHeat = 0;
+let unlockedAchievements = [];
+
+function loadAchievements() {
+  try { unlockedAchievements = JSON.parse(localStorage.getItem('mo_achievements') || '[]'); } catch(e) { unlockedAchievements = []; }
+  try { totalFolds = parseInt(localStorage.getItem('mo_folds') || '0'); } catch(e) { totalFolds = 0; }
+  try { totalTransforms = parseInt(localStorage.getItem('mo_transforms') || '0'); } catch(e) { totalTransforms = 0; }
+}
+
+function saveStats() {
+  localStorage.setItem('mo_folds', totalFolds.toString());
+  localStorage.setItem('mo_transforms', totalTransforms.toString());
+}
+
+function checkAchievements() {
+  for (const a of ACHIEVEMENTS) {
+    if (unlockedAchievements.includes(a.id)) continue;
+    if (a.check()) {
+      unlockedAchievements.push(a.id);
+      localStorage.setItem('mo_achievements', JSON.stringify(unlockedAchievements));
+      showAchievement(a);
+    }
+  }
+}
+
+let achievementQueue = [];
+let showingAchievement = false;
+function showAchievement(a) {
+  achievementQueue.push(a);
+  if (!showingAchievement) processAchievementQueue();
+}
+function processAchievementQueue() {
+  if (achievementQueue.length === 0) { showingAchievement = false; return; }
+  showingAchievement = true;
+  const a = achievementQueue.shift();
+  const el = document.getElementById('achievement-popup');
+  el.querySelector('.ach-name').textContent = a.name;
+  el.querySelector('.ach-desc').textContent = a.desc;
+  el.style.opacity = 1;
+  if (navigator.vibrate) try { navigator.vibrate([20, 40, 20]); } catch(e){}
+  setTimeout(() => { el.style.opacity = 0; setTimeout(processAchievementQueue, 500); }, 3000);
 }
 
 // ORIGAMI DATA
@@ -463,6 +619,10 @@ function showTransformation() {
   if (transformShown) return;
   transformShown = true;
   markDiscovered(currentShape);
+  totalTransforms++;
+  saveStats();
+  playTransformFanfare();
+  if (navigator.vibrate) try { navigator.vibrate([30, 60, 30, 60, 30]); } catch(e){}
   const el = document.getElementById('transform-text');
   el.textContent = shapeTransform[currentShape];
   el.style.opacity = 1;
@@ -486,6 +646,7 @@ W = mainCanvas.width = glowCanvas.width = window.innerWidth;
 H = mainCanvas.height = glowCanvas.height = window.innerHeight;
 makeCrane();
 updateDiscoveryPips();
+loadAchievements();
 
 // Intro
 document.getElementById('intro-overlay').addEventListener('click', () => {
@@ -599,6 +760,8 @@ function foldCrease(cr) {
   cr.heat = Math.min(1, cr.heat + 0.6);
   cr.foldTime = time;
   playFoldSound(cr.heat);
+  totalFolds++;
+  saveStats();
   if (navigator.vibrate) try { navigator.vibrate(15); } catch(e){}
 
   const a = vertices[cr.a], b = vertices[cr.b];
@@ -652,9 +815,11 @@ function emitSmokeAlongCrease(cr, count) {
 }
 
 // UPDATE
+let frameCount2 = 0;
 function update(dt) {
   if (!started) return;
   time += dt;
+  frameCount2++;
   ambientPulse = Math.sin(time*0.7)*0.5+0.5;
   flashIntensity *= 0.92;
 
@@ -662,12 +827,19 @@ function update(dt) {
   if (mode==='melt'||mode==='cool') {
     const radius = 130;
     const speed = mode==='melt' ? 0.04 : -0.06;
+    let heatApplied = false;
     for (const v of vertices) {
       const d = Math.hypot(v.x+v.ox-mx, v.y+v.oy-my);
       if (d<radius) {
         const inf = (1-d/radius)*(1-d/radius);
+        const oldHeat = v.heat;
         v.heat = Math.max(0, Math.min(1, v.heat+speed*inf));
+        if (Math.abs(v.heat - oldHeat) > 0.001) heatApplied = true;
       }
+    }
+    if (heatApplied && mouseDown) {
+      if (mode === 'melt') playSizzleSound(globalHeat);
+      else playCoolHiss(globalHeat);
     }
     for (const cr of creases) {
       const a=vpos(cr.a), b=vpos(cr.b);
@@ -725,7 +897,17 @@ function update(dt) {
   // Global heat
   let th=0; for (const v of vertices) th+=v.heat;
   globalHeat+=(th/vertices.length-globalHeat)*0.06;
+  peakHeat = Math.max(peakHeat, globalHeat);
   document.getElementById('heat-fill').style.height = Math.min(100,globalHeat*120)+'%';
+
+  // Ambient crackle
+  ambientCrackle(dt);
+
+  // Achievement checks (throttled)
+  if (frameCount2 % 30 === 0) {
+    checkAchievements();
+    document.getElementById('score-display').textContent = `folds: ${totalFolds}`;
+  }
 
   // Check for transformation (all creases folded + high heat)
   if (globalHeat > 0.6) {

@@ -1105,6 +1105,7 @@ document.getElementById('start-overlay').addEventListener('click', () => {
   initAudio();
   createDrone();
   loadDiscoveries();
+  loadWmAchievements();
   updateChapterDisplay();
 });
 
@@ -1121,6 +1122,8 @@ function placeMagnet(x, y) {
   if (magnets.length >= 24) return;
   const m = new Magnet(x, y, nextPolarity);
   magnets.push(m);
+  totalPlaced++;
+  saveWmStats();
   updateMagnetCount();
   updateChapterDisplay();
   playPlacementChime(nextPolarity, x);
@@ -1251,6 +1254,109 @@ function updateMagnetCount() {
 }
 
 // ==================
+// ACHIEVEMENTS
+// ==================
+const WM_ACHIEVEMENTS = [
+  { id: 'first_magnet', name: 'First Force', desc: 'Place your first magnet' },
+  { id: 'five_magnets', name: 'Growing Field', desc: 'Place 5 magnets' },
+  { id: 'twelve_magnets', name: 'Magnetic Garden', desc: 'Place 12 magnets' },
+  { id: 'twenty_magnets', name: 'Field Master', desc: 'Place 20 magnets' },
+  { id: 'first_whisper', name: 'First Whisper', desc: 'Hear the magnets speak' },
+  { id: 'high_harmony', name: 'Harmonist', desc: 'Achieve 80% harmony' },
+  { id: 'all_constellations', name: 'Stargazer', desc: 'Discover all 6 constellations' },
+  { id: 'balanced', name: 'Equilibrium', desc: 'Equal N and S magnets (4+ each)' },
+];
+
+let wmUnlocked = [];
+let totalPlaced = 0;
+let whisperHeard = false;
+
+function loadWmAchievements() {
+  try { wmUnlocked = JSON.parse(localStorage.getItem('wm_achievements') || '[]'); } catch(e) { wmUnlocked = []; }
+  try { totalPlaced = parseInt(localStorage.getItem('wm_placed') || '0'); } catch(e) { totalPlaced = 0; }
+}
+
+function saveWmStats() {
+  localStorage.setItem('wm_placed', totalPlaced.toString());
+}
+
+function checkWmAchievements() {
+  const checks = {
+    'first_magnet': () => totalPlaced >= 1,
+    'five_magnets': () => totalPlaced >= 5,
+    'twelve_magnets': () => totalPlaced >= 12,
+    'twenty_magnets': () => totalPlaced >= 20,
+    'first_whisper': () => whisperHeard,
+    'high_harmony': () => computeHarmony() >= 0.8,
+    'all_constellations': () => discoveredConstellations.length >= CONSTELLATIONS.length,
+    'balanced': () => {
+      const n = magnets.filter(m => m.polarity > 0).length;
+      const s = magnets.filter(m => m.polarity < 0).length;
+      return n >= 4 && s >= 4 && n === s;
+    },
+  };
+  for (const a of WM_ACHIEVEMENTS) {
+    if (wmUnlocked.includes(a.id)) continue;
+    if (checks[a.id] && checks[a.id]()) {
+      wmUnlocked.push(a.id);
+      localStorage.setItem('wm_achievements', JSON.stringify(wmUnlocked));
+      showWmAchievement(a);
+    }
+  }
+}
+
+let wmAchQueue = [];
+let showingWmAch = false;
+function showWmAchievement(a) {
+  wmAchQueue.push(a);
+  if (!showingWmAch) processWmAchQueue();
+}
+function processWmAchQueue() {
+  if (wmAchQueue.length === 0) { showingWmAch = false; return; }
+  showingWmAch = true;
+  const a = wmAchQueue.shift();
+  const el = document.getElementById('constellation-popup');
+  el.querySelector('.const-name').textContent = a.name;
+  el.querySelector('.const-lore').textContent = a.desc;
+  el.style.opacity = 1;
+  if (navigator.vibrate) try { navigator.vibrate([20, 40, 20]); } catch(e){}
+  setTimeout(() => { el.style.opacity = 0; setTimeout(processWmAchQueue, 500); }, 3000);
+}
+
+// ==================
+// FLOATING TEXT PARTICLES
+// ==================
+const floatingTexts = [];
+
+function spawnFloatingText(x, y, text, color) {
+  floatingTexts.push({
+    x, y, text, color: color || 'rgba(100,80,140,0.3)',
+    life: 1, vy: -0.3 - Math.random() * 0.3,
+    vx: (Math.random() - 0.5) * 0.4,
+    size: 9 + Math.random() * 3,
+    rot: (Math.random() - 0.5) * 0.1
+  });
+}
+
+// ==================
+// FIELD DENSITY GRID (background visualization)
+// ==================
+function renderFieldDensity() {
+  if (magnets.length === 0 || viewMode !== 'field') return;
+  const step = 40;
+  for (let x = 0; x < W; x += step) {
+    for (let y = 0; y < H; y += step) {
+      const f = getFieldAt(x + step/2, y + step/2);
+      const mag = Math.sqrt(f.x * f.x + f.y * f.y);
+      if (mag < 0.5) continue;
+      const alpha = Math.min(0.06, mag * 0.001);
+      ctx.fillStyle = `rgba(100, 80, 140, ${alpha})`;
+      ctx.fillRect(x, y, step, step);
+    }
+  }
+}
+
+// ==================
 // MAIN LOOP
 // ==================
 let lastTime = performance.now();
@@ -1369,12 +1475,17 @@ function update(now) {
 
           // Text whisper from current chapter
           if (intensity > 0.55 && Math.random() < 0.1) {
+            whisperHeard = true;
             const chapter = WHISPER_CHAPTERS[getChapterIndex()];
+            let phrase;
             if (polProduct < 0) {
-              showWhisper(chapter.attraction[Math.floor(Math.random() * chapter.attraction.length)]);
+              phrase = chapter.attraction[Math.floor(Math.random() * chapter.attraction.length)];
             } else {
-              showWhisper(chapter.repulsion[Math.floor(Math.random() * chapter.repulsion.length)]);
+              phrase = chapter.repulsion[Math.floor(Math.random() * chapter.repulsion.length)];
             }
+            showWhisper(phrase);
+            // Spawn floating text at interaction midpoint
+            spawnFloatingText((a.x + b.x) / 2, (a.y + b.y) / 2 - 30, phrase.split(' ').slice(0,3).join(' '));
           }
         }
 
@@ -1417,6 +1528,17 @@ function update(now) {
     }
     for (const t of a.trail) t.alpha *= 0.94;
   }
+
+  // Update floating texts
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.x += ft.vx; ft.y += ft.vy;
+    ft.life -= 0.004;
+    if (ft.life <= 0) floatingTexts.splice(i, 1);
+  }
+
+  // Achievement check
+  if (frameCount % 45 === 0) checkWmAchievements();
 
   // Harmony meter
   if (frameCount % 10 === 0) {
@@ -1673,6 +1795,24 @@ function render() {
         ctx.fill();
       }
     }
+  }
+
+  // Field density background
+  renderFieldDensity();
+
+  // Floating text particles
+  for (const ft of floatingTexts) {
+    if (ft.life < 0.01) continue;
+    const alpha = ft.life * 0.35;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `italic ${Math.round(ft.size)}px Georgia`;
+    ctx.fillStyle = ft.color;
+    ctx.textAlign = 'center';
+    ctx.translate(ft.x, ft.y);
+    ctx.rotate(ft.rot);
+    ctx.fillText(ft.text, 0, 0);
+    ctx.restore();
   }
 
   // Cursor field indicator (desktop)
