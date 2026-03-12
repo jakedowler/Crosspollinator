@@ -138,8 +138,8 @@ APPS = [
     "date": "2026-03-10",
     "word_a": "issuing",
     "word_b": "tilt",
-    "name": "TILT \u2014 What Issues Forth v2",
-    "desc": "Enhanced: audio, obstacles, achievements, endless mode, 3 difficulty settings",
+    "name": "TILT \u2014 What Issues Forth",
+    "desc": "",
     "path": "output/2026-03-10/issuing_tilt_v2.html",
     "version": 2
   },
@@ -165,10 +165,19 @@ APPS = [
     "date": "2026-03-11",
     "word_a": "molten",
     "word_b": "origami",
-    "name": "Molten Origami v2",
-    "desc": "Enhanced: touch-first, 4 shapes with lore, discovery tracking, ambient audio",
+    "name": "Molten Origami",
+    "desc": "",
     "path": "output/2026-03-11/molten_origami_v2.html",
     "version": 2
+  },
+  {
+    "date": "2026-03-11",
+    "word_a": "molten",
+    "word_b": "origami",
+    "name": "The Metal Forge",
+    "desc": "",
+    "path": "output/2026-03-11/molten_origami_v3.html",
+    "version": 3
   },
   {
     "date": "2026-03-11",
@@ -183,8 +192,8 @@ APPS = [
     "date": "2026-03-11",
     "word_a": "whispering",
     "word_b": "magnets",
-    "name": "Whispering Magnets v2",
-    "desc": "Enhanced: light theme, constellation patterns, harmony meter, whisper chapters",
+    "name": "Whispering Magnets",
+    "desc": "",
     "path": "output/2026-03-11/whispering_magnets_v2.html",
     "version": 2
   }
