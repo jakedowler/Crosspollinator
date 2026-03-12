@@ -277,6 +277,30 @@
     background: rgba(199,125,255,0.15);
   }
 
+  #endcard .share-btn {
+    background: none;
+    border: 1px solid var(--cool);
+    color: var(--text-bright);
+    padding: 12px 32px;
+    border-radius: 24px;
+    font-size: 14px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+    margin-left: 10px;
+  }
+
+  #endcard .share-btn:hover {
+    background: rgba(74,205,255,0.15);
+  }
+
+  .end-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+  }
+
   #hint {
     position: absolute;
     bottom: 32px;
@@ -328,13 +352,13 @@
     survive all phases to master the flow
   </div>
   <div class="difficulty">
-    <button class="diff-btn active" data-diff="0" onclick="setDifficulty(0)">Calm</button>
-    <button class="diff-btn" data-diff="1" onclick="setDifficulty(1)">Flow</button>
-    <button class="diff-btn" data-diff="2" onclick="setDifficulty(2)">Torrent</button>
+    <button class="diff-btn active" data-diff="0">Calm</button>
+    <button class="diff-btn" data-diff="1">Flow</button>
+    <button class="diff-btn" data-diff="2">Torrent</button>
   </div>
   <div class="difficulty" style="margin-bottom:20px">
-    <button class="diff-btn active" id="mode-timed" onclick="setGameMode('timed')">Timed</button>
-    <button class="diff-btn" id="mode-endless" onclick="setGameMode('endless')">Endless</button>
+    <button class="diff-btn active" id="mode-timed" data-mode="timed">Timed</button>
+    <button class="diff-btn" id="mode-endless" data-mode="endless">Endless</button>
   </div>
   <button class="start-btn" id="start-btn">Begin</button>
   <div class="high-score" id="high-score-display"></div>
@@ -346,7 +370,10 @@
   <div class="rank-subtitle" id="end-subtitle"></div>
   <div class="final-score" id="final-score">0</div>
   <div class="breakdown" id="breakdown"></div>
-  <button class="again-btn" id="again-btn">once more</button>
+  <div class="end-buttons">
+    <button class="again-btn" id="again-btn">once more</button>
+    <button class="share-btn" id="share-btn">share</button>
+  </div>
 </div>
 
 <script>
@@ -733,6 +760,16 @@
     document.getElementById('mode-timed').classList.toggle('active', mode === 'timed');
     document.getElementById('mode-endless').classList.toggle('active', mode === 'endless');
   }
+
+  // Wire up difficulty buttons via addEventListener (not inline onclick)
+  document.querySelectorAll('[data-diff]').forEach(btn => {
+    btn.addEventListener('click', () => setDifficulty(parseInt(btn.dataset.diff)));
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); setDifficulty(parseInt(btn.dataset.diff)); });
+  });
+  document.querySelectorAll('[data-mode]').forEach(btn => {
+    btn.addEventListener('click', () => setGameMode(btn.dataset.mode));
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); setGameMode(btn.dataset.mode); });
+  });
 
   // --- Constants ---
   const COLORS = {
@@ -2258,17 +2295,60 @@
     requestAnimationFrame(loop);
   }
 
-  document.getElementById('start-btn').addEventListener('click', () => {
+  function handleStart() {
+    if (started && !gameOver) return;
     startGame();
     if (typeof DeviceOrientationEvent !== 'undefined' &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
       DeviceOrientationEvent.requestPermission().catch(() => {});
     }
-  });
+  }
 
-  document.getElementById('again-btn').addEventListener('click', () => {
-    startGame();
-  });
+  document.getElementById('start-btn').addEventListener('click', handleStart);
+  document.getElementById('start-btn').addEventListener('touchend', (e) => { e.preventDefault(); handleStart(); });
+
+  document.getElementById('again-btn').addEventListener('click', () => startGame());
+  document.getElementById('again-btn').addEventListener('touchend', (e) => { e.preventDefault(); startGame(); });
+
+  function shareScore() {
+    const total = Object.values(collected).reduce((a, b) => a + b, 0);
+    const fullVessels = vessels.filter(v => v.fill >= v.capacity).length;
+    const diffLabel = DIFF_SETTINGS[difficulty].label;
+    const text = 'TILT \u2014 What Issues Forth\n'
+      + score + ' pts \u00b7 ' + diffLabel + ' mode\n'
+      + fullVessels + '/4 vessels filled \u00b7 ' + maxCombo + 'x max combo\n'
+      + 'Can you beat my flow?';
+    if (navigator.share) {
+      navigator.share({ title: 'TILT', text: text, url: location.href }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).then(() => {
+        document.getElementById('share-btn').textContent = 'copied!';
+        setTimeout(() => { document.getElementById('share-btn').textContent = 'share'; }, 2000);
+      }).catch(() => {});
+    }
+  }
+  document.getElementById('share-btn').addEventListener('click', shareScore);
+  document.getElementById('share-btn').addEventListener('touchend', (e) => { e.preventDefault(); shareScore(); });
+
+  function shareScore() {
+    const total = Object.values(collected).reduce((a, b) => a + b, 0);
+    const fullVessels = vessels.filter(v => v.fill >= v.capacity).length;
+    const diffLabel = DIFF_SETTINGS[difficulty].label;
+    const text = `TILT \u2014 What Issues Forth\n\n${score} pts \u00B7 ${diffLabel} mode\n${total} caught \u00B7 ${fullVessels}/4 vessels full \u00B7 ${maxCombo}x max combo\n\nCan you beat my score?`;
+
+    if (navigator.share) {
+      navigator.share({ title: 'TILT \u2014 What Issues Forth', text }).catch(() => {});
+    } else {
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('share-btn');
+        btn.textContent = 'copied!';
+        setTimeout(() => { btn.textContent = 'share'; }, 2000);
+      }).catch(() => {});
+    }
+  }
+
+  document.getElementById('share-btn').addEventListener('click', shareScore);
+  document.getElementById('share-btn').addEventListener('touchend', (e) => { e.preventDefault(); shareScore(); });
 
   requestAnimationFrame(loop);
 })();

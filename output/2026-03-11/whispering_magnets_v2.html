@@ -651,7 +651,7 @@ function createWhisperSound(frequency, intensity, pan, type) {
     let consonantMod = 1;
     if (isConsonant) consonantMod = tNorm < 0.1 ? 3 : 0.5;
     if (isSibilant) consonantMod = 1.5;
-    noiseData[i] = (Math.random() * 2 - 1) * env * breathMod * consonantMod * 0.12;
+    noiseData[i] = (Math.random() * 2 - 1) * env * breathMod * consonantMod * 0.05;
   }
 
   const src = audioCtx.createBufferSource();
@@ -671,9 +671,9 @@ function createWhisperSound(frequency, intensity, pan, type) {
   const airFilter = audioCtx.createBiquadFilter();
   airFilter.type = 'highshelf';
   airFilter.frequency.value = 4000;
-  airFilter.gain.value = isSibilant ? 10 : 4;
+  airFilter.gain.value = isSibilant ? 3 : 1;
   const gainNode = audioCtx.createGain();
-  const vol = intensity * (isSibilant ? 0.06 : isConsonant ? 0.08 : 0.1);
+  const vol = intensity * (isSibilant ? 0.02 : isConsonant ? 0.03 : 0.04);
   gainNode.gain.setValueAtTime(0, now);
   gainNode.gain.linearRampToValueAtTime(vol, now + 0.02);
   gainNode.gain.setValueAtTime(vol, now + duration * 0.4);
@@ -1458,19 +1458,19 @@ function update(now) {
 
         // Whisper sounds
         a.whisperCooldown -= dt;
-        if (intensity > 0.2 && a.whisperCooldown <= 0 && time - lastWhisperSoundTime > 0.3) {
+        if (intensity > 0.55 && a.whisperCooldown <= 0 && time - lastWhisperSoundTime > 1.5) {
           const pan = ((a.x + b.x) / 2 / W) * 2 - 1;
           const freq = 150 + (1 - intensity) * 500;
-          const types = ['vowel', 'consonant', 'sibilant'];
-          createWhisperSound(freq, intensity * 0.8, pan, types[Math.floor(Math.random() * 3)]);
+          const types = ['vowel', 'vowel', 'consonant'];
+          createWhisperSound(freq, intensity * 0.35, pan, types[Math.floor(Math.random() * 3)]);
 
-          if (intensity > 0.5 && Math.random() < 0.4) {
+          if (intensity > 0.8 && Math.random() < 0.15) {
             setTimeout(() => {
-              createWhisperSound(freq * 1.3, intensity * 0.4, pan + 0.2, 'sibilant');
-            }, 50 + Math.random() * 100);
+              createWhisperSound(freq * 1.3, intensity * 0.15, pan + 0.2, 'sibilant');
+            }, 150 + Math.random() * 200);
           }
 
-          a.whisperCooldown = 0.3 + Math.random() * (1.5 - intensity);
+          a.whisperCooldown = 2.0 + Math.random() * (3.0 - intensity * 1.5);
           lastWhisperSoundTime = time;
 
           // Text whisper from current chapter

@@ -150,12 +150,13 @@ canvas { display: block; position: absolute; top: 0; left: 0; }
 <div id="heat-bar"><div id="heat-fill"></div></div>
 <div id="heat-label">HEAT</div>
 <div id="controls">
+  <button id="btn-prev" onclick="prevShape()">&larr;</button>
   <button id="btn-fold" class="active" onclick="setMode('fold')">Fold</button>
   <button id="btn-melt" onclick="setMode('melt')">Melt</button>
   <button id="btn-cool" onclick="setMode('cool')">Cool</button>
-  <button id="btn-new" onclick="newShape()">Next</button>
+  <button id="btn-new" onclick="newShape()">&rarr;</button>
 </div>
-<div id="tooltip">tap a crease to fold &bull; swipe to cycle shapes</div>
+<div id="tooltip">tap a crease to fold &bull; use arrows to cycle shapes</div>
 <div id="transform-text"></div>
 <div id="achievement-popup" style="position:fixed;top:30%;left:50%;transform:translate(-50%,-50%);z-index:25;pointer-events:none;text-align:center;opacity:0;transition:opacity 1s;">
   <div class="ach-name" style="font-size:16px;color:#8b2a0a;letter-spacing:4px;text-transform:uppercase;margin-bottom:4px;"></div>
@@ -629,8 +630,8 @@ function showTransformation() {
   setTimeout(() => { el.style.opacity = 0; }, 4000);
 }
 
-function newShape() {
-  currentShape = (currentShape + 1) % shapeGenerators.length;
+function switchToShape(idx) {
+  currentShape = idx;
   shapeGenerators[currentShape]();
   globalHeat = 0.15;
   embers.length = 0; drips.length = 0; sparks.length = 0; smoke.length = 0;
@@ -639,6 +640,12 @@ function newShape() {
   document.getElementById('lore-text').textContent = shapeLore[currentShape];
   document.getElementById('lore-text').style.opacity = 1;
   setTimeout(() => { document.getElementById('lore-text').style.opacity = 0; }, 5000);
+}
+function newShape() {
+  switchToShape((currentShape + 1) % shapeGenerators.length);
+}
+function prevShape() {
+  switchToShape((currentShape - 1 + shapeGenerators.length) % shapeGenerators.length);
 }
 
 // INIT
@@ -670,22 +677,15 @@ function onMove(x, y) {
 }
 function onUp() {
   if (!started) { mouseDown = false; return; }
-  // Swipe detection for shape cycling
+  // Swipe detection for shape cycling — require strongly horizontal gesture
   const swipeDist = mx - swipeStartX;
-  if (Math.abs(swipeDist) > 80 && isDragging) {
+  const swipeDistY = Math.abs(my - dragSY);
+  if (Math.abs(swipeDist) > 150 && isDragging && Math.abs(swipeDist) > swipeDistY * 3) {
     if (swipeDist > 0) {
-      currentShape = (currentShape - 1 + shapeGenerators.length) % shapeGenerators.length;
+      prevShape();
     } else {
-      currentShape = (currentShape + 1) % shapeGenerators.length;
+      newShape();
     }
-    shapeGenerators[currentShape]();
-    globalHeat = 0.15;
-    embers.length=0;drips.length=0;sparks.length=0;smoke.length=0;
-    transformShown = false;
-    document.getElementById('shape-name').textContent = shapeNames[currentShape];
-    document.getElementById('lore-text').textContent = shapeLore[currentShape];
-    document.getElementById('lore-text').style.opacity = 1;
-    setTimeout(() => { document.getElementById('lore-text').style.opacity = 0; }, 5000);
     mouseDown = false; isDragging = false;
     return;
   }
